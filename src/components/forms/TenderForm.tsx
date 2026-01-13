@@ -27,15 +27,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tender, ParentCompany } from '@/types';
-import { assignees } from '@/data/mockData';
 import { toast } from '@/hooks/use-toast';
+import { useData } from '@/contexts/DataContext';
 
-const parentCompanies: ParentCompany[] = ['ABC Tech', 'XCD Tech'];
+const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const tenderSchema = z.object({
   name: z.string().min(1, 'Tender name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
-  belongsTo: z.enum(['ABC Tech', 'XCD Tech'], { required_error: 'Parent company is required' }),
+  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
   status: z.enum(['open', 'submitted', 'awarded', 'closed']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
@@ -57,6 +57,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
   tender,
   onSubmit,
 }) => {
+  const { employees } = useData();
   const isEditing = !!tender;
 
   const form = useForm<TenderFormData>({
@@ -204,9 +205,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {assignees.map((assignee) => (
-                        <SelectItem key={assignee.id} value={assignee.id}>
-                          {assignee.name}
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

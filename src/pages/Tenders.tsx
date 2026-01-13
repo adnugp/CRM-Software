@@ -11,19 +11,20 @@ import TenderForm from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { assignees } from '@/data/mockData';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tender, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const parentCompanyOptions = [
-  { value: 'ABC Tech', label: 'ABC Tech' },
-  { value: 'XCD Tech', label: 'XCD Tech' },
+  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
+  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
 ];
 
+
+
 const Tenders: React.FC = () => {
-  const { tenders, setTenders } = useData();
+  const { tenders, employees, addTender, updateTender, deleteTender } = useData();
   const { user } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
@@ -63,7 +64,7 @@ const Tenders: React.FC = () => {
   }, [companyFilter, belongsToFilter, assigneeFilter, searchQuery, tenders]);
 
   const companyOptions = tenderCompanies.map(c => ({ value: c, label: c }));
-  const assigneeOptions = assignees.map(a => ({ value: a.id, label: a.name }));
+  const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
 
   const handleEdit = (tender: Tender) => {
     setEditingTender(tender);
@@ -75,9 +76,9 @@ const Tenders: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (tenderToDelete) {
-      setTenders(prev => prev.filter(t => t.id !== tenderToDelete.id));
+      await deleteTender(tenderToDelete.id);
       toast({
         title: 'Tender deleted',
         description: `"${tenderToDelete.name}" has been deleted successfully.`,
@@ -86,21 +87,12 @@ const Tenders: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = (data: any) => {
-    const assignee = assignees.find(a => a.id === data.assignedTo);
+  const handleFormSubmit = async (data: any) => {
+    const assignee = employees.find(a => a.id === data.assignedTo);
     if (editingTender) {
-      setTenders(prev => prev.map(t => 
-        t.id === editingTender.id 
-          ? { ...t, ...data, assignedToName: assignee?.name || '' }
-          : t
-      ));
+      await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '' });
     } else {
-      const newTender: Tender = {
-        id: Date.now().toString(),
-        ...data,
-        assignedToName: assignee?.name || '',
-      };
-      setTenders(prev => [newTender, ...prev]);
+      await addTender({ ...data, assignedToName: assignee?.name || '' });
     }
     setEditingTender(null);
   };
@@ -115,24 +107,16 @@ const Tenders: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentUpload = (doc: DocumentFile) => {
+  const handleDocumentUpload = async (doc: DocumentFile) => {
     if (selectedTenderForDoc) {
-      setTenders(prev => prev.map(t =>
-        t.id === selectedTenderForDoc.id
-          ? { ...t, documentFile: doc, document: doc.name }
-          : t
-      ));
+      await updateTender(selectedTenderForDoc.id, { documentFile: doc, document: doc.name });
       setSelectedTenderForDoc(prev => prev ? { ...prev, documentFile: doc, document: doc.name } : null);
     }
   };
 
-  const handleDocumentRemove = () => {
+  const handleDocumentRemove = async () => {
     if (selectedTenderForDoc) {
-      setTenders(prev => prev.map(t =>
-        t.id === selectedTenderForDoc.id
-          ? { ...t, documentFile: undefined, document: undefined }
-          : t
-      ));
+      await updateTender(selectedTenderForDoc.id, { documentFile: undefined, document: undefined });
       setSelectedTenderForDoc(prev => prev ? { ...prev, documentFile: undefined, document: undefined } : null);
     }
   };
@@ -229,7 +213,7 @@ const Tenders: React.FC = () => {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      tender.belongsTo === 'ABC Tech' 
+                      tender.belongsTo === 'Grow Plus Technologies' 
                         ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
                         : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                     }`}>

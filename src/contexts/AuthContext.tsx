@@ -1,4 +1,15 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser,
+  updateProfile
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth } from '@/services/auth';
+import { db } from '@/services/firebase';
 import { User, UserRole } from '@/types';
 
 interface AuthContextType {
@@ -7,104 +18,116 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users storage - in a real app this would be a database
-const getStoredUsers = (): Record<string, { password: string; user: User }> => {
-  const stored = localStorage.getItem('crm_users');
-  if (stored) {
-    return JSON.parse(stored);
-  }
-  // Default users
-  return {
-    'admin@crm.com': {
-      password: 'admin123',
-      user: {
-        id: '1',
-        email: 'admin@crm.com',
-        name: 'Admin User',
-        role: 'admin',
-      },
-    },
-    'user@crm.com': {
-      password: 'user123',
-      user: {
-        id: '2',
-        email: 'user@crm.com',
-        name: 'John Doe',
-        role: 'user',
-      },
-    },
-    'jane@techcorp.com': {
-      password: 'client123',
-      user: {
-        id: '3',
-        email: 'jane@techcorp.com',
-        name: 'Jane Smith',
-        role: 'client',
-        company: 'TechCorp',
-      },
-    },
-  };
-};
-
-const saveUsers = (users: Record<string, { password: string; user: User }>) => {
-  localStorage.setItem('crm_users', JSON.stringify(users));
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('crm_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Listen to Firebase auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        // Get user profile from Firestore
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const userProfile: User = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email!,
+            name: userData.name || firebaseUser.displayName || '',
+            role: userData.role || 'user',
+            company: userData.company,
+          };
+          setUser(userProfile);
+        } else {
+          // Create user profile if it doesn't exist
+          const userProfile: User = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email!,
+            name: firebaseUser.displayName || '',
+            role: 'user',
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), {
+            name: userProfile.name,
+            email: userProfile.email,
+            role: userProfile.role,
+            createdAt: new Date(),
+          });
+          setUser(userProfile);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    const users = getStoredUsers();
-    const userData = users[email.toLowerCase()];
-    if (userData && userData.password === password) {
-      setUser(userData.user);
-      localStorage.setItem('crm_user', JSON.stringify(userData.user));
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
-    const users = getStoredUsers();
-    const emailLower = email.toLowerCase();
-    
-    // Check if email already exists
-    if (users[emailLower]) {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      // Update Firebase Auth profile
+      await updateProfile(userCredential.user, {
+        displayName: name,
+      });
+
+      // Create user document in Firestore
+      const userProfile: User = {
+        id: userCredential.user.uid,
+        email: email,
+        name: name,
+        role: role,
+      };
+
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        name: name,
+        email: email,
+        role: role,
+        createdAt: new Date(),
+      });
+
+      setUser(userProfile);
+      return true;
+    } catch (error) {
+      console.error('Registration error:', error);
       return false;
     }
-
-    const newUser: User = {
-      id: Date.now().toString(),
-      email: emailLower,
-      name,
-      role,
-    };
-
-    users[emailLower] = {
-      password,
-      user: newUser,
-    };
-
-    saveUsers(users);
-    setUser(newUser);
-    localStorage.setItem('crm_user', JSON.stringify(newUser));
-    return true;
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem('crm_user');
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{
+      user,
+      login,
+      register,
+      logout,
+      isAuthenticated: !!user,
+      loading
+    }}>
       {children}
     </AuthContext.Provider>
   );

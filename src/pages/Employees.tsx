@@ -9,17 +9,17 @@ import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import EmployeeForm from '@/components/forms/EmployeeForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { employees as initialEmployees } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { Employee } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Employees: React.FC = () => {
   const { user } = useAuth();
+  const { employees: employeesList, loading, addEmployee, updateEmployee, deleteEmployee } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [employeesList, setEmployeesList] = useState(initialEmployees);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
@@ -51,30 +51,48 @@ const Employees: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (employeeToDelete) {
-      setEmployeesList(prev => prev.filter(e => e.id !== employeeToDelete.id));
-      toast({
-        title: 'Employee deleted',
-        description: `"${employeeToDelete.name}" has been removed successfully.`,
-      });
-      setEmployeeToDelete(null);
+      try {
+        await deleteEmployee(employeeToDelete.id);
+        toast({
+          title: 'Employee deleted',
+          description: `"${employeeToDelete.name}" has been removed successfully.`,
+        });
+        setEmployeeToDelete(null);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete employee.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
-  const handleFormSubmit = (data: any) => {
-    if (editingEmployee) {
-      setEmployeesList(prev => prev.map(e => 
-        e.id === editingEmployee.id ? { ...e, ...data } : e
-      ));
-    } else {
-      const newEmployee: Employee = {
-        id: Date.now().toString(),
-        ...data,
-      };
-      setEmployeesList(prev => [newEmployee, ...prev]);
+  const handleFormSubmit = async (data: any) => {
+    try {
+      if (editingEmployee) {
+        await updateEmployee(editingEmployee.id, data);
+        toast({
+          title: 'Employee updated',
+          description: `"${data.name}" has been updated successfully.`,
+        });
+      } else {
+        await addEmployee(data);
+        toast({
+          title: 'Employee added',
+          description: `"${data.name}" has been added successfully.`,
+        });
+      }
+      setEditingEmployee(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save employee.',
+        variant: 'destructive',
+      });
     }
-    setEditingEmployee(null);
   };
 
   const handleOpenForm = () => {

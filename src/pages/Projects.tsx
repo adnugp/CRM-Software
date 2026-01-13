@@ -11,20 +11,20 @@ import ProjectForm from '@/components/forms/ProjectForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { assignees } from '@/data/mockData';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Project, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const parentCompanyOptions = [
-  { value: 'ABC Tech', label: 'ABC Tech' },
-  { value: 'XCD Tech', label: 'XCD Tech' },
+  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
+  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
 ];
 
 const Projects: React.FC = () => {
   const { user } = useAuth();
-  const { projects, setProjects } = useData();
+  const { projects, employees, addProject, updateProject, deleteProject } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
@@ -67,7 +67,7 @@ const Projects: React.FC = () => {
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
-  const assigneeOptions = assignees.map(a => ({ value: a.id, label: a.name }));
+  const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
@@ -79,9 +79,9 @@ const Projects: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (projectToDelete) {
-      setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
+      await deleteProject(projectToDelete.id);
       toast({
         title: 'Project deleted',
         description: `"${projectToDelete.name}" has been deleted successfully.`,
@@ -90,21 +90,12 @@ const Projects: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = (data: any) => {
-    const assignee = assignees.find(a => a.id === data.assignedTo);
+  const handleFormSubmit = async (data: any) => {
+    const assignee = employees.find(a => a.id === data.assignedTo);
     if (editingProject) {
-      setProjects(prev => prev.map(p => 
-        p.id === editingProject.id 
-          ? { ...p, ...data, assignedToName: assignee?.name || '' }
-          : p
-      ));
+      await updateProject(editingProject.id, { ...data, assignedToName: assignee?.name || '' });
     } else {
-      const newProject: Project = {
-        id: Date.now().toString(),
-        ...data,
-        assignedToName: assignee?.name || '',
-      };
-      setProjects(prev => [newProject, ...prev]);
+      await addProject({ ...data, assignedToName: assignee?.name || '' });
     }
     setEditingProject(null);
   };
@@ -119,24 +110,16 @@ const Projects: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentUpload = (doc: DocumentFile) => {
+  const handleDocumentUpload = async (doc: DocumentFile) => {
     if (selectedProjectForDoc) {
-      setProjects(prev => prev.map(p =>
-        p.id === selectedProjectForDoc.id
-          ? { ...p, documentFile: doc, document: doc.name }
-          : p
-      ));
+      await updateProject(selectedProjectForDoc.id, { documentFile: doc, document: doc.name });
       setSelectedProjectForDoc(prev => prev ? { ...prev, documentFile: doc, document: doc.name } : null);
     }
   };
 
-  const handleDocumentRemove = () => {
+  const handleDocumentRemove = async () => {
     if (selectedProjectForDoc) {
-      setProjects(prev => prev.map(p =>
-        p.id === selectedProjectForDoc.id
-          ? { ...p, documentFile: undefined, document: undefined }
-          : p
-      ));
+      await updateProject(selectedProjectForDoc.id, { documentFile: undefined, document: undefined });
       setSelectedProjectForDoc(prev => prev ? { ...prev, documentFile: undefined, document: undefined } : null);
     }
   };
@@ -235,7 +218,7 @@ const Projects: React.FC = () => {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      project.belongsTo === 'ABC Tech' 
+                      project.belongsTo === 'Grow Plus Technologies' 
                         ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
                         : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                     }`}>

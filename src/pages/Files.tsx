@@ -14,6 +14,7 @@ import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
 import { Plus, FileDown, Trash2, File, FolderOpen } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useData } from '@/contexts/DataContext';
 
 interface FileRecord {
   id: string;
@@ -27,7 +28,7 @@ interface FileRecord {
 
 const Files: React.FC = () => {
   const { user } = useAuth();
-  const [files, setFiles] = useState<FileRecord[]>([]);
+  const { files: filesList, loading, addFile, deleteFile: deleteFileFromContext } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -43,22 +44,22 @@ const Files: React.FC = () => {
   const canEdit = user?.role === 'admin' || user?.role === 'user';
 
   const categories = ['Projects', 'Tenders', 'Registrations', 'Contracts', 'Reports', 'Other'];
-  const companies = ['ABC Tech', 'XCD Tech'];
+  const companies = ['Grow Plus Technologies', 'Sadeem Energy'];
 
   const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
   const companyOptions = companies.map(comp => ({ value: comp, label: comp }));
 
   const filteredFiles = React.useMemo(() => {
-    return files.filter(file => {
+    return filesList.filter(file => {
       const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         file.category.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = !categoryFilter || categoryFilter === 'all' || file.category === categoryFilter;
       const matchesCompany = !companyFilter || companyFilter === 'all' || file.company === companyFilter;
       return matchesSearch && matchesCategory && matchesCompany;
     });
-  }, [files, searchQuery, categoryFilter, companyFilter]);
+  }, [filesList, searchQuery, categoryFilter, companyFilter]);
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!uploadName || !uploadCategory || !uploadCompany || !uploadDocument) {
       toast({
         title: 'Missing information',
@@ -68,23 +69,30 @@ const Files: React.FC = () => {
       return;
     }
 
-    const newFile: FileRecord = {
-      id: Date.now().toString(),
-      name: uploadName,
-      category: uploadCategory,
-      company: uploadCompany,
-      uploadedAt: new Date().toISOString().split('T')[0],
-      uploadedBy: user?.name || 'Unknown',
-      document: uploadDocument,
-    };
+    try {
+      const fileData = {
+        name: uploadName,
+        category: uploadCategory,
+        company: uploadCompany,
+        uploadedAt: new Date().toISOString().split('T')[0],
+        uploadedBy: user?.name || 'Unknown',
+        document: uploadDocument,
+      };
 
-    setFiles([...files, newFile]);
-    toast({
-      title: 'File uploaded',
-      description: `"${uploadName}" has been uploaded successfully.`,
-    });
-    resetUploadForm();
-    setIsUploadDialogOpen(false);
+      await addFile(fileData);
+      toast({
+        title: 'File uploaded',
+        description: `"${uploadName}" has been uploaded successfully.`,
+      });
+      resetUploadForm();
+      setIsUploadDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to upload file.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const resetUploadForm = () => {
@@ -103,14 +111,22 @@ const Files: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteFile) {
-      setFiles(files.filter(f => f.id !== deleteFile.id));
-      toast({
-        title: 'File deleted',
-        description: `"${deleteFile.name}" has been deleted.`,
-      });
-      setDeleteFile(null);
+      try {
+        await deleteFileFromContext(deleteFile.id);
+        toast({
+          title: 'File deleted',
+          description: `"${deleteFile.name}" has been deleted.`,
+        });
+        setDeleteFile(null);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete file.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 

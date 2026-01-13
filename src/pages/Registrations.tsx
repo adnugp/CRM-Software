@@ -1,66 +1,63 @@
 import React, { useState, useMemo } from 'react';
-import { FileDown, Calendar, Building, FileCheck, Pencil, Trash2, Upload } from 'lucide-react';
+import { Calendar, Building, FileCheck, Pencil, Trash2 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
 import RegistrationForm from '@/components/forms/RegistrationForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { registrations as initialRegistrations } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
-import { Registration, ParentCompany } from '@/types';
+import { useData } from '@/contexts/DataContext';
+import { Registration } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const parentCompanyOptions = [
-  { value: 'ABC Tech', label: 'ABC Tech' },
-  { value: 'XCD Tech', label: 'XCD Tech' },
+  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
+  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
 ];
 
 const Registrations: React.FC = () => {
   const { user } = useAuth();
+  const { registrations, addRegistration, updateRegistration, deleteRegistration } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
   const [editingRegistration, setEditingRegistration] = useState<Registration | null>(null);
-  const [registrationsList, setRegistrationsList] = useState(initialRegistrations);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
-  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
-  const [selectedRegForDoc, setSelectedRegForDoc] = useState<Registration | null>(null);
+
 
   const canEdit = user?.role === 'admin' || user?.role === 'user';
 
-  const registrationCompanies = [...new Set(registrationsList.map(r => r.company))];
+  const registrationCompanies = [...new Set(registrations.map(r => r.company))];
   const companyOptions = registrationCompanies.map(c => ({ value: c, label: c }));
 
   const filteredRegistrations = useMemo(() => {
-    let result = registrationsList;
-    
+    let result = registrations;
+
     if (companyFilter !== 'all') {
       result = result.filter(r => r.company === companyFilter);
     }
-    
+
     if (belongsToFilter !== 'all') {
       result = result.filter(r => r.belongsTo === belongsToFilter);
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(r => 
+      result = result.filter(r =>
         r.name.toLowerCase().includes(query) ||
         r.company.toLowerCase().includes(query) ||
         r.type.toLowerCase().includes(query)
       );
     }
-    
+
     return result;
-  }, [searchQuery, companyFilter, belongsToFilter, registrationsList]);
+  }, [searchQuery, companyFilter, belongsToFilter, registrations]);
 
   const handleEdit = (registration: Registration) => {
     setEditingRegistration(registration);
@@ -72,9 +69,9 @@ const Registrations: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (registrationToDelete) {
-      setRegistrationsList(prev => prev.filter(r => r.id !== registrationToDelete.id));
+      await deleteRegistration(registrationToDelete.id);
       toast({
         title: 'Registration deleted',
         description: `"${registrationToDelete.name}" has been deleted successfully.`,
@@ -83,17 +80,11 @@ const Registrations: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = (data: any) => {
+  const handleFormSubmit = async (data: any) => {
     if (editingRegistration) {
-      setRegistrationsList(prev => prev.map(r => 
-        r.id === editingRegistration.id ? { ...r, ...data } : r
-      ));
+      await updateRegistration(editingRegistration.id, data);
     } else {
-      const newRegistration: Registration = {
-        id: Date.now().toString(),
-        ...data,
-      };
-      setRegistrationsList(prev => [newRegistration, ...prev]);
+      await addRegistration(data);
     }
     setEditingRegistration(null);
   };
@@ -103,48 +94,7 @@ const Registrations: React.FC = () => {
     setFormOpen(true);
   };
 
-  const handleOpenDocumentDialog = (registration: Registration) => {
-    setSelectedRegForDoc(registration);
-    setDocumentDialogOpen(true);
-  };
 
-  const handleDocumentUpload = (doc: DocumentFile) => {
-    if (selectedRegForDoc) {
-      setRegistrationsList(prev => prev.map(r =>
-        r.id === selectedRegForDoc.id
-          ? { ...r, documentFile: doc, document: doc.name }
-          : r
-      ));
-      setSelectedRegForDoc(prev => prev ? { ...prev, documentFile: doc, document: doc.name } : null);
-    }
-  };
-
-  const handleDocumentRemove = () => {
-    if (selectedRegForDoc) {
-      setRegistrationsList(prev => prev.map(r =>
-        r.id === selectedRegForDoc.id
-          ? { ...r, documentFile: undefined, document: undefined }
-          : r
-      ));
-      setSelectedRegForDoc(prev => prev ? { ...prev, documentFile: undefined, document: undefined } : null);
-    }
-  };
-
-  const handleDownloadDocument = (registration: Registration) => {
-    if (registration.documentFile) {
-      const link = document.createElement('a');
-      link.href = registration.documentFile.data;
-      link.download = registration.documentFile.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      toast({
-        title: 'Download started',
-        description: `Downloading ${registration.document}...`,
-      });
-    }
-  };
 
   return (
     <MainLayout>
@@ -167,7 +117,7 @@ const Registrations: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {registrationsList.filter(r => r.status === 'active').length}
+                {registrations.filter(r => r.status === 'active').length}
               </p>
               <p className="text-sm text-muted-foreground">Active Registrations</p>
             </div>
@@ -180,7 +130,7 @@ const Registrations: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {registrationsList.filter(r => r.status === 'pending').length}
+                {registrations.filter(r => r.status === 'pending').length}
               </p>
               <p className="text-sm text-muted-foreground">Pending</p>
             </div>
@@ -193,7 +143,7 @@ const Registrations: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {registrationsList.filter(r => r.status === 'expired').length}
+                {registrations.filter(r => r.status === 'expired').length}
               </p>
               <p className="text-sm text-muted-foreground">Expired</p>
             </div>
@@ -259,8 +209,8 @@ const Registrations: React.FC = () => {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      registration.belongsTo === 'ABC Tech' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                      registration.belongsTo === 'Grow Plus Technologies'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                         : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                     }`}>
                       {registration.belongsTo}
@@ -283,28 +233,7 @@ const Registrations: React.FC = () => {
                     <StatusBadge status={registration.status} variant="registration" />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {registration.document || registration.documentFile ? (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="text-primary hover:text-primary/80"
-                        onClick={() => handleDownloadDocument(registration)}
-                      >
-                        <FileDown className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                    ) : canEdit ? (
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleOpenDocumentDialog(registration)}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Upload
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">No document</span>
-                    )}
+                    <span className="text-muted-foreground text-sm">Document feature coming soon</span>
                   </TableCell>
                   {canEdit && (
                     <TableCell>
@@ -346,20 +275,7 @@ const Registrations: React.FC = () => {
         onConfirm={confirmDelete}
       />
 
-      <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage Document - {selectedRegForDoc?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <DocumentUpload
-              document={selectedRegForDoc?.documentFile}
-              onUpload={handleDocumentUpload}
-              onRemove={handleDocumentRemove}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </MainLayout>
   );
 };

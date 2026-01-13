@@ -1,0 +1,129 @@
+# CRM Software Queries
+
+# List all projects
+query ListProjects @auth(level: USER) {
+  projects {
+    id
+    name
+    company
+    belongsTo
+    status
+    assignedTo
+    assignedToName
+    deadline
+    document
+    description
+  }
+}
+
+# Get project by id
+query GetProjectById($id: String!) @auth(level: USER) {
+  project(id: $id) {
+    id
+    name
+    company
+    belongsTo
+    status
+    assignedTo
+    assignedToName
+    deadline
+    document
+    description
+  }
+}
+
+# List all tenders
+query ListTenders @auth(level: USER) {
+  tenders {
+    id
+    name
+    company
+    belongsTo
+    status
+    assignedTo
+    assignedToName
+    deadline
+    document
+    description
+  }
+}
+
+# List all employees
+query ListEmployees @auth(level: USER) {
+  employees {
+    id
+    name
+    email
+    department
+    position
+    phone
+    joinDate
+    status
+  }
+}
+
+# List all registrations
+query ListRegistrations @auth(level: USER) {
+  registrations {
+    id
+    name
+    company
+    belongsTo
+    type
+    registrationDate
+    expiryDate
+    status
+    document
+  }
+}
+
+# List all payments
+query ListPayments @auth(level: USER) {
+  payments {
+    id
+    description
+    amount
+    dueDate
+    status
+    company
+  }
+}
+
+# List all subscriptions
+query ListSubscriptions @auth(level: USER) {
+  subscriptions {
+    id
+    name
+    provider
+    amount
+    billingCycle
+    nextBillingDate
+    status
+  }
+}
+
+# List all partners
+query ListPartners @auth(level: USER) {
+  partners {
+    id
+    name
+    company
+    email
+    phone
+    partnershipType
+    since
+    status
+  }
+}
+
+# Get current user
+query GetCurrentUser @auth(level: USER) {
+  user(key: { id_expr: "auth.uid" }) {
+    id
+    email
+    name
+    role
+    company
+    avatar
+  }
+}

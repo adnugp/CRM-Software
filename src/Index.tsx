@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import Dashboard from './Dashboard';
+import Dashboard from './pages/Dashboard';
 
 const Index: React.FC = () => {
   const { isAuthenticated, user } = useAuth();

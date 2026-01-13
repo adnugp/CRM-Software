@@ -44,14 +44,19 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      id: payment?.id,
+    const paymentData = {
       description: formData.description,
       amount: parseFloat(formData.amount),
       dueDate: formData.dueDate,
       status: formData.status,
       company: formData.company,
-    });
+    };
+
+    if (payment?.id) {
+      onSubmit({ ...paymentData, id: payment.id });
+    } else {
+      onSubmit(paymentData);
+    }
     onOpenChange(false);
   };
 

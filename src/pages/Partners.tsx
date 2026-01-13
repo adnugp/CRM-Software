@@ -7,15 +7,15 @@ import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import PartnerForm from '@/components/forms/PartnerForm';
 import { Button } from '@/components/ui/button';
-import { partners as initialPartners } from '@/data/mockData';
 import { Partner } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { useData } from '@/contexts/DataContext';
 
 const Partners: React.FC = () => {
+  const { partners: partnersList, addPartner, updatePartner, deletePartner } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
-  const [partnersList, setPartnersList] = useState(initialPartners);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [partnerToDelete, setPartnerToDelete] = useState<Partner | null>(null);
 
@@ -39,30 +39,48 @@ const Partners: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (partnerToDelete) {
-      setPartnersList(prev => prev.filter(p => p.id !== partnerToDelete.id));
-      toast({
-        title: 'Partner deleted',
-        description: `"${partnerToDelete.name}" has been removed successfully.`,
-      });
-      setPartnerToDelete(null);
+      try {
+        await deletePartner(partnerToDelete.id);
+        toast({
+          title: 'Partner deleted',
+          description: `"${partnerToDelete.name}" has been removed successfully.`,
+        });
+        setPartnerToDelete(null);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete partner.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
-  const handleFormSubmit = (data: any) => {
-    if (editingPartner) {
-      setPartnersList(prev => prev.map(p => 
-        p.id === editingPartner.id ? { ...p, ...data } : p
-      ));
-    } else {
-      const newPartner: Partner = {
-        id: Date.now().toString(),
-        ...data,
-      };
-      setPartnersList(prev => [newPartner, ...prev]);
+  const handleFormSubmit = async (data: any) => {
+    try {
+      if (editingPartner) {
+        await updatePartner(editingPartner.id, data);
+        toast({
+          title: 'Partner updated',
+          description: `"${data.name}" has been updated successfully.`,
+        });
+      } else {
+        await addPartner(data);
+        toast({
+          title: 'Partner added',
+          description: `"${data.name}" has been added successfully.`,
+        });
+      }
+      setEditingPartner(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save partner.',
+        variant: 'destructive',
+      });
     }
-    setEditingPartner(null);
   };
 
   const handleOpenForm = () => {

@@ -16,7 +16,7 @@ export interface DocumentFile {
   data: string;
 }
 
-export type ParentCompany = 'ABC Tech' | 'XCD Tech';
+export type ParentCompany = 'Grow Plus Technologies' | 'Sadeem Energy';
 
 export interface Project {
   id: string;
@@ -30,6 +30,7 @@ export interface Project {
   document?: string;
   documentFile?: DocumentFile;
   description?: string;
+  createdAt?: Date;
 }
 
 export interface Tender {
@@ -44,6 +45,7 @@ export interface Tender {
   document?: string;
   documentFile?: DocumentFile;
   description?: string;
+  createdAt?: Date;
 }
 
 export interface Employee {
@@ -55,6 +57,7 @@ export interface Employee {
   phone: string;
   joinDate: string;
   status: 'active' | 'inactive';
+  createdAt?: Date;
 }
 
 export interface Registration {
@@ -68,6 +71,7 @@ export interface Registration {
   status: 'active' | 'expired' | 'pending';
   document?: string;
   documentFile?: DocumentFile;
+  createdAt?: Date;
 }
 
 export interface Payment {
@@ -77,6 +81,7 @@ export interface Payment {
   dueDate: string;
   status: 'pending' | 'paid' | 'overdue';
   company: string;
+  createdAt?: Date;
 }
 
 export interface Subscription {
@@ -87,6 +92,7 @@ export interface Subscription {
   billingCycle: 'monthly' | 'yearly';
   nextBillingDate: string;
   status: 'active' | 'cancelled' | 'expired';
+  createdAt?: Date;
 }
 
 export interface Partner {
@@ -98,4 +104,16 @@ export interface Partner {
   partnershipType: string;
   since: string;
   status: 'active' | 'inactive';
+  createdAt?: Date;
+}
+
+export interface FileRecord {
+  id: string;
+  name: string;
+  category: string;
+  company: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  document: DocumentFile;
+  createdAt?: Date;
 }

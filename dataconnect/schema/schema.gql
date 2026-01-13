@@ -1,0 +1,97 @@
+# CRM Software Schema
+
+# User table is keyed by Firebase Auth UID.
+type User @table {
+  id: String! @default(expr: "auth.uid")
+  email: String!
+  name: String!
+  role: String! # 'admin' | 'user' | 'client'
+  company: String
+  avatar: String
+}
+
+# Project table
+type Project @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  company: String!
+  belongsTo: String! # 'ABC Tech' | 'XCD Tech'
+  status: String! # 'pending' | 'in-progress' | 'completed' | 'on-hold'
+  assignedTo: String!
+  assignedToName: String!
+  deadline: String!
+  document: String
+  description: String
+}
+
+# Tender table
+type Tender @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  company: String!
+  belongsTo: String! # 'ABC Tech' | 'XCD Tech'
+  status: String! # 'open' | 'submitted' | 'awarded' | 'closed'
+  assignedTo: String!
+  assignedToName: String!
+  deadline: String!
+  document: String
+  description: String
+}
+
+# Employee table
+type Employee @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  email: String!
+  department: String!
+  position: String!
+  phone: String!
+  joinDate: String!
+  status: String! # 'active' | 'inactive'
+}
+
+# Registration table
+type Registration @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  company: String!
+  belongsTo: String! # 'ABC Tech' | 'XCD Tech'
+  type: String!
+  registrationDate: String!
+  expiryDate: String!
+  status: String! # 'active' | 'expired' | 'pending'
+  document: String
+}
+
+# Payment table
+type Payment @table {
+  id: String! @default(expr: "uuidV4()")
+  description: String!
+  amount: Float!
+  dueDate: String!
+  status: String! # 'pending' | 'paid' | 'overdue'
+  company: String!
+}
+
+# Subscription table
+type Subscription @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  provider: String!
+  amount: Float!
+  billingCycle: String! # 'monthly' | 'yearly'
+  nextBillingDate: String!
+  status: String! # 'active' | 'cancelled' | 'expired'
+}
+
+# Partner table
+type Partner @table {
+  id: String! @default(expr: "uuidV4()")
+  name: String!
+  company: String!
+  email: String!
+  phone: String!
+  partnershipType: String!
+  since: String!
+  status: String! # 'active' | 'inactive'
+}

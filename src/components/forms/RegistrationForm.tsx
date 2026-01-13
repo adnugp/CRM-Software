@@ -28,12 +28,12 @@ import {
 import { Registration, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
-const parentCompanies: ParentCompany[] = ['ABC Tech', 'XCD Tech'];
+const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const registrationSchema = z.object({
   name: z.string().min(1, 'Registration name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
-  belongsTo: z.enum(['ABC Tech', 'XCD Tech'], { required_error: 'Parent company is required' }),
+  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
   type: z.string().min(1, 'Type is required'),
   registrationDate: z.string().min(1, 'Registration date is required'),
   expiryDate: z.string().min(1, 'Expiry date is required'),

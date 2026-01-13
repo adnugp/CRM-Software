@@ -1,36 +1,33 @@
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner } from '@/types';
 
 export const employees: Employee[] = [
-  { id: '1', name: 'Ahmed Hassan', email: 'ahmed@company.com', department: 'Engineering', position: 'Senior Developer', phone: '+971 50 123 4567', joinDate: '2022-03-15', status: 'active' },
-  { id: '2', name: 'Sarah Johnson', email: 'sarah@company.com', department: 'Sales', position: 'Sales Manager', phone: '+971 50 234 5678', joinDate: '2021-08-20', status: 'active' },
-  { id: '3', name: 'Mohammed Ali', email: 'mohammed@company.com', department: 'Operations', position: 'Operations Lead', phone: '+971 50 345 6789', joinDate: '2020-01-10', status: 'active' },
-  { id: '4', name: 'Emily Chen', email: 'emily@company.com', department: 'Marketing', position: 'Marketing Specialist', phone: '+971 50 456 7890', joinDate: '2023-02-01', status: 'active' },
-  { id: '5', name: 'David Wilson', email: 'david@company.com', department: 'Finance', position: 'Financial Analyst', phone: '+971 50 567 8901', joinDate: '2022-11-05', status: 'inactive' },
+  { id: '1', name: 'Mohamed Ismayil', email: 'mmismayil2003@gmail.com', department: 'Engineering', position: 'AI Engineer', phone: '+971 50 123 4567', joinDate: '2022-03-15', status: 'active' },
+  { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@gptechnologies.ae', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', joinDate: '2021-08-20', status: 'active' },
 ];
 
 export const projects: Project[] = [
-  { id: '1', name: 'Website Redesign', company: 'TechCorp', belongsTo: 'ABC Tech', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-15', document: 'project_spec.pdf', description: 'Complete website redesign with modern UI/UX' },
-  { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', belongsTo: 'XCD Tech', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-04-20', document: 'app_requirements.pdf', description: 'Native mobile app for iOS and Android' },
-  { id: '3', name: 'ERP Implementation', company: 'QWE Solutions', belongsTo: 'ABC Tech', status: 'completed', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-02-28', document: 'erp_docs.pdf', description: 'Full ERP system implementation' },
-  { id: '4', name: 'Cloud Migration', company: 'TechCorp', belongsTo: 'ABC Tech', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-05-10', description: 'Migrate infrastructure to AWS' },
-  { id: '5', name: 'Security Audit', company: 'Al Thahir Group', belongsTo: 'XCD Tech', status: 'on-hold', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment' },
-  { id: '6', name: 'Data Analytics Platform', company: 'ZXY Industries', belongsTo: 'XCD Tech', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-06-15', description: 'Build custom analytics dashboard' },
+  { id: '1', name: 'Website Redesign', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-15', document: 'project_spec.pdf', description: 'Complete website redesign with modern UI/UX' },
+  { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-04-20', document: 'app_requirements.pdf', description: 'Native mobile app for iOS and Android' },
+  { id: '3', name: 'ERP Implementation', company: 'QWE Solutions', belongsTo: 'Grow Plus Technologies', status: 'completed', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-02-28', document: 'erp_docs.pdf', description: 'Full ERP system implementation' },
+  { id: '4', name: 'Cloud Migration', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-05-10', description: 'Migrate infrastructure to AWS' },
+  { id: '5', name: 'Security Audit', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', status: 'on-hold', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment' },
+  { id: '6', name: 'Data Analytics Platform', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-06-15', description: 'Build custom analytics dashboard' },
 ];
 
 export const tenders: Tender[] = [
-  { id: '1', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'ABC Tech', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
-  { id: '2', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'XCD Tech', status: 'submitted', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
-  { id: '3', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'ABC Tech', status: 'awarded', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-05-01', description: 'Hospital management software' },
-  { id: '4', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'XCD Tech', status: 'closed', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-02-20', description: 'Core banking system upgrade' },
-  { id: '5', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'ABC Tech', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-04-30', description: 'E-learning platform development' },
+  { id: '1', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
+  { id: '2', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
+  { id: '3', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'Grow Plus Technologies', status: 'awarded', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-05-01', description: 'Hospital management software' },
+  { id: '4', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'closed', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-02-20', description: 'Core banking system upgrade' },
+  { id: '5', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-04-30', description: 'E-learning platform development' },
 ];
 
 export const registrations: Registration[] = [
-  { id: '1', name: 'Al Thahir Group Registration', company: 'Al Thahir Group', belongsTo: 'ABC Tech', type: 'Trade License', registrationDate: '2023-01-15', expiryDate: '2025-01-14', status: 'active', document: 'trade_license.pdf' },
-  { id: '2', name: 'TechCorp LLC Formation', company: 'TechCorp', belongsTo: 'ABC Tech', type: 'Company Formation', registrationDate: '2022-06-20', expiryDate: '2024-06-19', status: 'active', document: 'formation_docs.pdf' },
-  { id: '3', name: 'ZXY VAT Registration', company: 'ZXY Industries', belongsTo: 'XCD Tech', type: 'VAT Registration', registrationDate: '2023-03-01', expiryDate: '2024-02-28', status: 'expired' },
-  { id: '4', name: 'QWE ISO Certification', company: 'QWE Solutions', belongsTo: 'XCD Tech', type: 'ISO 9001', registrationDate: '2023-08-10', expiryDate: '2026-08-09', status: 'active', document: 'iso_cert.pdf' },
-  { id: '5', name: 'Municipality License Renewal', company: 'Al Thahir Group', belongsTo: 'XCD Tech', type: 'Municipality License', registrationDate: '2024-01-01', expiryDate: '2024-12-31', status: 'pending' },
+  { id: '1', name: 'Al Thahir Group Registration', company: 'Al Thahir Group', belongsTo: 'Grow Plus Technologies', type: 'Trade License', registrationDate: '2023-01-15', expiryDate: '2025-01-14', status: 'active', document: 'trade_license.pdf' },
+  { id: '2', name: 'TechCorp LLC Formation', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', type: 'Company Formation', registrationDate: '2022-06-20', expiryDate: '2024-06-19', status: 'active', document: 'formation_docs.pdf' },
+  { id: '3', name: 'ZXY VAT Registration', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', type: 'VAT Registration', registrationDate: '2023-03-01', expiryDate: '2024-02-28', status: 'expired' },
+  { id: '4', name: 'QWE ISO Certification', company: 'QWE Solutions', belongsTo: 'Sadeem Energy', type: 'ISO 9001', registrationDate: '2023-08-10', expiryDate: '2026-08-09', status: 'active', document: 'iso_cert.pdf' },
+  { id: '5', name: 'Municipality License Renewal', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', type: 'Municipality License', registrationDate: '2024-01-01', expiryDate: '2024-12-31', status: 'pending' },
 ];
 
 export const payments: Payment[] = [

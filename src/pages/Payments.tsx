@@ -15,7 +15,14 @@ import { Payment, Subscription } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Payments: React.FC = () => {
-  const { payments, setPayments, subscriptions, setSubscriptions } = useData();
+  const {
+    payments,
+    subscriptions,
+    addPayment,
+    updatePayment,
+    addSubscription,
+    updateSubscription
+  } = useData();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -39,16 +46,22 @@ const Payments: React.FC = () => {
     setConfirmDialogOpen(true);
   };
 
-  const confirmMarkPaid = () => {
+  const confirmMarkPaid = async () => {
     if (selectedPayment) {
-      setPayments(prev => prev.map(p =>
-        p.id === selectedPayment.id ? { ...p, status: 'paid' as const } : p
-      ));
-      toast({
-        title: 'Payment marked as paid',
-        description: `"${selectedPayment.description}" has been marked as paid.`,
-      });
-      setSelectedPayment(null);
+      try {
+        await updatePayment(selectedPayment.id, { ...selectedPayment, status: 'paid' as const });
+        toast({
+          title: 'Payment marked as paid',
+          description: `"${selectedPayment.description}" has been marked as paid.`,
+        });
+        setSelectedPayment(null);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to mark payment as paid. Please try again.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -62,24 +75,27 @@ const Payments: React.FC = () => {
     setPaymentFormOpen(true);
   };
 
-  const handlePaymentSubmit = (paymentData: Omit<Payment, 'id'> & { id?: string }) => {
-    if (paymentData.id) {
-      setPayments(prev => prev.map(p =>
-        p.id === paymentData.id ? { ...paymentData, id: p.id } as Payment : p
-      ));
+  const handlePaymentSubmit = async (paymentData: Omit<Payment, 'id'> & { id?: string }) => {
+    try {
+      if (paymentData.id) {
+        await updatePayment(paymentData.id, paymentData);
+        toast({
+          title: 'Payment updated',
+          description: `"${paymentData.description}" has been updated.`,
+        });
+      } else {
+        const { id, ...paymentWithoutId } = paymentData;
+        await addPayment(paymentWithoutId);
+        toast({
+          title: 'Payment added',
+          description: `"${paymentData.description}" has been added.`,
+        });
+      }
+    } catch (error) {
       toast({
-        title: 'Payment updated',
-        description: `"${paymentData.description}" has been updated.`,
-      });
-    } else {
-      const newPayment: Payment = {
-        ...paymentData,
-        id: Date.now().toString(),
-      };
-      setPayments(prev => [...prev, newPayment]);
-      toast({
-        title: 'Payment added',
-        description: `"${paymentData.description}" has been added.`,
+        title: 'Error',
+        description: 'Failed to save payment. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -94,24 +110,27 @@ const Payments: React.FC = () => {
     setSubscriptionFormOpen(true);
   };
 
-  const handleSubscriptionSubmit = (subscriptionData: Omit<Subscription, 'id'> & { id?: string }) => {
-    if (subscriptionData.id) {
-      setSubscriptions(prev => prev.map(s =>
-        s.id === subscriptionData.id ? { ...subscriptionData, id: s.id } as Subscription : s
-      ));
+  const handleSubscriptionSubmit = async (subscriptionData: Omit<Subscription, 'id'> & { id?: string }) => {
+    try {
+      if (subscriptionData.id) {
+        await updateSubscription(subscriptionData.id, subscriptionData);
+        toast({
+          title: 'Subscription updated',
+          description: `"${subscriptionData.name}" has been updated.`,
+        });
+      } else {
+        const { id, ...subscriptionWithoutId } = subscriptionData;
+        await addSubscription(subscriptionWithoutId);
+        toast({
+          title: 'Subscription added',
+          description: `"${subscriptionData.name}" has been added.`,
+        });
+      }
+    } catch (error) {
       toast({
-        title: 'Subscription updated',
-        description: `"${subscriptionData.name}" has been updated.`,
-      });
-    } else {
-      const newSubscription: Subscription = {
-        ...subscriptionData,
-        id: Date.now().toString(),
-      };
-      setSubscriptions(prev => [...prev, newSubscription]);
-      toast({
-        title: 'Subscription added',
-        description: `"${subscriptionData.name}" has been added.`,
+        title: 'Error',
+        description: 'Failed to save subscription. Please try again.',
+        variant: 'destructive',
       });
     }
   };
