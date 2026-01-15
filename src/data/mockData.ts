@@ -23,10 +23,7 @@ export const tenders: Tender[] = [
 ];
 
 export const registrations: Registration[] = [
-  { id: '1', name: 'Al Thahir Group Registration', company: 'Al Thahir Group', belongsTo: 'Grow Plus Technologies', type: 'Trade License', registrationDate: '2023-01-15', expiryDate: '2025-01-14', status: 'active', document: 'trade_license.pdf' },
-  { id: '2', name: 'TechCorp LLC Formation', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', type: 'Company Formation', registrationDate: '2022-06-20', expiryDate: '2024-06-19', status: 'active', document: 'formation_docs.pdf' },
-  { id: '3', name: 'ZXY VAT Registration', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', type: 'VAT Registration', registrationDate: '2023-03-01', expiryDate: '2024-02-28', status: 'expired' },
-  { id: '4', name: 'QWE ISO Certification', company: 'QWE Solutions', belongsTo: 'Sadeem Energy', type: 'ISO 9001', registrationDate: '2023-08-10', expiryDate: '2026-08-09', status: 'active', document: 'iso_cert.pdf' },
+ 
   { id: '5', name: 'Municipality License Renewal', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', type: 'Municipality License', registrationDate: '2024-01-01', expiryDate: '2024-12-31', status: 'pending' },
 ];
 
