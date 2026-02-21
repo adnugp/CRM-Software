@@ -188,7 +188,7 @@ const Registrations: React.FC = () => {
                 <TableHead className="hidden lg:table-cell">Registration Date</TableHead>
                 <TableHead className="hidden md:table-cell">Expiry Date</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden sm:table-cell">Document</TableHead>
+                {/* <TableHead className="hidden sm:table-cell">Document</TableHead> */}
                 {canEdit && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -232,9 +232,9 @@ const Registrations: React.FC = () => {
                   <TableCell>
                     <StatusBadge status={registration.status} variant="registration" />
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  {/*<TableCell className="hidden sm:table-cell">
                     <span className="text-muted-foreground text-sm">Document feature coming soon</span>
-                  </TableCell>
+                  </TableCell>*/}
                   {canEdit && (
                     <TableCell>
                       <div className="flex items-center gap-1">
