@@ -39,7 +39,7 @@ const Sidebar: React.FC = () => {
   ];
 
   const filteredMenuItems = menuItems.filter(item => 
-    user && item.roles.includes(user.role)
+    !user || item.roles.includes(user.role)
   );
 
   const SidebarContent = () => (

@@ -8,12 +8,14 @@ import ProjectStatusChart from '@/components/charts/ProjectStatusChart';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+
 // Dashboard Page Component
 // Displays an overview of key metrics, recent projects, and activity
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { projects, stats } = useData();
 
+const canEdit = user?.role === 'admin' || user?.role === 'user';
   const recentProjects = projects.slice(0, 5);
 
   return (

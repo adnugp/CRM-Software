@@ -30,36 +30,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Listen to Firebase auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      console.log('Auth state changed:', firebaseUser ? 'User logged in' : 'User logged out');
       if (firebaseUser) {
         // Get user profile from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          const userProfile: User = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email!,
-            name: userData.name || firebaseUser.displayName || '',
-            role: userData.role || 'user',
-            company: userData.company,
-          };
-          setUser(userProfile);
-        } else {
-          // Create user profile if it doesn't exist
-          const userProfile: User = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email!,
-            name: firebaseUser.displayName || '',
-            role: 'user',
-          };
-          await setDoc(doc(db, 'users', firebaseUser.uid), {
-            name: userProfile.name,
-            email: userProfile.email,
-            role: userProfile.role,
-            createdAt: new Date(),
-          });
-          setUser(userProfile);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userProfile: User = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email!,
+              name: userData.name || firebaseUser.displayName || '',
+              role: userData.role || 'user',
+              company: userData.company,
+            };
+            setUser(userProfile);
+            console.log('User profile loaded:', userProfile);
+          } else {
+            // Create user profile if it doesn't exist
+            const userProfile: User = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email!,
+              name: firebaseUser.displayName || '',
+              role: 'user',
+            };
+            await setDoc(doc(db, 'users', firebaseUser.uid), {
+              name: userProfile.name,
+              email: userProfile.email,
+              role: userProfile.role,
+              createdAt: new Date(),
+            });
+            setUser(userProfile);
+            console.log('User profile created:', userProfile);
+          }
+        } catch (error) {
+          console.error('Error loading user profile:', error);
         }
       } else {
+        console.log('User logged out, clearing user state');
         setUser(null);
       }
       setLoading(false);
@@ -70,7 +78,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
+      console.log('Attempting login with email:', email);
       await signInWithEmailAndPassword(auth, email, password);
+      console.log('Login successful');
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -112,8 +122,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(async () => {
     try {
+      console.log('Attempting to logout...');
       await signOut(auth);
       setUser(null);
+      console.log('Logout successful');
     } catch (error) {
       console.error('Logout error:', error);
     }

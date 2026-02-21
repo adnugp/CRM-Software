@@ -10,6 +10,7 @@ import {
   getFiles, addFile, updateFile, deleteFile
 } from '@/services/firestore';
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
+import { projects as mockProjects, tenders as mockTenders, employees as mockEmployees, registrations as mockRegistrations, payments as mockPayments, subscriptions as mockSubscriptions, partners as mockPartners } from '@/data/mockData';
 
 interface DataContextType {
   // Data
@@ -104,23 +105,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchData = async () => {
       try {
         const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-          getProjects(),
-          getTenders(),
-          getEmployees(),
-          getRegistrations(),
-          getPayments(),
-          getSubscriptions(),
-          getPartners(),
-          getFiles(),
+          getProjects().catch(() => mockProjects),
+          getTenders().catch(() => mockTenders),
+          getEmployees().catch(() => mockEmployees),
+          getRegistrations().catch(() => mockRegistrations),
+          getPayments().catch(() => mockPayments),
+          getSubscriptions().catch(() => mockSubscriptions),
+          getPartners().catch(() => mockPartners),
+          getFiles().catch(() => []),
         ]);
 
-        setProjects(projectsData);
-        setTenders(tendersData);
-        setEmployees(employeesData);
-        setRegistrations(registrationsData);
-        setPayments(paymentsData);
-        setSubscriptions(subscriptionsData);
-        setPartners(partnersData);
+        // Use mock data if Firestore is empty or fallback
+        setProjects(projectsData.length > 0 ? projectsData : mockProjects);
+        setTenders(tendersData.length > 0 ? tendersData : mockTenders);
+        setEmployees(employeesData.length > 0 ? employeesData : mockEmployees);
+        setRegistrations(registrationsData.length > 0 ? registrationsData : mockRegistrations);
+        setPayments(paymentsData.length > 0 ? paymentsData : mockPayments);
+        setSubscriptions(subscriptionsData.length > 0 ? subscriptionsData : mockSubscriptions);
+        setPartners(partnersData.length > 0 ? partnersData : mockPartners);
         setFiles(filesData);
 
         setLoading({
@@ -134,7 +136,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           files: false,
         });
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching data, using mock data:', error);
+        // Use mock data as fallback
+        setProjects(mockProjects);
+        setTenders(mockTenders);
+        setEmployees(mockEmployees);
+        setRegistrations(mockRegistrations);
+        setPayments(mockPayments);
+        setSubscriptions(mockSubscriptions);
+        setPartners(mockPartners);
+        setFiles([]);
+
         setLoading({
           projects: false,
           tenders: false,

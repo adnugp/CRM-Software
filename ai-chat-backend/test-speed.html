@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Chatbot Speed Test</title>
+</head>
+
+<body>
+    <h1>Chatbot Speed Test</h1>
+    <div>
+        <button onclick="testSpeed()">Test Response Speed</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let ws;
+        let startTime;
+        let testCount = 0;
+        const maxTests = 3;
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:3001');
+
+            ws.onopen = function () {
+                console.log('Connected to WebSocket');
+                document.getElementById('results').innerHTML += '<p>✅ Connected to server</p>';
+            };
+
+            ws.onmessage = function (event) {
+                const endTime = performance.now();
+                const responseTime = Math.round(endTime - startTime);
+
+                const response = JSON.parse(event.data);
+                document.getElementById('results').innerHTML += `
+                    <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                        <strong>Test ${testCount}:</strong><br>
+                        <strong>Response Time:</strong> ${responseTime}ms<br>
+                        <strong>Response:</strong> ${response.response}<br>
+                        <em>Optimization: ${responseTime < 3000 ? '🚀 Fast' : responseTime < 10000 ? '⚡ Good' : '🐌 Slow'}</em>
+                    </div>
+                `;
+
+                testCount++;
+                if (testCount < maxTests) {
+                    setTimeout(() => sendTestMessage(), 1000);
+                } else {
+                    document.getElementById('results').innerHTML += '<p><strong>🎉 Speed test completed!</strong></p>';
+                }
+            };
+
+            ws.onerror = function (error) {
+                console.error('WebSocket error:', error);
+                document.getElementById('results').innerHTML += '<p>❌ WebSocket error</p>';
+            };
+        }
+
+        function sendTestMessage() {
+            const testMessages = [
+                'Hello, how can you help me?',
+                'Show me employee information',
+                'What payments are pending?'
+            ];
+
+            const message = testMessages[testCount - 1] || 'Hello';
+            startTime = performance.now();
+
+            ws.send(JSON.stringify({
+                type: 'message',
+                message: message,
+                sessionId: 'speed-test-' + Date.now()
+            }));
+        }
+
+        function testSpeed() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connectWebSocket();
+                setTimeout(() => {
+                    testCount = 1;
+                    document.getElementById('results').innerHTML = '<h3>Testing chatbot response speed...</h3>';
+                    sendTestMessage();
+                }, 1000);
+            } else {
+                testCount = 1;
+                document.getElementById('results').innerHTML = '<h3>Testing chatbot response speed...</h3>';
+                sendTestMessage();
+            }
+        }
+
+        // Auto-connect on page load
+        window.onload = connectWebSocket;
+    </script>
+</body>
+
+</html>

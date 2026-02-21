@@ -57,8 +57,27 @@ const TenderForm: React.FC<TenderFormProps> = ({
   tender,
   onSubmit,
 }) => {
-  const { employees } = useData();
+  const { employees, tenders } = useData();
   const isEditing = !!tender;
+
+  // Remove duplicate employees based on ID and name
+  const uniqueEmployees = React.useMemo(() => {
+    const seen = new Set();
+    return employees.filter(employee => {
+      const key = `${employee.id}-${employee.name}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }, [employees]);
+
+  // Get unique company names from existing tenders
+  const uniqueCompanies = React.useMemo(() => {
+    const companies = [...new Set(tenders.map(t => t.company).filter(Boolean))];
+    return companies.sort();
+  }, [tenders]);
 
   const form = useForm<TenderFormData>({
     resolver: zodResolver(tenderSchema),
@@ -136,7 +155,19 @@ const TenderForm: React.FC<TenderFormProps> = ({
                 <FormItem>
                   <FormLabel>Company/Organization</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter company name" {...field} />
+                    <div className="relative">
+                      <Input 
+                        placeholder="Enter company name" 
+                        {...field} 
+                        autoComplete="off"
+                        list="companies-datalist"
+                      />
+                      <datalist id="companies-datalist">
+                        {uniqueCompanies.map((company) => (
+                          <option key={company} value={company} />
+                        ))}
+                      </datalist>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -205,7 +236,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {employees.map((employee) => (
+                      {uniqueEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.name}
                         </SelectItem>

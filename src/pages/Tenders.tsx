@@ -57,7 +57,8 @@ const Tenders: React.FC = () => {
       result = result.filter(t => 
         t.name.toLowerCase().includes(query) ||
         t.company.toLowerCase().includes(query) ||
-        t.assignedToName.toLowerCase().includes(query)
+        t.assignedToName.toLowerCase().includes(query) ||
+        t.belongsTo.toLowerCase().includes(query)
       );
     }
     return result;

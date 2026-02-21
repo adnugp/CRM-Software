@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🧪 Test All CRM Filters</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .section h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin: 15px 0; }
+        .test-btn { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.3s; }
+        .test-btn:hover { background: #0056b3; transform: translateY(-1px); }
+        .tender-btn { background: #28a745; }
+        .tender-btn:hover { background: #1e7e34; }
+        .project-btn { background: #ffc107; color: #212529; }
+        .project-btn:hover { background: #e0a800; }
+        .payment-btn { background: #dc3545; }
+        .payment-btn:hover { background: #c82333; }
+        .employee-btn { background: #6f42c1; }
+        .employee-btn:hover { background: #5a32a3; }
+        .file-btn { background: #17a2b8; }
+        .file-btn:hover { background: #138496; }
+        .registration-btn { background: #6c757d; }
+        .registration-btn:hover { background: #545b62; }
+        .results-section { max-height: 400px; overflow-y: auto; }
+        .result { margin: 10px 0; padding: 12px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 14px; white-space: pre-wrap; }
+        .success { background: #d4edda; border-left: 4px solid #28a745; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; }
+        .error { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .info { background: #d1ecf1; border-left: 4px solid #17a2b8; }
+        .stats { display: flex; justify-content: space-around; margin: 15px 0; padding: 15px; background: #e9ecef; border-radius: 5px; }
+        .stat-item { text-align: center; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #007bff; }
+        .stat-label { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Comprehensive CRM Filter Test</h1>
+        <p>Testing all filtering capabilities across all CRM sections!</p>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalTests">0</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="avgTime">0ms</div>
+                <div class="stat-label">Avg Response Time</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="successRate">0%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+        </div>
+
+        <!-- Tenders -->
+        <div class="section">
+            <h2>📋 Tender Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn tender-btn" onclick="testQuery('how many tenders')">How Many Tenders</button>
+                <button class="test-btn tender-btn" onclick="testQuery('open tenders')">Open Tenders</button>
+                <button class="test-btn tender-btn" onclick="testQuery('submitted tenders')">Submitted Tenders</button>
+                <button class="test-btn tender-btn" onclick="testQuery('awarded tenders')">Awarded Tenders</button>
+                <button class="test-btn tender-btn" onclick="testQuery('ajumal tenders')">Ajumal's Tenders</button>
+                <button class="test-btn tender-btn" onclick="testQuery('ismayil tenders')">Ismayil's Tenders</button>
+            </div>
+        </div>
+
+        <!-- Projects -->
+        <div class="section">
+            <h2>🏗️ Project Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn project-btn" onclick="testQuery('how many projects')">How Many Projects</button>
+                <button class="test-btn project-btn" onclick="testQuery('in-progress projects')">In-Progress Projects</button>
+                <button class="test-btn project-btn" onclick="testQuery('completed projects')">Completed Projects</button>
+                <button class="test-btn project-btn" onclick="testQuery('ajumal projects')">Ajumal's Projects</button>
+                <button class="test-btn project-btn" onclick="testQuery('ismayil projects')">Ismayil's Projects</button>
+            </div>
+        </div>
+
+        <!-- Payments -->
+        <div class="section">
+            <h2>💰 Payment Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn payment-btn" onclick="testQuery('how many payments')">How Many Payments</button>
+                <button class="test-btn payment-btn" onclick="testQuery('pending payments')">Pending Payments</button>
+                <button class="test-btn payment-btn" onclick="testQuery('paid payments')">Paid Payments</button>
+                <button class="test-btn payment-btn" onclick="testQuery('microsoft payments')">Microsoft Payments</button>
+            </div>
+        </div>
+
+        <!-- Employees -->
+        <div class="section">
+            <h2>👥 Employee Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn employee-btn" onclick="testQuery('how many employees')">How Many Employees</button>
+                <button class="test-btn employee-btn" onclick="testQuery('active employees')">Active Employees</button>
+                <button class="test-btn employee-btn" onclick="testQuery('engineering employees')">Engineering Employees</button>
+                <button class="test-btn employee-btn" onclick="testQuery('sales employees')">Sales Employees</button>
+                <button class="test-btn employee-btn" onclick="testQuery('ajumal')">Employee Ajumal</button>
+                <button class="test-btn employee-btn" onclick="testQuery('ismayil')">Employee Ismayil</button>
+                <button class="test-btn employee-btn" onclick="testQuery('adnan')">Employee Adnan</button>
+            </div>
+        </div>
+
+        <!-- Files -->
+        <div class="section">
+            <h2>📁 File Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn file-btn" onclick="testQuery('how many files')">How Many Files</button>
+                <button class="test-btn file-btn" onclick="testQuery('pdf files')">PDF Files</button>
+                <button class="test-btn file-btn" onclick="testQuery('document files')">Document Files</button>
+                <button class="test-btn file-btn" onclick="testQuery('active files')">Active Files</button>
+                <button class="test-btn file-btn" onclick="testQuery('archived files')">Archived Files</button>
+            </div>
+        </div>
+
+        <!-- Registrations -->
+        <div class="section">
+            <h2>📝 Registration Filters</h2>
+            <div class="test-grid">
+                <button class="test-btn registration-btn" onclick="testQuery('how many registrations')">How Many Registrations</button>
+                <button class="test-btn registration-btn" onclick="testQuery('active registrations')">Active Registrations</button>
+                <button class="test-btn registration-btn" onclick="testQuery('commercial registrations')">Commercial Registrations</button>
+                <button class="test-btn registration-btn" onclick="testQuery('dubai police registrations')">Dubai Police Registrations</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section">
+            <h2>📊 Test Results</h2>
+            <div class="results-section" id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let totalTests = 0;
+        let totalTime = 0;
+        let successCount = 0;
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:3001');
+            ws.onopen = () => addResult('✅ Connected to CRM server with comprehensive filtering!', 'success');
+            ws.onmessage = (event) => {
+                const response = JSON.parse(event.data);
+                const endTime = performance.now();
+                const responseTime = Math.round(endTime - testStartTime);
+                
+                totalTests++;
+                totalTime += responseTime;
+                
+                let resultClass = 'success';
+                let statusIcon = '🚀';
+                
+                if (response.response.includes('No') && response.response.includes('found')) {
+                    resultClass = 'warning';
+                    statusIcon = '⚠️';
+                } else if (response.response.includes('Error') || response.response.includes('unable')) {
+                    resultClass = 'error';
+                    statusIcon = '❌';
+                    successCount--;
+                } else if (responseTime < 200) {
+                    statusIcon = '⚡';
+                } else if (responseTime < 1000) {
+                    statusIcon = '🚀';
+                } else if (responseTime < 5000) {
+                    statusIcon = '🐢';
+                } else {
+                    statusIcon = '🐌';
+                }
+                
+                successCount++;
+                updateStats();
+                
+                addResult(`
+                    <strong>${statusIcon} Query Response:</strong><br>
+                    <strong>Time:</strong> ${responseTime}ms<br>
+                    <strong>Response:</strong><br>${response.response.replace(/\n/g, '<br>')}
+                `, resultClass);
+            };
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addResult('❌ WebSocket error - check if server is running', 'error');
+            };
+        }
+
+        function addResult(message, className = 'info') {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'result ' + className;
+            resultDiv.innerHTML = message;
+            document.getElementById('results').appendChild(resultDiv);
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function testQuery(query) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addResult('❌ Not connected to server', 'error');
+                return;
+            }
+            
+            testStartTime = performance.now();
+            
+            ws.send(JSON.stringify({
+                type: 'chat',
+                message: query,
+                sessionId: 'test-' + Date.now()
+            }));
+            
+            addResult(`📤 Testing: "${query}"`, 'info');
+        }
+
+        function updateStats() {
+            document.getElementById('totalTests').textContent = totalTests;
+            document.getElementById('avgTime').textContent = totalTests > 0 ? Math.round(totalTime / totalTests) + 'ms' : '0ms';
+            document.getElementById('successRate').textContent = totalTests > 0 ? Math.round((successCount / totalTests) * 100) + '%' : '0%';
+        }
+
+        window.onload = connectWebSocket;
+    </script>
+</body>
+</html>

@@ -3,19 +3,19 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
 
-const Index: React.FC = () => {
+export default function Index() {
   const { isAuthenticated, user } = useAuth();
 
+  // Redirect based on authentication status
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Clients are redirected to projects page
+  // Route based on user role
   if (user?.role === 'client') {
     return <Navigate to="/projects" replace />;
   }
 
+  // If authenticated and not client, show regular dashboard
   return <Dashboard />;
-};
-
-export default Index;
+}

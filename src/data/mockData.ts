@@ -15,11 +15,16 @@ export const projects: Project[] = [
 ];
 
 export const tenders: Tender[] = [
-  { id: '1', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
-  { id: '2', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
-  { id: '3', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'Grow Plus Technologies', status: 'awarded', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-05-01', description: 'Hospital management software' },
-  { id: '4', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'closed', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-02-20', description: 'Core banking system upgrade' },
-  { id: '5', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-04-30', description: 'E-learning platform development' },
+  { id: '1', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
+  { id: '2', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
+  { id: '3', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'Grow Plus Technologies', status: 'awarded', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-05-01', document: 'healthcare_system.pdf', description: 'Hospital management software' },
+  { id: '4', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'closed', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-02-20', document: 'banking_upgrade.pdf', description: 'Core banking system upgrade' },
+  { id: '5', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-04-30', document: 'education_platform.pdf', description: 'E-learning platform development' },
+  { id: '6', name: 'Transport Management System', company: 'RTA', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-06-15', document: 'transport_system.pdf', description: 'Public transport management system' },
+  { id: '7', name: 'Security Solutions', company: 'Dubai Police', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-07-20', document: 'security_solutions.pdf', description: 'Advanced security monitoring system' },
+  { id: '8', name: 'Energy Management Platform', company: 'DEWA', belongsTo: 'Sadeem Energy', status: 'awarded', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-08-10', document: 'energy_platform.pdf', description: 'Smart energy monitoring and management' },
+  { id: '9', name: 'Retail POS System', company: 'Majid Al Futtaim', belongsTo: 'Grow Plus Technologies', status: 'submitted', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-09-05', document: 'retail_pos.pdf', description: 'Point of sale system for retail chain' },
+  { id: '10', name: 'Logistics Tracking System', company: 'Aramex', belongsTo: 'Sadeem Energy', status: 'open', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-10-15', document: 'logistics_tracking.pdf', description: 'Real-time logistics and shipment tracking' },
 ];
 
 export const registrations: Registration[] = [
