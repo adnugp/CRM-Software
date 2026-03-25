@@ -142,7 +142,7 @@ const NotificationCenter: React.FC = () => {
 
       const daysDiff = getDaysDifference(tender.deadline);
 
-      if (tender.status === "open") {
+      if (tender.status === "running") {
         if (daysDiff < 0) {
           notifs.push({
             id,

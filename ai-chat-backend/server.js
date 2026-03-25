@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import setupNotificationService from './notification-service.js';
+
 
 // Load environment variables
 dotenv.config();
@@ -15,11 +17,11 @@ dotenv.config();
 function fuzzyMatch(input, target, threshold = 0.6) {
   input = input.toLowerCase();
   target = target.toLowerCase();
-  
+
   if (input === target) return 1.0;
   if (target.includes(input)) return 0.9;
   if (input.includes(target)) return 0.9;
-  
+
   // Calculate Levenshtein distance
   const matrix = [];
   for (let i = 0; i <= target.length; i++) {
@@ -28,7 +30,7 @@ function fuzzyMatch(input, target, threshold = 0.6) {
   for (let j = 0; j <= input.length; j++) {
     matrix[0][j] = j;
   }
-  
+
   for (let i = 1; i <= target.length; i++) {
     for (let j = 1; j <= input.length; j++) {
       if (target.charAt(i - 1) === input.charAt(j - 1)) {
@@ -42,11 +44,11 @@ function fuzzyMatch(input, target, threshold = 0.6) {
       }
     }
   }
-  
+
   const distance = matrix[target.length][input.length];
   const maxLength = Math.max(target.length, input.length);
   const similarity = 1 - (distance / maxLength);
-  
+
   return similarity;
 }
 
@@ -54,7 +56,7 @@ function fuzzyMatch(input, target, threshold = 0.6) {
 function findBestMatch(input, options, threshold = 0.6) {
   let bestMatch = null;
   let bestScore = 0;
-  
+
   for (const option of options) {
     const score = fuzzyMatch(input, option);
     if (score > bestScore && score >= threshold) {
@@ -62,7 +64,7 @@ function findBestMatch(input, options, threshold = 0.6) {
       bestMatch = option;
     }
   }
-  
+
   return { match: bestMatch, score: bestScore };
 }
 
@@ -98,7 +100,9 @@ const mockCRMData = {
   ],
   projects: [
     { id: '1', name: 'Website Redesign', company: 'TechCorp', status: 'in-progress', assignedToName: 'Mohamed Ismayil', deadline: '2024-03-15', description: 'Complete website redesign with modern UI/UX' },
-    { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', status: 'pending', assignedToName: 'Mohamed Ajumal', deadline: '2024-04-20', description: 'Native mobile app for iOS and Android' }
+    { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', status: 'running', assignedToName: 'Mohamed Ajumal', deadline: '2024-04-20', description: 'Native mobile app for iOS and Android' },
+    { id: '3', name: 'ERP Implementation', company: 'QWE Solutions', status: 'completed', assignedToName: 'Mohammed Ali', deadline: '2024-02-28', description: 'Full ERP system implementation' },
+    { id: '4', name: 'Security Audit', company: 'Al Thahir Group', status: 'handed-over', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment' }
   ],
   payments: [
     { id: '1', description: 'Office Rent - March 2024', amount: 15000, dueDate: '2024-03-01', status: 'pending', company: 'Property Management LLC' },
@@ -140,22 +144,22 @@ async function queryFirebaseData(collectionName) {
     console.log(`Firebase not available, returning mock data for ${collectionName}`);
     return mockCRMData[collectionName] || [];
   }
-  
+
   try {
     console.log(`Querying Firebase collection: ${collectionName}`);
     const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
-    
+
     if (querySnapshot.empty) {
       console.log(`No documents found in ${collectionName}`);
       return [];
     }
-    
+
     const data = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
+
     console.log(`Found ${data.length} documents in ${collectionName}`);
     return data;
   } catch (error) {
@@ -212,16 +216,16 @@ async function generateAIResponse(message, sessionId) {
 
     const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
     console.log('📝 Checking greetings...');
-    
+
     // More precise greeting detection - check if message is exactly a greeting or starts with greeting
     const isGreeting = greetings.some(greeting => {
       const trimmedMessage = lowerMessage.trim();
-      return trimmedMessage === greeting || 
-             trimmedMessage.startsWith(greeting + ' ') || 
-             trimmedMessage.endsWith(' ' + greeting) ||
-             (trimmedMessage.includes(' ' + greeting + ' '));
+      return trimmedMessage === greeting ||
+        trimmedMessage.startsWith(greeting + ' ') ||
+        trimmedMessage.endsWith(' ' + greeting) ||
+        (trimmedMessage.includes(' ' + greeting + ' '));
     });
-    
+
     if (isGreeting) {
       console.log('📝 Greeting detected, returning greeting response');
       return {
@@ -235,24 +239,24 @@ async function generateAIResponse(message, sessionId) {
     if (lowerMessage.includes('tender') || lowerMessage.includes('tenders')) {
       console.log('🎯 Direct tender query detected');
       const tenders = await queryFirebaseData('tenders');
-      
+
       if (tenders.length === 0) {
         return { response: 'No tender data available in your CRM.' };
       }
-      
+
       let filteredTenders = tenders;
       let filterDescription = '';
-      
+
       // Enhanced company/parent company filtering - check first for better specificity
       if (lowerMessage.includes('sadeem energy') || lowerMessage.includes('sadeem')) {
-        filteredTenders = filteredTenders.filter(t => 
+        filteredTenders = filteredTenders.filter(t =>
           (t.belongsTo || '').toLowerCase().includes('sadeem') ||
           (t.company || '').toLowerCase().includes('sadeem') ||
           (t.name || '').toLowerCase().includes('sadeem')
         );
         filterDescription = 'Sadeem Energy';
       } else if (lowerMessage.includes('growplus technologies') || lowerMessage.includes('growplus') || lowerMessage.includes('grow plus')) {
-        filteredTenders = filteredTenders.filter(t => 
+        filteredTenders = filteredTenders.filter(t =>
           (t.belongsTo || '').toLowerCase().includes('growplus') ||
           (t.belongsTo || '').toLowerCase().includes('grow plus') ||
           (t.company || '').toLowerCase().includes('growplus') ||
@@ -272,7 +276,7 @@ async function generateAIResponse(message, sessionId) {
           }
         }
       }
-      
+
       // Enhanced status filtering - support multiple statuses
       const statusFilters = [];
       if (lowerMessage.includes('open')) statusFilters.push('open');
@@ -280,16 +284,16 @@ async function generateAIResponse(message, sessionId) {
       if (lowerMessage.includes('awarded')) statusFilters.push('awarded');
       if (lowerMessage.includes('closed')) statusFilters.push('closed');
       if (lowerMessage.includes('on hold') || lowerMessage.includes('onhold') || lowerMessage.includes('hold')) statusFilters.push('on-hold', 'on hold', 'hold');
-      
+
       if (statusFilters.length > 0) {
-        filteredTenders = filteredTenders.filter(t => 
-          statusFilters.some(status => 
+        filteredTenders = filteredTenders.filter(t =>
+          statusFilters.some(status =>
             Array.isArray(status) ? status.includes(t.status) : t.status === status
           )
         );
         filterDescription = filterDescription ? `${filterDescription} ${statusFilters.join(' and ')}` : statusFilters.join(' and ');
       }
-      
+
       // Enhanced name filtering - check multiple name variations
       const nameVariations = {
         'ismayil': ['ismayil', 'ismail', 'is mail'],
@@ -299,7 +303,7 @@ async function generateAIResponse(message, sessionId) {
         'muhammed': ['muhammed', 'mohammed', 'muhammad', 'mohammad'],
         'pranav': ['pranav']
       };
-      
+
       for (const [baseName, variations] of Object.entries(nameVariations)) {
         for (const variation of variations) {
           if (lowerMessage.includes(variation)) {
@@ -310,7 +314,7 @@ async function generateAIResponse(message, sessionId) {
         }
         if (filterDescription.includes('assigned to')) break;
       }
-      
+
       // Deadline/date filtering
       if (lowerMessage.includes('today') || lowerMessage.includes('due today')) {
         const today = new Date().toISOString().split('T')[0];
@@ -325,41 +329,41 @@ async function generateAIResponse(message, sessionId) {
         filteredTenders = filteredTenders.filter(t => t.deadline > today);
         filterDescription = filterDescription ? `${filterDescription} upcoming` : 'upcoming';
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredTenders.length} ${filterDescription || 'tender(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredTenders.length === 0) {
         return {
           response: `No ${filterDescription || 'tenders'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredTenders.length} ${filterDescription || 'tender(s)'}:\n\n${filteredTenders.map(t => `• ${t.name} - ${t.company} - ${t.status} - Assigned to: ${t.assignedToName || 'N/A'} - Deadline: ${t.deadline || 'N/A'}${t.belongsTo ? ` - Belongs to: ${t.belongsTo}` : ''}`).join('\n')}`;
       return { response };
     }
 
     // Handle project queries directly
-    if (lowerMessage.includes('project') || lowerMessage.includes('projects') || 
-        ['ismayil', 'ajumal', 'adnan', 'mohamed', 'muhammed'].some(name => lowerMessage.includes(name.toLowerCase()))) {
+    if (lowerMessage.includes('project') || lowerMessage.includes('projects') ||
+      ['ismayil', 'ajumal', 'adnan', 'mohamed', 'muhammed'].some(name => lowerMessage.includes(name.toLowerCase()))) {
       console.log('🎯 Direct project query detected');
       const projects = await queryFirebaseData('projects');
-      
+
       if (projects.length === 0) {
         return { response: 'No project data available in your CRM.' };
       }
-      
+
       let filteredProjects = projects;
       let filterDescription = '';
-      
+
       // Enhanced company/parent company filtering - check first for better specificity
       if (lowerMessage.includes('sadeem energy') || lowerMessage.includes('sadeem')) {
-        filteredProjects = filteredProjects.filter(p => 
+        filteredProjects = filteredProjects.filter(p =>
           (p.belongsTo || '').toLowerCase().includes('sadeem') ||
           (p.company || '').toLowerCase().includes('sadeem') ||
           (p.name || '').toLowerCase().includes('sadeem') ||
@@ -367,7 +371,7 @@ async function generateAIResponse(message, sessionId) {
         );
         filterDescription = 'Sadeem Energy';
       } else if (lowerMessage.includes('growplus technologies') || lowerMessage.includes('growplus') || lowerMessage.includes('grow plus')) {
-        filteredProjects = filteredProjects.filter(p => 
+        filteredProjects = filteredProjects.filter(p =>
           (p.belongsTo || '').toLowerCase().includes('growplus') ||
           (p.belongsTo || '').toLowerCase().includes('grow plus') ||
           (p.company || '').toLowerCase().includes('growplus') ||
@@ -389,11 +393,11 @@ async function generateAIResponse(message, sessionId) {
           }
         }
       }
-      
+
       // Specific project name filtering - check for exact project names first
       const projectNames = [...new Set(projects.map(p => (p.name || '').toLowerCase()))];
       let foundSpecificProject = false;
-      
+
       for (const projectName of projectNames) {
         if (lowerMessage.includes(projectName) && projectName.length > 2) {
           filteredProjects = filteredProjects.filter(p => (p.name || '').toLowerCase() === projectName);
@@ -402,46 +406,44 @@ async function generateAIResponse(message, sessionId) {
           break;
         }
       }
-      
+
       // Enhanced name filtering - only if no specific project found
       if (!foundSpecificProject) {
         const nameVariations = {
-        'ismayil': ['ismayil', 'ismail', 'is mail'],
-        'ajumal': ['ajumal', 'ajmal', 'a jumal'],
-        'adnan': ['adnan', 'ad nan'],
-        'mohamed': ['mohamed', 'mohammed', 'mohammad', 'muhammad', 'mohamed'],
-        'muhammed': ['muhammed', 'mohammed', 'muhammad', 'mohammad'],
-        'pranav': ['pranav']
-      };
-      
-      for (const [baseName, variations] of Object.entries(nameVariations)) {
-        for (const variation of variations) {
-          if (lowerMessage.includes(variation)) {
-            filteredProjects = filteredProjects.filter(p => (p.assignedToName || '').toLowerCase().includes(baseName));
-            filterDescription = filterDescription ? `${baseName} ${filterDescription}` : `assigned to ${baseName}`;
-            break;
+          'ismayil': ['ismayil', 'ismail', 'is mail'],
+          'ajumal': ['ajumal', 'ajmal', 'a jumal'],
+          'adnan': ['adnan', 'ad nan'],
+          'mohamed': ['mohamed', 'mohammed', 'mohammad', 'muhammad', 'mohamed'],
+          'muhammed': ['muhammed', 'mohammed', 'muhammad', 'mohammad'],
+          'pranav': ['pranav']
+        };
+
+        for (const [baseName, variations] of Object.entries(nameVariations)) {
+          for (const variation of variations) {
+            if (lowerMessage.includes(variation)) {
+              filteredProjects = filteredProjects.filter(p => (p.assignedToName || '').toLowerCase().includes(baseName));
+              filterDescription = filterDescription ? `${baseName} ${filterDescription}` : `assigned to ${baseName}`;
+              break;
+            }
           }
+          if (filterDescription.includes('assigned to')) break;
         }
-        if (filterDescription.includes('assigned to')) break;
       }
-      }
-      
+
       // Enhanced status filtering - support multiple statuses
       const statusFilters = [];
+      if (lowerMessage.includes('running')) statusFilters.push('running');
       if (lowerMessage.includes('in-progress') || lowerMessage.includes('in progress') || lowerMessage.includes('inprogress')) statusFilters.push('in-progress');
-      if (lowerMessage.includes('completed')) statusFilters.push('completed');
-      if (lowerMessage.includes('on hold') || lowerMessage.includes('onhold') || lowerMessage.includes('hold')) statusFilters.push('on-hold', 'on hold', 'hold');
-      if (lowerMessage.includes('pending')) statusFilters.push('pending');
-      
+      if (lowerMessage.includes('completed') || lowerMessage.includes('complete') || lowerMessage.includes('done') || lowerMessage.includes('finished')) statusFilters.push('completed');
+      if (lowerMessage.includes('handed-over') || lowerMessage.includes('handed over') || lowerMessage.includes('handedover') || lowerMessage.includes('hand over') || lowerMessage.includes('handover')) statusFilters.push('handed-over');
+
       if (statusFilters.length > 0) {
-        filteredProjects = filteredProjects.filter(p => 
-          statusFilters.some(status => 
-            Array.isArray(status) ? status.includes(p.status) : p.status === status
-          )
+        filteredProjects = filteredProjects.filter(p =>
+          statusFilters.some(status => p.status === status)
         );
         filterDescription = filterDescription ? `${filterDescription} ${statusFilters.join(' and ')}` : statusFilters.join(' and ');
       }
-      
+
       // Deadline/date filtering
       if (lowerMessage.includes('today') || lowerMessage.includes('due today')) {
         const today = new Date().toISOString().split('T')[0];
@@ -456,21 +458,21 @@ async function generateAIResponse(message, sessionId) {
         filteredProjects = filteredProjects.filter(p => p.deadline > today);
         filterDescription = filterDescription ? `${filterDescription} upcoming` : 'upcoming';
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredProjects.length} ${filterDescription || 'project(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredProjects.length === 0) {
         return {
           response: `No ${filterDescription || 'projects'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredProjects.length} ${filterDescription || 'project(s)'}:\n\n${filteredProjects.map(p => `• ${p.name} - ${p.company} - ${p.status} - Assigned to: ${p.assignedToName || 'N/A'} - Deadline: ${p.deadline || 'N/A'}${p.belongsTo ? ` - Belongs to: ${p.belongsTo}` : ''}`).join('\n')}`;
       return { response };
     }
@@ -479,23 +481,23 @@ async function generateAIResponse(message, sessionId) {
     if (lowerMessage.includes('payment') || lowerMessage.includes('payments') || lowerMessage.includes('amount')) {
       console.log('🎯 Direct payment query detected');
       const payments = await queryFirebaseData('payments');
-      
+
       if (payments.length === 0) {
         return { response: 'No payment data available in your CRM.' };
       }
-      
+
       let filteredPayments = payments;
       let filterDescription = '';
-      
+
       // Enhanced company filtering - check first for better specificity
       if (lowerMessage.includes('sadeem energy') || lowerMessage.includes('sadeem')) {
-        filteredPayments = filteredPayments.filter(p => 
+        filteredPayments = filteredPayments.filter(p =>
           (p.company || '').toLowerCase().includes('sadeem') ||
           (p.description || '').toLowerCase().includes('sadeem')
         );
         filterDescription = 'Sadeem Energy';
       } else if (lowerMessage.includes('growplus technologies') || lowerMessage.includes('growplus') || lowerMessage.includes('grow plus')) {
-        filteredPayments = filteredPayments.filter(p => 
+        filteredPayments = filteredPayments.filter(p =>
           (p.company || '').toLowerCase().includes('growplus') ||
           (p.company || '').toLowerCase().includes('grow plus') ||
           (p.description || '').toLowerCase().includes('growplus') ||
@@ -513,20 +515,20 @@ async function generateAIResponse(message, sessionId) {
           }
         }
       }
-      
+
       // Enhanced status filtering - support multiple statuses
       const statusFilters = [];
       if (lowerMessage.includes('pending')) statusFilters.push('pending');
       if (lowerMessage.includes('paid')) statusFilters.push('paid');
       if (lowerMessage.includes('overdue')) statusFilters.push('overdue');
-      
+
       if (statusFilters.length > 0) {
-        filteredPayments = filteredPayments.filter(p => 
+        filteredPayments = filteredPayments.filter(p =>
           statusFilters.some(status => p.status === status)
         );
         filterDescription = filterDescription ? `${filterDescription} ${statusFilters.join(' and ')}` : statusFilters.join(' and ');
       }
-      
+
       // Date filtering
       if (lowerMessage.includes('today') || lowerMessage.includes('due today')) {
         const today = new Date().toISOString().split('T')[0];
@@ -541,62 +543,62 @@ async function generateAIResponse(message, sessionId) {
         filteredPayments = filteredPayments.filter(p => p.dueDate > today);
         filterDescription = filterDescription ? `${filterDescription} upcoming` : 'upcoming';
       }
-      
+
       // Amount calculation
       const isAmountQuery = lowerMessage.includes('amount') || lowerMessage.includes('total') || lowerMessage.includes('calculate') || lowerMessage.includes('sum');
-      
+
       if (isAmountQuery) {
         const totalAmount = filteredPayments.reduce((sum, p) => {
           const amount = parseFloat(p.amount) || 0;
           return sum + amount;
         }, 0);
-        
+
         return {
           response: `Total ${filterDescription || 'payment'} amount: $${totalAmount.toFixed(2)} (${filteredPayments.length} payments)`
         };
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredPayments.length} ${filterDescription || 'payment(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredPayments.length === 0) {
         return {
           response: `No ${filterDescription || 'payments'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredPayments.length} ${filterDescription || 'payment(s)'}:\n\n${filteredPayments.map(p => `• ${p.description} - ${p.company} - $${p.amount} - Due: ${p.dueDate} - Status: ${p.status}`).join('\n')}`;
       return { response };
     }
 
     // Handle employee queries directly
-    if (lowerMessage.includes('employee') || lowerMessage.includes('employees') || 
-        lowerMessage.includes('contact') || lowerMessage.includes('details') ||
-        ['ismayil', 'ajumal', 'adnan', 'mohamed', 'muhammed'].some(name => lowerMessage.includes(name.toLowerCase()))) {
+    if (lowerMessage.includes('employee') || lowerMessage.includes('employees') ||
+      lowerMessage.includes('contact') || lowerMessage.includes('details') ||
+      ['ismayil', 'ajumal', 'adnan', 'mohamed', 'muhammed'].some(name => lowerMessage.includes(name.toLowerCase()))) {
       console.log('🎯 Direct employee query detected');
       console.log('📝 Message matched employee condition:', lowerMessage);
       const employees = await queryFirebaseData('employees');
-      
+
       if (employees.length === 0) {
         return { response: 'No employee data available in your CRM.' };
       }
-      
+
       let filteredEmployees = employees;
       let filterDescription = '';
-      
+
       // Enhanced company filtering - check first for better specificity
       if (lowerMessage.includes('sadeem energy') || lowerMessage.includes('sadeem')) {
-        filteredEmployees = filteredEmployees.filter(e => 
+        filteredEmployees = filteredEmployees.filter(e =>
           (e.company || '').toLowerCase().includes('sadeem')
         );
         filterDescription = 'Sadeem Energy';
       } else if (lowerMessage.includes('growplus technologies') || lowerMessage.includes('growplus') || lowerMessage.includes('grow plus')) {
-        filteredEmployees = filteredEmployees.filter(e => 
+        filteredEmployees = filteredEmployees.filter(e =>
           (e.company || '').toLowerCase().includes('growplus') ||
           (e.company || '').toLowerCase().includes('grow plus')
         );
@@ -612,7 +614,7 @@ async function generateAIResponse(message, sessionId) {
           }
         }
       }
-      
+
       // Enhanced name filtering - check multiple name variations
       const nameVariations = {
         'ismayil': ['ismayil', 'ismail', 'is mail'],
@@ -622,7 +624,7 @@ async function generateAIResponse(message, sessionId) {
         'muhammed': ['muhammed', 'mohammed', 'muhammad', 'mohammad'],
         'pranav': ['pranav']
       };
-      
+
       for (const [baseName, variations] of Object.entries(nameVariations)) {
         for (const variation of variations) {
           if (lowerMessage.includes(variation)) {
@@ -633,7 +635,7 @@ async function generateAIResponse(message, sessionId) {
         }
         if (filterDescription && !filterDescription.includes('from')) break;
       }
-      
+
       // Department filtering
       if (lowerMessage.includes('engineering')) {
         filteredEmployees = filteredEmployees.filter(e => (e.department || '').toLowerCase() === 'engineering');
@@ -645,19 +647,19 @@ async function generateAIResponse(message, sessionId) {
         filteredEmployees = filteredEmployees.filter(e => (e.department || '').toLowerCase() === 'management');
         filterDescription = filterDescription ? `${filterDescription} management` : 'management';
       }
-      
+
       // Enhanced status filtering - support multiple statuses
       const statusFilters = [];
       if (lowerMessage.includes('active')) statusFilters.push('active');
       if (lowerMessage.includes('inactive')) statusFilters.push('inactive');
-      
+
       if (statusFilters.length > 0) {
-        filteredEmployees = filteredEmployees.filter(e => 
+        filteredEmployees = filteredEmployees.filter(e =>
           statusFilters.some(status => e.status === status)
         );
         filterDescription = filterDescription ? `${filterDescription} ${statusFilters.join(' and ')}` : statusFilters.join(' and ');
       }
-      
+
       // Position filtering
       if (lowerMessage.includes('engineer')) {
         filteredEmployees = filteredEmployees.filter(e => (e.position || '').toLowerCase().includes('engineer'));
@@ -669,52 +671,52 @@ async function generateAIResponse(message, sessionId) {
         filteredEmployees = filteredEmployees.filter(e => (e.position || '').toLowerCase().includes('director'));
         filterDescription = filterDescription ? `${filterDescription} directors` : 'directors';
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredEmployees.length} ${filterDescription || 'employee(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredEmployees.length === 0) {
         return {
           response: `No ${filterDescription || 'employees'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredEmployees.length} ${filterDescription || 'employee(s)'}:\n\n${filteredEmployees.map(e => `• ${e.name} - ${e.position} - ${e.department} - ${e.email} - ${e.phone}${e.company ? ` - ${e.company}` : ''}`).join('\n')}`;
       return { response };
     }
 
     // Handle registration queries directly
-    if (lowerMessage.includes('registration') || lowerMessage.includes('registrations') || 
-        lowerMessage.includes('commercial license') || lowerMessage.includes('comercial license') ||
-        lowerMessage.includes('business license') ||
-        lowerMessage.includes('trade license') || lowerMessage.includes('professional license') ||
-        lowerMessage.includes('industrial license') || lowerMessage.includes('tourism license') ||
-        lowerMessage.includes('freelance license') || lowerMessage.includes('e-commerce license')) {
+    if (lowerMessage.includes('registration') || lowerMessage.includes('registrations') ||
+      lowerMessage.includes('commercial license') || lowerMessage.includes('comercial license') ||
+      lowerMessage.includes('business license') ||
+      lowerMessage.includes('trade license') || lowerMessage.includes('professional license') ||
+      lowerMessage.includes('industrial license') || lowerMessage.includes('tourism license') ||
+      lowerMessage.includes('freelance license') || lowerMessage.includes('e-commerce license')) {
       console.log('🎯 Direct registration query detected');
       console.log('📝 Message:', lowerMessage);
       const registrations = await queryFirebaseData('registrations');
-      
+
       if (registrations.length === 0) {
         return { response: 'No registration data available in your CRM.' };
       }
-      
+
       let filteredRegistrations = registrations;
       let filterDescription = '';
-      
+
       // Enhanced company filtering - check first for better specificity
       if (lowerMessage.includes('sadeem energy') || lowerMessage.includes('sadeem')) {
-        filteredRegistrations = filteredRegistrations.filter(r => 
+        filteredRegistrations = filteredRegistrations.filter(r =>
           (r.company || '').toLowerCase().includes('sadeem') ||
           (r.name || '').toLowerCase().includes('sadeem')
         );
         filterDescription = 'Sadeem Energy';
       } else if (lowerMessage.includes('growplus technologies') || lowerMessage.includes('growplus') || lowerMessage.includes('grow plus')) {
-        filteredRegistrations = filteredRegistrations.filter(r => 
+        filteredRegistrations = filteredRegistrations.filter(r =>
           (r.company || '').toLowerCase().includes('growplus') ||
           (r.company || '').toLowerCase().includes('grow plus') ||
           (r.name || '').toLowerCase().includes('growplus') ||
@@ -732,20 +734,20 @@ async function generateAIResponse(message, sessionId) {
           }
         }
       }
-      
+
       // Enhanced status filtering - support multiple statuses
       const statusFilters = [];
       if (lowerMessage.includes('active')) statusFilters.push('active');
       if (lowerMessage.includes('expired')) statusFilters.push('expired');
       if (lowerMessage.includes('pending')) statusFilters.push('pending');
-      
+
       if (statusFilters.length > 0) {
-        filteredRegistrations = filteredRegistrations.filter(r => 
+        filteredRegistrations = filteredRegistrations.filter(r =>
           statusFilters.some(status => r.status === status)
         );
         filterDescription = filterDescription ? `${filterDescription} ${statusFilters.join(' and ')}` : statusFilters.join(' and ');
       }
-      
+
       // Type filtering
       if (lowerMessage.includes('commercial license') || lowerMessage.includes('comercial license') || lowerMessage.includes('commercial') || lowerMessage.includes('comercial')) {
         filteredRegistrations = filteredRegistrations.filter(r => (r.type || '').toLowerCase().includes('commercial'));
@@ -772,7 +774,7 @@ async function generateAIResponse(message, sessionId) {
         filteredRegistrations = filteredRegistrations.filter(r => (r.type || '').toLowerCase().includes('e-commerce') || (r.type || '').toLowerCase().includes('ecommerce'));
         filterDescription = filterDescription ? `${filterDescription} e-commerce license` : 'e-commerce license';
       }
-      
+
       // Date filtering
       if (lowerMessage.includes('today') || lowerMessage.includes('expiring today')) {
         const today = new Date().toISOString().split('T')[0];
@@ -787,21 +789,21 @@ async function generateAIResponse(message, sessionId) {
         filteredRegistrations = filteredRegistrations.filter(r => r.expiryDate > today);
         filterDescription = filterDescription ? `${filterDescription} expiring soon` : 'expiring soon';
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredRegistrations.length} ${filterDescription || 'registration(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredRegistrations.length === 0) {
         return {
           response: `No ${filterDescription || 'registrations'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredRegistrations.length} ${filterDescription || 'registration(s)'}:\n\n${filteredRegistrations.map(r => `• ${r.name} - ${r.company} - ${r.type || 'N/A'} - Reg #: ${r.registrationNumber || 'N/A'} - Status: ${r.status || 'N/A'} - Expires: ${r.expiryDate || 'N/A'}`).join('\n')}`;
       return { response };
     }
@@ -810,7 +812,7 @@ async function generateAIResponse(message, sessionId) {
     if (lowerMessage.includes('partner') || lowerMessage.includes('partners')) {
       console.log('🎯 Direct partner query detected');
       console.log('📝 Message:', lowerMessage);
-      
+
       // Since partners might be stored in different collections, check multiple sources
       const [tenders, projects, payments, employees, files, registrations] = await Promise.all([
         queryFirebaseData('tenders'),
@@ -820,69 +822,69 @@ async function generateAIResponse(message, sessionId) {
         queryFirebaseData('files'),
         queryFirebaseData('registrations')
       ]);
-      
+
       let partnerItems = [];
       let filterDescription = '';
-      
+
       // Search for partners in all collections
       const allItems = [
-        ...tenders.map(t => ({...t, type: 'tender', name: t.name || t.title || 'N/A'})),
-        ...projects.map(p => ({...p, type: 'project', name: p.name || 'N/A'})),
-        ...payments.map(p => ({...p, type: 'payment', name: p.description || 'N/A'})),
-        ...employees.map(e => ({...e, type: 'employee', name: e.name || 'N/A'})),
-        ...files.map(f => ({...f, type: 'file', name: f.name || 'N/A'})),
-        ...registrations.map(r => ({...r, type: 'registration', name: r.name || 'N/A'}))
+        ...tenders.map(t => ({ ...t, type: 'tender', name: t.name || t.title || 'N/A' })),
+        ...projects.map(p => ({ ...p, type: 'project', name: p.name || 'N/A' })),
+        ...payments.map(p => ({ ...p, type: 'payment', name: p.description || 'N/A' })),
+        ...employees.map(e => ({ ...e, type: 'employee', name: e.name || 'N/A' })),
+        ...files.map(f => ({ ...f, type: 'file', name: f.name || 'N/A' })),
+        ...registrations.map(r => ({ ...r, type: 'registration', name: r.name || 'N/A' }))
       ];
-      
+
       // Filter for technology partners if specified
       if (lowerMessage.includes('technology')) {
-        partnerItems = allItems.filter(item => 
+        partnerItems = allItems.filter(item =>
           (item.name || '').toLowerCase().includes('technology') ||
           (item.company || '').toLowerCase().includes('technology') ||
           (item.category || '').toLowerCase().includes('technology')
         );
         filterDescription = 'technology partners';
       } else {
-        partnerItems = allItems.filter(item => 
+        partnerItems = allItems.filter(item =>
           (item.name || '').toLowerCase().includes('partner') ||
           (item.company || '').toLowerCase().includes('partner') ||
           (item.category || '').toLowerCase().includes('partner')
         );
         filterDescription = 'partners';
       }
-      
+
       if (partnerItems.length === 0) {
         return { response: `No ${filterDescription} found in your CRM.` };
       }
-      
+
       const response = `Found ${partnerItems.length} ${filterDescription}:\n\n${partnerItems.map(p => `• ${p.name} - ${p.company || 'N/A'} - ${p.type || 'N/A'}`).join('\n')}`;
       return { response };
     }
 
     // Handle file queries directly
-    if (lowerMessage.includes('file') || lowerMessage.includes('files') || 
-        lowerMessage.includes('document') || lowerMessage.includes('documents') ||
-        lowerMessage.includes('image') || lowerMessage.includes('images') ||
-        lowerMessage.includes('video') || lowerMessage.includes('videos') ||
-        lowerMessage.includes('audio') || lowerMessage.includes('audios') ||
-        lowerMessage.includes('archive') || lowerMessage.includes('archives') ||
-        lowerMessage.includes('spreadsheet') || lowerMessage.includes('spreadsheets') ||
-        lowerMessage.includes('presentation') || lowerMessage.includes('presentations') ||
-        lowerMessage.includes('text') || lowerMessage.includes('pdf') ||
-        lowerMessage.includes('doc') || lowerMessage.includes('jpg') || lowerMessage.includes('png') ||
-        lowerMessage.includes('mp4') || lowerMessage.includes('mp3') || lowerMessage.includes('zip') ||
-        lowerMessage.includes('report') || lowerMessage.includes('reports')) {
+    if (lowerMessage.includes('file') || lowerMessage.includes('files') ||
+      lowerMessage.includes('document') || lowerMessage.includes('documents') ||
+      lowerMessage.includes('image') || lowerMessage.includes('images') ||
+      lowerMessage.includes('video') || lowerMessage.includes('videos') ||
+      lowerMessage.includes('audio') || lowerMessage.includes('audios') ||
+      lowerMessage.includes('archive') || lowerMessage.includes('archives') ||
+      lowerMessage.includes('spreadsheet') || lowerMessage.includes('spreadsheets') ||
+      lowerMessage.includes('presentation') || lowerMessage.includes('presentations') ||
+      lowerMessage.includes('text') || lowerMessage.includes('pdf') ||
+      lowerMessage.includes('doc') || lowerMessage.includes('jpg') || lowerMessage.includes('png') ||
+      lowerMessage.includes('mp4') || lowerMessage.includes('mp3') || lowerMessage.includes('zip') ||
+      lowerMessage.includes('report') || lowerMessage.includes('reports')) {
       console.log('🎯 Direct file query detected');
       console.log('📝 Message contains file keyword:', lowerMessage);
       const files = await queryFirebaseData('files');
-      
+
       if (files.length === 0) {
         return { response: 'No file data available in your CRM.' };
       }
-      
+
       let filteredFiles = files;
       let filterDescription = '';
-      
+
       // Type filtering
       if (lowerMessage.includes('pdf')) {
         filteredFiles = filteredFiles.filter(f => (f.type || '').toLowerCase() === 'pdf');
@@ -918,7 +920,7 @@ async function generateAIResponse(message, sessionId) {
         filteredFiles = filteredFiles.filter(f => ['txt', 'md', 'readme'].includes((f.type || '').toLowerCase()));
         filterDescription = 'Text';
       }
-      
+
       // Size filtering
       if (lowerMessage.includes('larger than') || lowerMessage.includes('greater than') || lowerMessage.includes('over')) {
         const sizeMatch = lowerMessage.match(/(\d+(?:\.\d+)?)\s*(mb|kb|gb)/i);
@@ -926,7 +928,7 @@ async function generateAIResponse(message, sessionId) {
           const size = parseFloat(sizeMatch[1]);
           const unit = sizeMatch[2].toLowerCase();
           const targetSizeBytes = unit === 'gb' ? size * 1024 * 1024 * 1024 : unit === 'mb' ? size * 1024 * 1024 : size * 1024;
-          
+
           filteredFiles = filteredFiles.filter(f => {
             const fileSize = f.size || '0';
             const fileSizeMatch = fileSize.match(/(\d+(?:\.\d+)?)\s*(mb|kb|gb)/i);
@@ -941,7 +943,7 @@ async function generateAIResponse(message, sessionId) {
           filterDescription = filterDescription ? `larger than ${size}${unit}` : `larger than ${size}${unit}`;
         }
       }
-      
+
       // Status filtering
       if (lowerMessage.includes('active')) {
         filteredFiles = filteredFiles.filter(f => f.status === 'active');
@@ -950,28 +952,28 @@ async function generateAIResponse(message, sessionId) {
         filteredFiles = filteredFiles.filter(f => f.status === 'archived');
         filterDescription = filterDescription ? `archived ${filterDescription}` : 'archived';
       }
-      
+
       const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count') || lowerMessage.includes('number of');
-      
+
       if (isCountQuery) {
         return {
           response: `Found ${filteredFiles.length} ${filterDescription || 'file(s)'} in your CRM.`
         };
       }
-      
+
       if (filteredFiles.length === 0) {
         return {
           response: `No ${filterDescription || 'files'} found in your CRM.`
         };
       }
-      
+
       const response = `Found ${filteredFiles.length} ${filterDescription || 'file(s)'}:\n\n${filteredFiles.map(f => `• ${f.name} - ${f.type || 'Unknown'} - ${f.size || 'N/A'} - Uploaded: ${f.uploadDate || 'N/A'} - Status: ${f.status || 'N/A'}`).join('\n')}`;
       return { response };
     }
 
     // Fallback to AI for other queries
     console.log('🤖 Query not handled by direct filtering, using AI fallback');
-    
+
     const crmOverview = await getCRMOverview();
     const aiPrompt = `Based on this CRM data, please answer the user's question. Be helpful and specific.
 
@@ -983,7 +985,7 @@ User Question: "${message}"
 Please provide a comprehensive and helpful response:`;
 
     const aiResponse = await queryOllama(aiPrompt);
-    
+
     if (aiResponse && aiResponse.response) {
       return {
         response: aiResponse.response
@@ -1030,7 +1032,7 @@ Registrations: ${registrations.length} items`;
 // WebSocket connection handler
 wss.on('connection', (ws, request) => {
   console.log('🔌 New WebSocket connection established');
-  
+
   const sessionId = uuidv4();
   chatSessions.set(sessionId, {
     ws,
@@ -1090,13 +1092,21 @@ wss.on('connection', (ws, request) => {
 // Initialize and start server
 async function startServer() {
   console.log('🚀 Starting simplified CRM server with comprehensive direct filtering...');
-  
+
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, () => {
     console.log(`✅ AI Chat Backend server running on port ${PORT}`);
     console.log(`✅ WebSocket server ready for connections`);
     console.log('✅ Direct filtering enabled for all CRM sections');
     console.log('✅ Fast responses (100-300ms) for all filter queries');
+
+    // Initialize notification service for automated email alerts
+    try {
+      setupNotificationService(db, queryFirebaseData);
+      console.log('✅ Notification service initialized');
+    } catch (notificationError) {
+      console.error('❌ Failed to initialize notification service:', notificationError);
+    }
   });
 }
 

@@ -115,8 +115,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           getFiles().catch(() => []),
         ]);
 
-        // Use mock data if Firestore is empty or fallback
-        setProjects(projectsData.length > 0 ? projectsData : mockProjects);
+        // Merge local data with mock data as a baseline, avoiding duplicates by ID
+        const mergedProjects = [...projectsData];
+        mockProjects.forEach(mockP => {
+          if (!mergedProjects.find(p => p.id === mockP.id)) {
+            mergedProjects.push(mockP);
+          }
+        });
+        setProjects(mergedProjects);
         setTenders(tendersData.length > 0 ? tendersData : mockTenders);
         setEmployees(employeesData.length > 0 ? employeesData : mockEmployees);
         setRegistrations(registrationsData.length > 0 ? registrationsData : mockRegistrations);
@@ -301,8 +307,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const stats = {
-    activeProjects: projects.filter(p => p.status === 'in-progress').length,
-    openTenders: tenders.filter(t => t.status === 'open').length,
+    activeProjects: projects.filter(p => ['running', 'in-progress'].includes(p.status)).length,
+    openTenders: tenders.filter(t => t.status === 'running').length,
     pendingPayments: payments.filter(p => p.status === 'pending').length,
     totalProjectsAndTenders: projects.length + tenders.length,
   };

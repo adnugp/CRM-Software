@@ -4,7 +4,7 @@ import { useData } from '@/contexts/DataContext';
 
 const ProjectStatusChart: React.FC = () => {
   const { projects } = useData();
-  
+
   const statusCounts = projects.reduce((acc, project) => {
     acc[project.status] = (acc[project.status] || 0) + 1;
     return acc;

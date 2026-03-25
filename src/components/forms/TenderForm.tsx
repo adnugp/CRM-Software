@@ -36,10 +36,11 @@ const tenderSchema = z.object({
   name: z.string().min(1, 'Tender name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
-  status: z.enum(['open', 'submitted', 'awarded', 'closed']),
+  status: z.enum(['running', 'submitted', 'cancelled', 'to-be-evaluated', 'winner', 'awarded']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
-  
+  rfqCode: z.string().optional(),
+  portal: z.string().optional(),
 });
 
 type TenderFormData = z.infer<typeof tenderSchema>;
@@ -85,10 +86,11 @@ const TenderForm: React.FC<TenderFormProps> = ({
       name: tender?.name || '',
       company: tender?.company || '',
       belongsTo: tender?.belongsTo || undefined,
-      status: tender?.status || 'open',
+      status: tender?.status || 'running',
       assignedTo: tender?.assignedTo || '',
       deadline: tender?.deadline || '',
-      
+      rfqCode: tender?.rfqCode || '',
+      portal: tender?.portal || '',
     },
   });
 
@@ -101,17 +103,19 @@ const TenderForm: React.FC<TenderFormProps> = ({
         status: tender.status,
         assignedTo: tender.assignedTo,
         deadline: tender.deadline,
-        
+        rfqCode: tender.rfqCode || '',
+        portal: tender.portal || '',
       });
     } else {
       form.reset({
         name: '',
         company: '',
         belongsTo: undefined,
-        status: 'open',
+        status: 'running',
         assignedTo: '',
         deadline: '',
-        
+        rfqCode: '',
+        portal: '',
       });
     }
   }, [tender, form]);
@@ -156,9 +160,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   <FormLabel>Company/Organization</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <Input 
-                        placeholder="Enter company name" 
-                        {...field} 
+                      <Input
+                        placeholder="Enter company name"
+                        {...field}
                         autoComplete="off"
                         list="companies-datalist"
                       />
@@ -173,6 +177,36 @@ const TenderForm: React.FC<TenderFormProps> = ({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="rfqCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rfq/Rfp Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter code" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="portal"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Portal</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter portal" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
@@ -212,10 +246,12 @@ const TenderForm: React.FC<TenderFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
                       <SelectItem value="submitted">Submitted</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="to-be-evaluated">To be Evaluated</SelectItem>
+                      <SelectItem value="winner">Winner</SelectItem>
                       <SelectItem value="awarded">Awarded</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

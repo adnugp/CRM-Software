@@ -1,15 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-  updateProfile
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth } from '@/services/auth';
-import { db } from '@/services/firebase';
 import { User, UserRole } from '@/types';
 
 interface AuthContextType {
@@ -23,65 +12,67 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Local storage keys
+const MOCK_USERS_KEY = 'crm_mock_users';
+const CURRENT_USER_KEY = 'crm_current_user';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Listen to Firebase auth state changes
+  // Initialize from local storage on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      console.log('Auth state changed:', firebaseUser ? 'User logged in' : 'User logged out');
-      if (firebaseUser) {
-        // Get user profile from Firestore
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            const userProfile: User = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email!,
-              name: userData.name || firebaseUser.displayName || '',
-              role: userData.role || 'user',
-              company: userData.company,
-            };
-            setUser(userProfile);
-            console.log('User profile loaded:', userProfile);
-          } else {
-            // Create user profile if it doesn't exist
-            const userProfile: User = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email!,
-              name: firebaseUser.displayName || '',
-              role: 'user',
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), {
-              name: userProfile.name,
-              email: userProfile.email,
-              role: userProfile.role,
-              createdAt: new Date(),
-            });
-            setUser(userProfile);
-            console.log('User profile created:', userProfile);
-          }
-        } catch (error) {
-          console.error('Error loading user profile:', error);
-        }
-      } else {
-        console.log('User logged out, clearing user state');
-        setUser(null);
+    const savedUser = localStorage.getItem(CURRENT_USER_KEY);
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing saved user', e);
+        localStorage.removeItem(CURRENT_USER_KEY);
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('Attempting login with email:', email);
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log('Login successful');
-      return true;
+      console.log('Attempting login with email (Local Storage):', email);
+
+      // Check registered mock users in local storage
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      if (mockUsersJson) {
+        const mockUsers = JSON.parse(mockUsersJson);
+        const foundUser = mockUsers.find((u: any) => u.email === email && u.password === password);
+        if (foundUser) {
+          const userProfile: User = {
+            id: foundUser.id,
+            email: foundUser.email,
+            name: foundUser.name,
+            role: foundUser.role,
+          };
+          setUser(userProfile);
+          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userProfile));
+          console.log('Login successful:', userProfile.name);
+          return true;
+        }
+      }
+
+      // Default admin account for testing
+      if (email === 'admin@admin.com' && password === 'admin123') {
+        const adminUser: User = {
+          id: 'admin-id',
+          email: 'admin@admin.com',
+          name: 'Admin User',
+          role: 'admin',
+        };
+        setUser(adminUser);
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(adminUser));
+        console.log('Login successful (admin default)');
+        return true;
+      }
+
+      console.warn('Login failed: invalid credentials');
+      return false;
     } catch (error) {
       console.error('Login error:', error);
       return false;
@@ -90,29 +81,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('Attempting registration (Local Storage) for:', email);
 
-      // Update Firebase Auth profile
-      await updateProfile(userCredential.user, {
-        displayName: name,
-      });
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      const mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
 
-      // Create user document in Firestore
+      // Check if email already exists locally
+      if (mockUsers.some((u: any) => u.email === email)) {
+        console.warn('Registration failed: email already exists');
+        return false;
+      }
+
+      const newUserId = `user-${Date.now()}`;
       const userProfile: User = {
-        id: userCredential.user.uid,
+        id: newUserId,
         email: email,
         name: name,
         role: role,
       };
 
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        name: name,
-        email: email,
-        role: role,
-        createdAt: new Date(),
-      });
+      // Save to local mock users list (with password for future login)
+      mockUsers.push({ ...userProfile, password });
+      localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
 
+      // Set current session
       setUser(userProfile);
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userProfile));
+      console.log('Registration successful:', userProfile.name);
       return true;
     } catch (error) {
       console.error('Registration error:', error);
@@ -120,15 +115,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const logout = useCallback(async () => {
-    try {
-      console.log('Attempting to logout...');
-      await signOut(auth);
-      setUser(null);
-      console.log('Logout successful');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  const logout = useCallback(() => {
+    console.log('Logging out...');
+    setUser(null);
+    localStorage.removeItem(CURRENT_USER_KEY);
+    console.log('Logout successful');
   }, []);
 
   return (

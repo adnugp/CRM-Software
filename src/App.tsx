@@ -18,6 +18,7 @@ import Files from "./pages/Files";
 import Payments from "./pages/Payments";
 import Partners from "./pages/Partners";
 import Employees from "./pages/Employees";
+import ProjectManagement from "./pages/ProjectManagement";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -26,12 +27,12 @@ const queryClient = new QueryClient();
 // Chatbot wrapper component that handles conditional rendering
 const ChatbotWrapper = () => {
   const { user, isAuthenticated } = useAuth();
-  
+
   // Don't show chatbot on login/register pages or for clients
   if (!isAuthenticated || !user || user.role === 'client') {
     return null;
   }
-  
+
   return <AIChatbotWidget />;
 };
 
@@ -46,7 +47,7 @@ const App = () => {
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              
+
               {/* Admin/User only routes */}
               <Route path="/dashboard" element={
                 <ProtectedRoute>
@@ -83,9 +84,14 @@ const App = () => {
                   <Employees />
                 </ProtectedRoute>
               } />
-              
+
               {/* Projects - accessible to all roles but filtered for clients */}
               <Route path="/projects" element={<Projects />} />
+              <Route path="/projects/:id" element={
+                <ProtectedRoute>
+                  <ProjectManagement />
+                </ProtectedRoute>
+              } />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <ChatbotWrapper />

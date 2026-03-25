@@ -1,9 +1,5 @@
-// firebase.ts
-
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBcCR3upbuvG1fQFUOE9qLnITa8tk41cXI",
@@ -15,14 +11,7 @@ const firebaseConfig = {
   measurementId: "G-43ZZ93G0VT"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// Analytics (ONLY if browser + production)
-// const analytics = getAnalytics(app);
-
-// Services
-export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 export default app;

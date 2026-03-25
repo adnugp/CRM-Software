@@ -23,11 +23,21 @@ const parentCompanyOptions = [
 
 
 
+const statusOptions = [
+  { value: 'running', label: 'Running' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'to-be-evaluated', label: 'To Be Evaluated' },
+  { value: 'winner', label: 'Winner' },
+  { value: 'awarded', label: 'Awarded' },
+];
+
 const Tenders: React.FC = () => {
   const { tenders, employees, addTender, updateTender, deleteTender } = useData();
   const { user } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -49,20 +59,25 @@ const Tenders: React.FC = () => {
     if (belongsToFilter !== 'all') {
       result = result.filter(t => t.belongsTo === belongsToFilter);
     }
+    if (statusFilter !== 'all') {
+      result = result.filter(t => t.status === statusFilter);
+    }
     if (assigneeFilter !== 'all') {
       result = result.filter(t => t.assignedTo === assigneeFilter);
     }
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(t => 
+      result = result.filter(t =>
         t.name.toLowerCase().includes(query) ||
         t.company.toLowerCase().includes(query) ||
         t.assignedToName.toLowerCase().includes(query) ||
-        t.belongsTo.toLowerCase().includes(query)
+        t.belongsTo.toLowerCase().includes(query) ||
+        (t.rfqCode && t.rfqCode.toLowerCase().includes(query)) ||
+        (t.portal && t.portal.toLowerCase().includes(query))
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, assigneeFilter, searchQuery, tenders]);
+  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, tenders]);
 
   const companyOptions = tenderCompanies.map(c => ({ value: c, label: c }));
   const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
@@ -140,7 +155,7 @@ const Tenders: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHeader 
+      <PageHeader
         title="Tenders"
         description="Track and manage tender submissions"
         action={canEdit && (
@@ -173,6 +188,13 @@ const Tenders: React.FC = () => {
           placeholder="All Parent Companies"
         />
         <FilterDropdown
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={statusOptions}
+          placeholder="All Statuses"
+        />
+        <FilterDropdown
           label="Assignee"
           value={assigneeFilter}
           onChange={setAssigneeFilter}
@@ -187,12 +209,14 @@ const Tenders: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                <TableHead className="hidden lg:table-cell">Rfq/Rfp Code</TableHead>
                 <TableHead>Tender Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
                 <TableHead className="hidden md:table-cell">Belongs To</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead className="hidden md:table-cell">Deadline</TableHead>
+                <TableHead className="hidden lg:table-cell">Portal</TableHead>
                 <TableHead className="hidden sm:table-cell">Document</TableHead>
                 {canEdit && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -200,6 +224,9 @@ const Tenders: React.FC = () => {
             <TableBody>
               {filteredTenders.map((tender) => (
                 <TableRow key={tender.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="hidden lg:table-cell">
+                    <span className="text-sm font-medium">{tender.rfqCode || '-'}</span>
+                  </TableCell>
                   <TableCell>
                     <div>
                       <p className="font-medium text-foreground">{tender.name}</p>
@@ -213,11 +240,10 @@ const Tenders: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      tender.belongsTo === 'Grow Plus Technologies' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tender.belongsTo === 'Grow Plus Technologies'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                      }`}>
                       {tender.belongsTo}
                     </span>
                   </TableCell>
@@ -236,11 +262,14 @@ const Tenders: React.FC = () => {
                       {new Date(tender.deadline).toLocaleDateString()}
                     </div>
                   </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <span className="text-sm">{tender.portal || '-'}</span>
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {tender.document || tender.documentFile ? (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="text-primary hover:text-primary/80"
                         onClick={() => handleDownloadDocument(tender)}
                       >
@@ -248,8 +277,8 @@ const Tenders: React.FC = () => {
                         Download
                       </Button>
                     ) : canEdit ? (
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleOpenDocumentDialog(tender)}
                       >

@@ -6,29 +6,47 @@ export const employees: Employee[] = [
 ];
 
 export const projects: Project[] = [
-  { id: '1', name: 'Website Redesign', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-03-15', document: 'project_spec.pdf', description: 'Complete website redesign with modern UI/UX' },
-  { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-04-20', document: 'app_requirements.pdf', description: 'Native mobile app for iOS and Android' },
-  { id: '3', name: 'ERP Implementation', company: 'QWE Solutions', belongsTo: 'Grow Plus Technologies', status: 'completed', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-02-28', document: 'erp_docs.pdf', description: 'Full ERP system implementation' },
-  { id: '4', name: 'Cloud Migration', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'in-progress', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-05-10', description: 'Migrate infrastructure to AWS' },
-  { id: '5', name: 'Security Audit', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', status: 'on-hold', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment' },
-  { id: '6', name: 'Data Analytics Platform', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'pending', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-06-15', description: 'Build custom analytics dashboard' },
+  {
+    id: '1',
+    name: 'Website Redesign',
+    company: 'TechCorp',
+    belongsTo: 'Grow Plus Technologies',
+    status: 'in-progress',
+    assignedTo: '1',
+    assignedToName: 'Ahmed Hassan',
+    deadline: '2024-03-15',
+    document: 'project_spec.pdf',
+    description: 'Complete website redesign with modern UI/UX',
+    budget: 50000,
+    tasks: [
+      { id: 't1', projectId: '1', name: 'UI Mockups', description: 'Create initial UI designs', assignedTo: '1', assignedToName: 'Ahmed Hassan', dueDate: '2024-03-01', status: 'completed', priority: 'high' },
+      { id: 't2', projectId: '1', name: 'Frontend Dev', description: 'Implement React components', assignedTo: '2', assignedToName: 'Sarah Johnson', dueDate: '2024-03-10', status: 'in-progress', priority: 'medium' },
+      { id: 't3', projectId: '1', name: 'User Testing', description: 'Conduct usability tests', assignedTo: '1', assignedToName: 'Ahmed Hassan', dueDate: '2024-03-14', status: 'pending', priority: 'low' }
+    ],
+    costs: [
+      { id: 'c1', projectId: '1', description: 'Software Licenses', amount: 1500, date: '2024-02-10', category: 'software' },
+      { id: 'c2', projectId: '1', description: 'Cloud Infrastructure', amount: 2000, date: '2024-02-15', category: 'other' },
+      { id: 'c3', projectId: '1', description: 'Freelance Designer', amount: 5000, date: '2024-02-20', category: 'labor' }
+    ]
+  },
+  { id: '2', name: 'Mobile App Development', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'running', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-04-20', document: 'app_requirements.pdf', description: 'Native mobile app for iOS and Android', budget: 75000 },
+  { id: '3', name: 'ERP Implementation', company: 'QWE Solutions', belongsTo: 'Grow Plus Technologies', status: 'completed', assignedTo: '3', assignedToName: 'Mohammed Ali', deadline: '2024-02-28', document: 'erp_docs.pdf', description: 'Full ERP system implementation', budget: 120000 },
+  { id: '4', name: 'Cloud Migration', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-05-10', description: 'Migrate infrastructure to AWS', budget: 30000 },
+  { id: '5', name: 'Security Audit', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', status: 'handed-over', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment', budget: 15000 },
+  { id: '6', name: 'Data Analytics Platform', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'running', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-06-15', description: 'Build custom analytics dashboard', budget: 60000 },
 ];
 
 export const tenders: Tender[] = [
-  { id: '1', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
-  { id: '2', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
-  { id: '3', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'Grow Plus Technologies', status: 'awarded', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-05-01', document: 'healthcare_system.pdf', description: 'Hospital management software' },
-  { id: '4', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'closed', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-02-20', document: 'banking_upgrade.pdf', description: 'Core banking system upgrade' },
-  { id: '5', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-04-30', document: 'education_platform.pdf', description: 'E-learning platform development' },
-  { id: '6', name: 'Transport Management System', company: 'RTA', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-06-15', document: 'transport_system.pdf', description: 'Public transport management system' },
-  { id: '7', name: 'Security Solutions', company: 'Dubai Police', belongsTo: 'Grow Plus Technologies', status: 'open', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-07-20', document: 'security_solutions.pdf', description: 'Advanced security monitoring system' },
-  { id: '8', name: 'Energy Management Platform', company: 'DEWA', belongsTo: 'Sadeem Energy', status: 'awarded', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-08-10', document: 'energy_platform.pdf', description: 'Smart energy monitoring and management' },
-  { id: '9', name: 'Retail POS System', company: 'Majid Al Futtaim', belongsTo: 'Grow Plus Technologies', status: 'submitted', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-09-05', document: 'retail_pos.pdf', description: 'Point of sale system for retail chain' },
-  { id: '10', name: 'Logistics Tracking System', company: 'Aramex', belongsTo: 'Sadeem Energy', status: 'open', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-10-15', document: 'logistics_tracking.pdf', description: 'Real-time logistics and shipment tracking' },
+  { id: '1', rfqCode: 'RFQ-GP-2024-001', portal: 'Tejari', name: 'Government Portal Development', company: 'Ministry of Technology', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-03-25', document: 'tender_specs.pdf', description: 'E-government portal development' },
+  { id: '2', rfqCode: 'RFQ-SE-2024-015', portal: 'e-Supply', name: 'Smart City Infrastructure', company: 'Dubai Municipality', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-04-15', document: 'smart_city.pdf', description: 'IoT infrastructure for smart city' },
+  { id: '3', rfqCode: 'RFP-GP-2024-042', portal: 'DHA Portal', name: 'Healthcare Management System', company: 'DHA', belongsTo: 'Grow Plus Technologies', status: 'awarded', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-05-01', document: 'healthcare_system.pdf', description: 'Hospital management software' },
+  { id: '4', rfqCode: 'RFQ-SE-2024-008', portal: 'Etisalat Portal', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'cancelled', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-02-20', document: 'banking_upgrade.pdf', description: 'Core banking system upgrade' },
+  { id: '5', rfqCode: 'RFQ-GP-2024-022', portal: 'MOE Portal', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-04-30', document: 'education_platform.pdf', description: 'E-learning platform development' },
+  { id: '6', rfqCode: 'RFQ-SE-2024-031', portal: 'RTA Portal', name: 'Transport Management System', company: 'RTA', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-06-15', document: 'transport_system.pdf', description: 'Transport management system' },
 ];
 
 export const registrations: Registration[] = [
- 
+
   { id: '5', name: 'Municipality License Renewal', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', type: 'Municipality License', registrationDate: '2024-01-01', expiryDate: '2024-12-31', status: 'pending' },
 ];
 

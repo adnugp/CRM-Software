@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { FileDown, Calendar, User, Building, Pencil, Trash2, Upload } from 'lucide-react';
+import { FileDown, Calendar, User, Building, Pencil, Trash2, Upload, Eye } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -10,6 +11,8 @@ import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
 import ProjectForm from '@/components/forms/ProjectForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,11 +25,19 @@ const parentCompanyOptions = [
   { value: 'Sadeem Energy', label: 'Sadeem Energy' },
 ];
 
+const statusOptions = [
+  { value: 'running', label: 'Running' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'handed-over', label: 'Handed-Over' },
+];
+
 const Projects: React.FC = () => {
   const { user } = useAuth();
   const { projects, employees, addProject, updateProject, deleteProject } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -35,6 +46,17 @@ const Projects: React.FC = () => {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [selectedProjectForDoc, setSelectedProjectForDoc] = useState<Project | null>(null);
+  const [showCountId, setShowCountId] = useState<string | null>(null);
+
+  const projectCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    projects.forEach(p => {
+      if (p.assignedToName) {
+        counts[p.assignedToName] = (counts[p.assignedToName] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [projects]);
 
   const isClient = user?.role === 'client';
 
@@ -51,19 +73,22 @@ const Projects: React.FC = () => {
     if (belongsToFilter !== 'all') {
       result = result.filter(p => p.belongsTo === belongsToFilter);
     }
+    if (statusFilter !== 'all') {
+      result = result.filter(p => p.status === statusFilter);
+    }
     if (assigneeFilter !== 'all') {
       result = result.filter(p => p.assignedTo === assigneeFilter);
     }
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(p => 
+      result = result.filter(p =>
         p.name.toLowerCase().includes(query) ||
         p.company.toLowerCase().includes(query) ||
         p.assignedToName.toLowerCase().includes(query)
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, assigneeFilter, searchQuery, isClient, user?.company, projects]);
+  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user?.company, projects]);
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
@@ -142,7 +167,7 @@ const Projects: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHeader 
+      <PageHeader
         title="Projects"
         description={isClient ? `Projects for ${user?.company}` : "Manage and track all your projects"}
         action={!isClient && (
@@ -176,6 +201,13 @@ const Projects: React.FC = () => {
             placeholder="All Parent Companies"
           />
           <FilterDropdown
+            label="Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />
+          <FilterDropdown
             label="Assignee"
             value={assigneeFilter}
             onChange={setAssigneeFilter}
@@ -196,6 +228,7 @@ const Projects: React.FC = () => {
                 <TableHead className="hidden md:table-cell">Belongs To</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
+                <TableHead>Completion</TableHead>
                 <TableHead className="hidden md:table-cell">Deadline</TableHead>
                 <TableHead className="hidden sm:table-cell">Document</TableHead>
                 {!isClient && <TableHead>Actions</TableHead>}
@@ -217,11 +250,10 @@ const Projects: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      project.belongsTo === 'Grow Plus Technologies' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${project.belongsTo === 'Grow Plus Technologies'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                      }`}>
                       {project.belongsTo}
                     </span>
                   </TableCell>
@@ -229,9 +261,35 @@ const Projects: React.FC = () => {
                     <StatusBadge status={project.status} variant="project" />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
+                    <div 
+                      className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors group"
+                      onClick={() => setShowCountId(showCountId === project.id ? null : project.id)}
+                    >
                       {project.assignedToName}
+                      {showCountId === project.id && (
+                        <Badge variant="secondary" className="px-1.5 py-0 h-4 text-[10px] bg-primary/10 text-primary border-none animate-in fade-in zoom-in duration-200">
+                          {projectCounts[project.assignedToName] || 0}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 w-24">
+                      <div className="flex justify-between text-[10px] font-medium">
+                        <span>{(() => {
+                          const tasks = project.tasks || [];
+                          const completed = tasks.filter(t => t.status === 'completed').length;
+                          return tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
+                        })()}%</span>
+                      </div>
+                      <Progress
+                        value={(() => {
+                          const tasks = project.tasks || [];
+                          const completed = tasks.filter(t => t.status === 'completed').length;
+                          return tasks.length > 0 ? (completed / tasks.length) * 100 : 0;
+                        })()}
+                        className="h-1.5"
+                      />
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -242,9 +300,9 @@ const Projects: React.FC = () => {
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {project.document || project.documentFile ? (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="text-primary hover:text-primary/80"
                         onClick={() => handleDownloadDocument(project)}
                       >
@@ -252,8 +310,8 @@ const Projects: React.FC = () => {
                         Download
                       </Button>
                     ) : !isClient ? (
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleOpenDocumentDialog(project)}
                       >
@@ -267,6 +325,11 @@ const Projects: React.FC = () => {
                   {!isClient && (
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to={`/projects/${project.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
                           <Pencil className="h-4 w-4" />
                         </Button>

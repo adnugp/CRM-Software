@@ -15,29 +15,31 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { projects, stats } = useData();
 
-const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const canEdit = user?.role === 'admin' || user?.role === 'user';
   const recentProjects = projects.slice(0, 5);
 
   return (
     <MainLayout>
       <div className="flex items-center justify-between mb-6">
-        <PageHeader 
+        <PageHeader
           title={`Welcome back, ${user?.name?.split(' ')[0] || 'User'}!`}
           description="Here's what's happening with your business today."
         />
-        <NotificationCenter />
+        <div className="flex items-center gap-2">
+          <NotificationCenter />
+        </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
         <StatCard
-          title="Active Projects"
+          title="Running Projects"
           value={stats.activeProjects}
           icon={FolderKanban}
           trend={{ value: 12, isPositive: true }}
         />
         <StatCard
-          title="Open Tenders"
+          title="Running Tenders"
           value={stats.openTenders}
           icon={FileText}
           trend={{ value: 8, isPositive: true }}
@@ -46,7 +48,7 @@ const canEdit = user?.role === 'admin' || user?.role === 'user';
           title="Pending Payments"
           value={stats.pendingPayments}
           icon={CreditCard}
-          //trend={{ value: 5, isPositive: false }}
+        //trend={{ value: 5, isPositive: false }}
         />
         <StatCard
           title="Total Projects & Tenders"

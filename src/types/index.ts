@@ -18,18 +18,42 @@ export interface DocumentFile {
 
 export type ParentCompany = 'Grow Plus Technologies' | 'Sadeem Energy';
 
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  assignedTo: string;
+  assignedToName: string;
+  dueDate: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+}
+
+export interface ProjectCost {
+  id: string;
+  projectId: string;
+  description: string;
+  amount: number;
+  date: string;
+  category: string;
+}
+
 export interface Project {
   id: string;
   name: string;
   company: string;
   belongsTo: ParentCompany;
-  status: 'pending' | 'in-progress' | 'completed' | 'on-hold';
+  status: 'running' | 'in-progress' | 'completed' | 'handed-over';
   assignedTo: string;
   assignedToName: string;
   deadline: string;
   document?: string;
   documentFile?: DocumentFile;
   description?: string;
+  budget?: number;
+  tasks?: ProjectTask[];
+  costs?: ProjectCost[];
   createdAt?: Date;
 }
 
@@ -37,8 +61,10 @@ export interface Tender {
   id: string;
   name: string;
   company: string;
+  rfqCode?: string;
+  portal?: string;
   belongsTo: ParentCompany;
-  status: 'open' | 'submitted' | 'awarded' | 'closed';
+  status: 'running' | 'submitted' | 'cancelled' | 'to-be-evaluated' | 'winner' | 'awarded';
   assignedTo: string;
   assignedToName: string;
   deadline: string;

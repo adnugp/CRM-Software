@@ -35,12 +35,12 @@ const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Ener
 
 const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100, 'Name must be less than 100 characters'),
-   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
+  company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
-  status: z.enum(['pending', 'in-progress', 'completed', 'on-hold']),
+  status: z.enum(['running', 'in-progress', 'completed', 'handed-over']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
-  
+  budget: z.coerce.number().min(0, 'Budget must be a positive number').optional(),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -67,10 +67,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       name: project?.name || '',
       company: project?.company || '',
       belongsTo: project?.belongsTo || undefined,
-      status: project?.status || 'pending',
+      status: project?.status || 'running',
       assignedTo: project?.assignedTo || '',
       deadline: project?.deadline || '',
-      
+      budget: project?.budget || 0,
     },
   });
 
@@ -83,17 +83,17 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         status: project.status,
         assignedTo: project.assignedTo,
         deadline: project.deadline,
-        
+        budget: project.budget || 0,
       });
     } else {
       form.reset({
         name: '',
         company: '',
         belongsTo: undefined,
-        status: 'pending',
+        status: 'running',
         assignedTo: '',
         deadline: '',
-        
+        budget: 0,
       });
     }
   }, [project, form]);
@@ -144,7 +144,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
               )}
             />
 
-                {/*<FormItem>
+            {/*<FormItem>
                   <FormLabel>Company</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
@@ -203,10 +203,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
                       <SelectItem value="in-progress">In Progress</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="on-hold">On Hold</SelectItem>
+                      <SelectItem value="handed-over">Handed Over</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -247,6 +247,20 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                   <FormLabel>Deadline</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="budget"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total Budget ($)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Enter total project budget" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
