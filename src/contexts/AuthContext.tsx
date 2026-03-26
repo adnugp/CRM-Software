@@ -3,10 +3,13 @@ import { User, UserRole } from '@/types';
 
 interface AuthContextType {
   user: User | null;
+  allUsers: (User & { password?: string })[];
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
   addUser: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
+  removeUser: (id: string) => Promise<boolean>;
   logout: () => void;
+  refreshUsers: () => void;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -19,7 +22,18 @@ const CURRENT_USER_KEY = 'crm_current_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [allUsers, setAllUsers] = useState<(User & { password?: string })[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Load all users from local storage
+  const refreshUsers = useCallback(() => {
+    const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+    const mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
+    
+    // Ensure the default admin isn't duplicated but is present if needed for display
+    // However, usually we only manage dynamic users.
+    setAllUsers(mockUsers);
+  }, []);
 
   // Initialize from local storage on mount
   useEffect(() => {
@@ -32,8 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem(CURRENT_USER_KEY);
       }
     }
+    refreshUsers();
     setLoading(false);
-  }, []);
+  }, [refreshUsers]);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
@@ -104,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Save to local mock users list (with password for future login)
       mockUsers.push({ ...userProfile, password });
       localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
+      refreshUsers();
 
       // Set current session
       setUser(userProfile);
@@ -114,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Registration error:', error);
       return false;
     }
-  }, []);
+  }, [refreshUsers]);
 
   const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
     try {
@@ -140,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Save to local mock users list (with password for future login)
       mockUsers.push({ ...userProfile, password });
       localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
+      refreshUsers();
 
       console.log('User added successfully:', userProfile.name);
       return true;
@@ -147,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Add user error:', error);
       return false;
     }
-  }, []);
+  }, [refreshUsers]);
 
   const logout = useCallback(() => {
     console.log('Logging out...');
@@ -156,13 +173,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Logout successful');
   }, []);
 
+  const removeUser = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      // Prevent deleting the default admin
+      if (id === 'admin-id') return false;
+
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      if (!mockUsersJson) return false;
+
+      const mockUsers = JSON.parse(mockUsersJson);
+      const filteredUsers = mockUsers.filter((u: any) => u.id !== id);
+      
+      localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(filteredUsers));
+      refreshUsers();
+      
+      // If the removed user is the current user, log them out
+      if (user?.id === id) {
+        logout();
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Remove user error:', error);
+      return false;
+    }
+  }, [refreshUsers, user, logout]);
+
   return (
     <AuthContext.Provider value={{
       user,
+      allUsers,
       login,
       register,
       addUser,
+      removeUser,
       logout,
+      refreshUsers,
       isAuthenticated: !!user,
       loading
     }}>

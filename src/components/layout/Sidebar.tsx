@@ -38,7 +38,6 @@ const Sidebar: React.FC = () => {
     { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['admin', 'user'] },
     { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user'] },
     { path: '/employees', icon: Users, label: 'Employees', roles: ['admin'] },
-    { path: '/register', icon: UserPlus, label: 'Registration', roles: ['admin'] },
     { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'client'] },
   ];
 
