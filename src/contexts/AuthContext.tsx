@@ -5,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
+  addUser: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
   loading: boolean;
@@ -115,6 +116,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
+    try {
+      console.log('Attempting to add user (Local Storage) for:', email);
+
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      const mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
+
+      // Check if email already exists locally
+      if (mockUsers.some((u: any) => u.email === email)) {
+        console.warn('Add user failed: email already exists');
+        return false;
+      }
+
+      const newUserId = `user-${Date.now()}`;
+      const userProfile: User = {
+        id: newUserId,
+        email: email,
+        name: name,
+        role: role,
+      };
+
+      // Save to local mock users list (with password for future login)
+      mockUsers.push({ ...userProfile, password });
+      localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
+
+      console.log('User added successfully:', userProfile.name);
+      return true;
+    } catch (error) {
+      console.error('Add user error:', error);
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     console.log('Logging out...');
     setUser(null);
@@ -127,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       login,
       register,
+      addUser,
       logout,
       isAuthenticated: !!user,
       loading

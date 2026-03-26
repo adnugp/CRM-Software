@@ -141,13 +141,6 @@ const Login: React.FC = () => {
                 >
                   {isLoading ? 'Signing in...' : 'Sign in'}
                 </Button>
-
-                <p className="text-center text-muted-foreground">
-                  Don't have an account?{' '}
-                  <Link to="/register" className="text-primary font-semibold hover:underline">
-                    Create one
-                  </Link>
-                </p>
               </form>
             </>
           ) : (

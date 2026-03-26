@@ -20,6 +20,7 @@ import Partners from "./pages/Partners";
 import Employees from "./pages/Employees";
 import ProjectManagement from "./pages/ProjectManagement";
 import NotFound from "./pages/NotFound";
+import Settings from "./pages/Settings";
 import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -46,7 +47,11 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/register" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Register />
+                </ProtectedRoute>
+              } />
 
               {/* Admin/User only routes */}
               <Route path="/dashboard" element={
@@ -82,6 +87,11 @@ const App = () => {
               <Route path="/employees" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Employees />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               } />
 
