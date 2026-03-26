@@ -15,15 +15,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 // Settings Page Component
 const Settings: React.FC = () => {
-    const { user, allUsers, removeUser } = useAuth();
+    const { user, allUsers, removeUser, updateProfile, updatePassword } = useAuth();
     const { toast } = useToast();
     const navigate = useNavigate();
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
         return (localStorage.getItem('crm-theme') as 'light' | 'dark' | 'system') || 'system';
     });
+
+    // Profile & Password States
+    const [profileName, setProfileName] = useState(user?.name || '');
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+    useEffect(() => {
+        if (user) setProfileName(user.name);
+    }, [user]);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -37,6 +58,49 @@ const Settings: React.FC = () => {
         }
         localStorage.setItem('crm-theme', theme);
     }, [theme]);
+
+    const handleUpdateProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsUpdatingProfile(true);
+        const success = await updateProfile(profileName, user?.email || '');
+        if (success) {
+            toast({
+                title: "Profile Updated",
+                description: "Your changes have been saved successfully.",
+            });
+        }
+        setIsUpdatingProfile(false);
+    };
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPassword !== confirmNewPassword) {
+            toast({
+                title: "Error",
+                description: "New passwords do not match.",
+                variant: "destructive"
+            });
+            return;
+        }
+        setIsChangingPassword(true);
+        const success = await updatePassword(currentPassword, newPassword);
+        if (success) {
+            toast({
+                title: "Password Changed",
+                description: "Your security credentials have been updated.",
+            });
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+        } else {
+            toast({
+                title: "Change Failed",
+                description: "Current password was incorrect.",
+                variant: "destructive"
+            });
+        }
+        setIsChangingPassword(false);
+    };
 
     const handleRemoveUser = async (id: string, name: string) => {
         if (confirm(`Are you sure you want to remove ${name}? This will revoke their access immediately.`)) {
@@ -174,10 +238,10 @@ const Settings: React.FC = () => {
                             <CardContent className="pt-6 space-y-6">
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-6 border-b border-border">
                                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl font-bold">
-                                        {user?.name.charAt(0).toUpperCase()}
+                                        {profileName.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="space-y-1">
-                                        <h3 className="text-xl font-bold">{user?.name}</h3>
+                                        <h3 className="text-xl font-bold">{profileName}</h3>
                                         <p className="text-sm text-muted-foreground">{user?.email}</p>
                                         <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize mt-1">
                                             {user?.role} Role
@@ -186,23 +250,33 @@ const Settings: React.FC = () => {
                                     <Button variant="outline" className="sm:ml-auto">Change Avatar</Button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="full-name">Full Name</Label>
-                                        <Input id="full-name" defaultValue={user?.name || ''} placeholder="Your Name" />
+                                <form onSubmit={handleUpdateProfile} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="full-name">Full Name</Label>
+                                            <Input 
+                                                id="full-name" 
+                                                value={profileName} 
+                                                onChange={e => setProfileName(e.target.value)} 
+                                                placeholder="Your Name" 
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email-display">Email Address</Label>
+                                            <Input id="email-display" defaultValue={user?.email || ''} disabled className="bg-muted cursor-not-allowed" />
+                                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                <Info className="h-3 w-3" />
+                                                Email changes require administrative approval.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="email-display">Email Address</Label>
-                                        <Input id="email-display" defaultValue={user?.email || ''} disabled className="bg-muted" />
-                                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                            <Info className="h-3 w-3" />
-                                            Email changes require administrative approval.
-                                        </p>
+                                    <div className="flex justify-end pt-4">
+                                        <Button type="submit" className="gradient-primary text-white" disabled={isUpdatingProfile}>
+                                            {isUpdatingProfile ? 'Saving...' : 'Update Profile'}
+                                        </Button>
                                     </div>
-                                </div>
-                                <div className="flex justify-end pt-4">
-                                    <Button className="gradient-primary text-white">Update Profile</Button>
-                                </div>
+                                </form>
                             </CardContent>
                         </Card>
 
@@ -315,9 +389,63 @@ const Settings: React.FC = () => {
                                         </AlertDescription>
                                     </Alert>
                                     
-                                    <Button variant="outline" className="w-full justify-start text-sm">
-                                        Change Password
-                                    </Button>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-sm gap-2">
+                                                <Lock className="h-4 w-4" />
+                                                Change Security Password
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-[425px]">
+                                            <form onSubmit={handleChangePassword}>
+                                                <DialogHeader>
+                                                    <DialogTitle>Update Password</DialogTitle>
+                                                    <DialogDescription>
+                                                        Ensure your account is protected with a strong, unique password.
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="grid gap-4 py-6">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="current">Current Password</Label>
+                                                        <Input 
+                                                            id="current" 
+                                                            type="password" 
+                                                            value={currentPassword} 
+                                                            onChange={e => setCurrentPassword(e.target.value)}
+                                                            required 
+                                                        />
+                                                    </div>
+                                                    <Separator className="my-2" />
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="new">New Password</Label>
+                                                        <Input 
+                                                            id="new" 
+                                                            type="password" 
+                                                            value={newPassword} 
+                                                            onChange={e => setNewPassword(e.target.value)}
+                                                            required 
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="confirm">Confirm New Password</Label>
+                                                        <Input 
+                                                            id="confirm" 
+                                                            type="password" 
+                                                            value={confirmNewPassword} 
+                                                            onChange={e => setConfirmNewPassword(e.target.value)}
+                                                            required 
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button type="submit" className="gradient-primary text-white w-full" disabled={isChangingPassword}>
+                                                        {isChangingPassword ? "Updating..." : "Update Security Credentials"}
+                                                    </Button>
+                                                </DialogFooter>
+                                            </form>
+                                        </DialogContent>
+                                    </Dialog>
+
                                     <Button variant="outline" className="w-full justify-start text-sm">
                                         Manage Active Sessions
                                     </Button>

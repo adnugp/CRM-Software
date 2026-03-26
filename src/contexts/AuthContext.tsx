@@ -12,6 +12,8 @@ interface AuthContextType {
   refreshUsers: () => void;
   isAuthenticated: boolean;
   loading: boolean;
+  updateProfile: (name: string, email: string) => Promise<boolean>;
+  updatePassword: (current: string, newP: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,9 +32,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
     const mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
     
-    // Ensure the default admin isn't duplicated but is present if needed for display
-    // However, usually we only manage dynamic users.
-    setAllUsers(mockUsers);
+    // Include default admin in the list if it's for display
+    const usersList = [...mockUsers];
+    if (!usersList.some(u => u.id === 'admin-id')) {
+      usersList.unshift({
+        id: 'admin-id',
+        email: 'admin@admin.com',
+        name: 'Admin User',
+        role: 'admin',
+        password: 'admin123'
+      });
+    }
+    setAllUsers(usersList);
   }, []);
 
   // Initialize from local storage on mount
@@ -56,34 +67,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Check registered mock users in local storage
       const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
-      if (mockUsersJson) {
-        const mockUsers = JSON.parse(mockUsersJson);
-        const foundUser = mockUsers.find((u: any) => u.email === email && u.password === password);
-        if (foundUser) {
-          const userProfile: User = {
-            id: foundUser.id,
-            email: foundUser.email,
-            name: foundUser.name,
-            role: foundUser.role,
+      const mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
+      
+      // Check default admin
+      if (email === 'admin@admin.com') {
+        // Find if admin password was changed
+        const adminEntry = mockUsers.find((u: any) => u.id === 'admin-id');
+        const adminPass = adminEntry?.password || 'admin123';
+        
+        if (password === adminPass) {
+          const adminUser: User = {
+            id: 'admin-id',
+            email: 'admin@admin.com',
+            name: adminEntry?.name || 'Admin User',
+            role: 'admin',
           };
-          setUser(userProfile);
-          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userProfile));
-          console.log('Login successful:', userProfile.name);
+          setUser(adminUser);
+          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(adminUser));
           return true;
         }
       }
 
-      // Default admin account for testing
-      if (email === 'admin@admin.com' && password === 'admin123') {
-        const adminUser: User = {
-          id: 'admin-id',
-          email: 'admin@admin.com',
-          name: 'Admin User',
-          role: 'admin',
+      const foundUser = mockUsers.find((u: any) => u.email === email && u.password === password);
+      if (foundUser) {
+        const userProfile: User = {
+          id: foundUser.id,
+          email: foundUser.email,
+          name: foundUser.name,
+          role: foundUser.role,
         };
-        setUser(adminUser);
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(adminUser));
-        console.log('Login successful (admin default)');
+        setUser(userProfile);
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userProfile));
+        console.log('Login successful:', userProfile.name);
         return true;
       }
 
@@ -199,6 +214,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [refreshUsers, user, logout]);
 
+  const updateProfile = useCallback(async (name: string, email: string): Promise<boolean> => {
+    try {
+      if (!user) return false;
+      
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      let mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
+      
+      // Special handling for admin-id (if not in mockUsers yet)
+      if (user.id === 'admin-id' && !mockUsers.some((u: any) => u.id === 'admin-id')) {
+        mockUsers.push({
+          id: 'admin-id',
+          email: 'admin@admin.com',
+          name: 'Admin User',
+          role: 'admin',
+          password: 'admin123'
+        });
+      }
+
+      mockUsers = mockUsers.map((u: any) => {
+        if (u.id === user.id) {
+          return { ...u, name, email };
+        }
+        return u;
+      });
+
+      localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
+      const updatedUser = { ...user, name, email };
+      setUser(updatedUser);
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
+      refreshUsers();
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [user, refreshUsers]);
+
+  const updatePassword = useCallback(async (current: string, newP: string): Promise<boolean> => {
+    try {
+      if (!user) return false;
+      const mockUsersJson = localStorage.getItem(MOCK_USERS_KEY);
+      let mockUsers = mockUsersJson ? JSON.parse(mockUsersJson) : [];
+
+      // Find user but include admin default
+      let foundUser = mockUsers.find((u: any) => u.id === user.id);
+      if (!foundUser && user.id === 'admin-id') {
+        foundUser = { id: 'admin-id', password: 'admin123', name: user.name, email: user.email, role: 'admin' };
+        mockUsers.push(foundUser);
+      }
+
+      if (foundUser.password !== current) return false;
+
+      mockUsers = mockUsers.map((u: any) => {
+        if (u.id === user.id) {
+          return { ...u, password: newP };
+        }
+        return u;
+      });
+
+      localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(mockUsers));
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -210,7 +292,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       refreshUsers,
       isAuthenticated: !!user,
-      loading
+      loading,
+      updateProfile,
+      updatePassword
     }}>
       {children}
     </AuthContext.Provider>
