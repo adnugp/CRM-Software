@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle } from 'lucide-react';
+import { User, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,18 +18,12 @@ import { UserRole } from '@/types';
 
 // Settings Page Component
 const Settings: React.FC = () => {
-    const { user, allUsers, addUser, removeUser } = useAuth();
+    const { user, allUsers, removeUser } = useAuth();
     const { toast } = useToast();
+    const navigate = useNavigate();
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
         return (localStorage.getItem('crm-theme') as 'light' | 'dark' | 'system') || 'system';
     });
-
-    // Add User Form State
-    const [newName, setNewName] = useState('');
-    const [newEmail, setNewEmail] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [newRole, setNewRole] = useState<UserRole>('user');
-    const [isAddingUser, setIsAddingUser] = useState(false);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -42,34 +37,6 @@ const Settings: React.FC = () => {
         }
         localStorage.setItem('crm-theme', theme);
     }, [theme]);
-
-    const handleAddUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsAddingUser(true);
-        try {
-            const success = await addUser(newName, newEmail, newPassword, newRole);
-            if (success) {
-                toast({
-                    title: "User Created",
-                    description: `${newName} has been added as a ${newRole}.`,
-                });
-                setNewName('');
-                setNewEmail('');
-                setNewPassword('');
-                setNewRole('user');
-            } else {
-                toast({
-                    title: "Registration Failed",
-                    description: "User with this email already exists.",
-                    variant: "destructive"
-                });
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsAddingUser(false);
-        }
-    };
 
     const handleRemoveUser = async (id: string, name: string) => {
         if (confirm(`Are you sure you want to remove ${name}? This will revoke their access immediately.`)) {
@@ -97,83 +64,41 @@ const Settings: React.FC = () => {
                     {/* Main Settings Column */}
                     <div className="xl:col-span-2 space-y-8">
                         
-                        {/* Admin-only User Management Portal */}
+                        {/* Admin-only User Management Portal Summary */}
                         {isAdmin && (
                             <Card className="overflow-hidden border-2 border-primary/20 shadow-lg animate-slide-up">
                                 <CardHeader className="bg-primary/5 border-b">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <CardTitle className="flex items-center gap-2 text-primary">
-                                                <UserPlus className="h-5 w-5" />
-                                                User Management Portal
+                                                <Shield className="h-5 w-5" />
+                                                Administrative Controls
                                             </CardTitle>
                                             <CardDescription className="text-primary/70">
-                                                Add, remove, and manage system access for your team and clients.
+                                                Manage system users, access roles, and platform portals.
                                             </CardDescription>
-                                        </div>
-                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                            <Shield className="h-5 w-5 text-primary" />
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-8 space-y-10">
-                                    {/* Add User Form Section */}
-                                    <div className="space-y-6">
-                                        <h3 className="text-lg font-bold flex items-center gap-2">
-                                            Add New Access Portal
-                                        </h3>
-                                        <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-6 rounded-xl border border-dashed border-primary/30">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="new-name">Full Name</Label>
-                                                <Input 
-                                                    id="new-name" 
-                                                    value={newName} 
-                                                    onChange={e => setNewName(e.target.value)} 
-                                                    placeholder="Employee or Client Name" 
-                                                    required 
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="new-email">Email Address</Label>
-                                                <Input 
-                                                    id="new-email" 
-                                                    type="email" 
-                                                    value={newEmail} 
-                                                    onChange={e => setNewEmail(e.target.value)} 
-                                                    placeholder="email@example.com" 
-                                                    required 
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="new-password">Initial Password</Label>
-                                                <Input 
-                                                    id="new-password" 
-                                                    type="password" 
-                                                    value={newPassword} 
-                                                    onChange={e => setNewPassword(e.target.value)} 
-                                                    placeholder="••••••••" 
-                                                    required 
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="new-role">Access Role</Label>
-                                                <Select value={newRole} onValueChange={(v: UserRole) => setNewRole(v)}>
-                                                    <SelectTrigger id="new-role">
-                                                        <SelectValue placeholder="Select role" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="admin">Administrator</SelectItem>
-                                                        <SelectItem value="user">Manager / Employee</SelectItem>
-                                                        <SelectItem value="client">Client Portal</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="md:col-span-2 pt-2">
-                                                <Button type="submit" className="w-full gradient-primary text-white" disabled={isAddingUser}>
-                                                    {isAddingUser ? "Processing..." : "Create User Portal"}
-                                                </Button>
-                                            </div>
-                                        </form>
+                                    {/* Link to Registration Portal */}
+                                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+                                        <div className="space-y-2 text-center md:text-left">
+                                          <h3 className="text-xl font-bold text-primary flex items-center justify-center md:justify-start gap-2">
+                                            <UserPlus className="h-6 w-6" />
+                                            Registration Portal
+                                          </h3>
+                                          <p className="text-sm text-muted-foreground max-w-md">
+                                            Access the dedicated portal to onboard new employees, managers, or create restricted client access gateways.
+                                          </p>
+                                        </div>
+                                        <Button 
+                                          onClick={() => navigate('/register')} 
+                                          className="w-full md:w-auto px-8 h-12 gradient-primary text-white shadow-lg hover:shadow-xl transition-all"
+                                        >
+                                          Open Portal
+                                          <ExternalLink className="ml-2 h-4 w-4" />
+                                        </Button>
                                     </div>
 
                                     {/* User List Table Section */}
@@ -181,7 +106,7 @@ const Settings: React.FC = () => {
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-lg font-bold">User Directory & Active Portals</h3>
                                             <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-                                                {allUsers.length} Active Users
+                                                {allUsers.length} Active Accounts
                                             </p>
                                         </div>
                                         <div className="border rounded-xl bg-card overflow-hidden">
@@ -190,24 +115,29 @@ const Settings: React.FC = () => {
                                                     <TableRow className="bg-muted/50">
                                                         <TableHead>User</TableHead>
                                                         <TableHead>Role</TableHead>
-                                                        <TableHead>Email</TableHead>
+                                                        <TableHead className="hidden md:table-cell">Email</TableHead>
                                                         <TableHead className="text-right">Actions</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
                                                     {allUsers.map((u) => (
                                                         <TableRow key={u.id} className="hover:bg-muted/20 transition-colors">
-                                                            <TableCell className="font-medium">{u.name}</TableCell>
+                                                            <TableCell className="font-medium">
+                                                              <div>
+                                                                <p>{u.name}</p>
+                                                                <p className="text-[10px] text-muted-foreground md:hidden">{u.email}</p>
+                                                              </div>
+                                                            </TableCell>
                                                             <TableCell>
                                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${
                                                                     u.role === 'admin' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' : 
                                                                     u.role === 'user' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30' : 
                                                                     'bg-amber-100 text-amber-700 dark:bg-amber-900/30'
                                                                 }`}>
-                                                                    {u.role}
+                                                                    {u.role === 'admin' ? 'Admin' : u.role === 'user' ? 'Manager' : 'Client'}
                                                                 </span>
                                                             </TableCell>
-                                                            <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
+                                                            <TableCell className="text-muted-foreground text-sm hidden md:table-cell">{u.email}</TableCell>
                                                             <TableCell className="text-right">
                                                                 <Button 
                                                                     variant="ghost" 
@@ -216,18 +146,12 @@ const Settings: React.FC = () => {
                                                                     onClick={() => handleRemoveUser(u.id, u.name)}
                                                                 >
                                                                     <Trash2 className="h-4 w-4 mr-2" />
-                                                                    Deactivate
+                                                                    <span className="hidden sm:inline">Delete User</span>
+                                                                    <span className="sm:hidden text-xs">Del</span>
                                                                 </Button>
                                                             </TableCell>
                                                         </TableRow>
                                                     ))}
-                                                    {allUsers.length === 0 && (
-                                                        <TableRow>
-                                                            <TableCell colSpan={4} className="text-center py-10 text-muted-foreground italic">
-                                                                No user-created accounts found.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
                                                 </TableBody>
                                             </Table>
                                         </div>
