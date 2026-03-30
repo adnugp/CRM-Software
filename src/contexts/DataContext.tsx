@@ -191,12 +191,86 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const id = await addTender(tender);
     const newTender = { ...tender, id };
     setTenders(prev => [newTender, ...prev]);
+
+    // Auto-create Project if Tender is Awarded on creation
+    if (tender.status === 'awarded') {
+      const projectExists = projects.some(p => 
+        p.name.toLowerCase() === tender.name.toLowerCase() && 
+        p.company.toLowerCase() === tender.company.toLowerCase()
+      );
+
+      if (!projectExists) {
+        // Find assigned person's name if missing
+        let assignedName = tender.assignedToName;
+        if (!assignedName && tender.assignedTo) {
+          const emp = employees.find(e => e.id === tender.assignedTo);
+          if (emp) assignedName = emp.name;
+        }
+
+        const newProject: Omit<Project, 'id'> = {
+          name: tender.name,
+          company: tender.company,
+          belongsTo: tender.belongsTo,
+          status: 'running',
+          assignedTo: tender.assignedTo,
+          assignedToName: assignedName || '',
+          deadline: tender.deadline,
+          budget: 0,
+          description: `Automatically created from Awarded Tender (Direct Add): ${tender.name}`,
+          createdAt: new Date()
+        };
+
+        await handleAddProject(newProject);
+      }
+    }
+
     return id;
   };
 
   const handleUpdateTender = async (id: string, tender: Partial<Tender>) => {
+    const existingTender = tenders.find(t => t.id === id);
+    if (!existingTender) {
+      await updateTender(id, tender);
+      setTenders(prev => prev.map(t => t.id === id ? { ...t, ...tender } : t));
+      return;
+    }
+
+    const updatedTenderData = { ...existingTender, ...tender };
+
     await updateTender(id, tender);
-    setTenders(prev => prev.map(t => t.id === id ? { ...t, ...tender } : t));
+    setTenders(prev => prev.map(t => t.id === id ? updatedTenderData : t));
+
+    // Auto-create Project if Tender is Awarded
+    if (tender.status === 'awarded') {
+      const projectExists = projects.some(p => 
+        p.name.toLowerCase() === updatedTenderData.name.toLowerCase() && 
+        p.company.toLowerCase() === updatedTenderData.company.toLowerCase()
+      );
+
+      if (!projectExists) {
+        // Find assigned person's name if missing
+        let assignedName = updatedTenderData.assignedToName;
+        if (!assignedName && updatedTenderData.assignedTo) {
+          const emp = employees.find(e => e.id === updatedTenderData.assignedTo);
+          if (emp) assignedName = emp.name;
+        }
+
+        const newProject: Omit<Project, 'id'> = {
+          name: updatedTenderData.name,
+          company: updatedTenderData.company,
+          belongsTo: updatedTenderData.belongsTo,
+          status: 'running',
+          assignedTo: updatedTenderData.assignedTo,
+          assignedToName: assignedName || '',
+          deadline: updatedTenderData.deadline,
+          budget: 0,
+          description: `Automatically created from Awarded Tender: ${updatedTenderData.name}`,
+          createdAt: new Date()
+        };
+
+        await handleAddProject(newProject);
+      }
+    }
   };
 
   const handleDeleteTender = async (id: string) => {

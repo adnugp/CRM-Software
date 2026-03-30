@@ -25,7 +25,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tender, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
@@ -132,181 +134,185 @@ const TenderForm: React.FC<TenderFormProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Tender' : 'Create New Tender'}</DialogTitle>
         </DialogHeader>
+        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tender Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter tender name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
+            <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
+              <div className="space-y-4 py-2">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tender Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter tender name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="company"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Company/Organization</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        placeholder="Enter company name"
-                        {...field}
-                        autoComplete="off"
-                        list="companies-datalist"
-                      />
-                      <datalist id="companies-datalist">
-                        {uniqueCompanies.map((company) => (
-                          <option key={company} value={company} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="company"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company/Organization</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            placeholder="Enter company name"
+                            {...field}
+                            autoComplete="off"
+                            list="companies-datalist"
+                          />
+                          <datalist id="companies-datalist">
+                            {uniqueCompanies.map((company) => (
+                              <option key={company} value={company} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="rfqCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rfq/Rfp Code</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter code" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="rfqCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rfq/Rfp Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter code" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="portal"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Portal</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter portal" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                  <FormField
+                    control={form.control}
+                    name="portal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Portal</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter portal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-            <FormField
-              control={form.control}
-              name="belongsTo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Belongs To</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select parent company" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {parentCompanies.map((company) => (
-                        <SelectItem key={company} value={company}>
-                          {company}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="belongsTo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Belongs To</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select parent company" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {parentCompanies.map((company) => (
+                            <SelectItem key={company} value={company}>
+                              {company}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="submitted">Submitted</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="to-be-evaluated">To be Evaluated</SelectItem>
-                      <SelectItem value="winner">Winner</SelectItem>
-                      <SelectItem value="awarded">Awarded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="running">Running</SelectItem>
+                          <SelectItem value="submitted">Submitted</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                          <SelectItem value="to-be-evaluated">To be Evaluated</SelectItem>
+                          <SelectItem value="winner">Winner</SelectItem>
+                          <SelectItem value="awarded">Awarded</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="assignedTo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Assigned To</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select assignee" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {uniqueEmployees.map((employee) => (
-                        <SelectItem key={employee.id} value={employee.id}>
-                          {employee.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="assignedTo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assigned To</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select assignee" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {uniqueEmployees.map((employee) => (
+                            <SelectItem key={employee.id} value={employee.id}>
+                              {employee.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="deadline"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Deadline</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="deadline"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Deadline</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </ScrollArea>
 
-
-            <div className="flex justify-end gap-3 pt-4">
+            <DialogFooter className="p-6 pt-2 border-t mt-auto">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="gradient-primary text-primary-foreground">
+              <Button type="submit" className="gradient-primary text-primary-foreground min-w-[120px]">
                 {isEditing ? 'Update Tender' : 'Create Tender'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
