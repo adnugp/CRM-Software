@@ -30,15 +30,15 @@ const Sidebar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const menuItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'user'] },
+    { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'user', 'manager'] },
     { path: '/projects', icon: FolderKanban, label: 'Projects', roles: ['admin', 'user', 'client'] },
     { path: '/tenders', icon: FileText, label: 'Tenders', roles: ['admin', 'user'] },
-    { path: '/registrations', icon: ClipboardList, label: 'Registrations', roles: ['admin', 'user'] },
-    { path: '/files', icon: Files, label: 'Files', roles: ['admin', 'user'] },
-    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['admin', 'user'] },
+    { path: '/registrations', icon: ClipboardList, label: 'Registrations', roles: ['admin', 'user', 'manager'] },
+    { path: '/files', icon: Files, label: 'Files', roles: ['admin', 'user', 'manager'] },
+    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['user', 'manager'] },
     { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user'] },
     { path: '/employees', icon: Users, label: 'Employees', roles: ['admin'] },
-    { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'client'] },
+    { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'manager'] },
   ];
 
   const filteredMenuItems = menuItems.filter(item => 

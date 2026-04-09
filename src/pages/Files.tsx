@@ -42,6 +42,7 @@ const Files: React.FC = () => {
   const [uploadDocument, setUploadDocument] = useState<DocumentFile | null>(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const isManager = user?.role === 'manager';
 
   const categories = ['Projects', 'Tenders', 'Registrations', 'Contracts', 'Reports', 'Other'];
   const companies = ['Grow Plus Technologies', 'Sadeem Energy'];
@@ -141,8 +142,8 @@ const Files: React.FC = () => {
   return (
     <MainLayout>
       <PageHeader
-        title="Files"
-        description="Upload and manage your documents"
+        title={isManager ? "Audit Logs & Documents" : "Files"}
+        description={isManager ? "Review and audit company documents and confidential records" : "Upload and manage your documents"}
         action={
           canEdit && (
             <Button onClick={() => setIsUploadDialogOpen(true)}>

@@ -32,6 +32,8 @@ const Registrations: React.FC = () => {
 
 
   const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const isManager = user?.role === 'manager';
+  const isEmployee = user?.role === 'user';
 
   const registrationCompanies = [...new Set(registrations.map(r => r.company))];
   const companyOptions = registrationCompanies.map(c => ({ value: c, label: c }));
@@ -99,8 +101,8 @@ const Registrations: React.FC = () => {
   return (
     <MainLayout>
       <PageHeader 
-        title="Registrations"
-        description="Track all company registrations and certifications"
+        title={isManager ? "Registration Audit" : "Registrations"}
+        description={isManager ? "Review and audit company certifications" : "Track all company registrations and certifications"}
         action={canEdit && (
           <Button className="gradient-primary text-primary-foreground" onClick={handleOpenForm}>
             + New Registration

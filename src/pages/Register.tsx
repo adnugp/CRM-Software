@@ -128,9 +128,10 @@ const Register: React.FC = () => {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Administrator (Full Access)</SelectItem>
-                          <SelectItem value="user">Manager (Standard Access)</SelectItem>
-                          <SelectItem value="client">Client (Restricted Access)</SelectItem>
+                          <SelectItem value="admin">Administrator (Full Access, No Finance)</SelectItem>
+                          <SelectItem value="manager">Manager (Financial Audit & Confidential)</SelectItem>
+                          <SelectItem value="user">Employee (Standard Access + Financial Insert)</SelectItem>
+                          <SelectItem value="client">Client (Restricted Access, No Settings)</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-[10px] text-muted-foreground italic px-1">
@@ -216,19 +217,25 @@ const Register: React.FC = () => {
                 <div className="space-y-2">
                   <h4 className="text-sm font-bold text-primary">Administrator</h4>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Full system access. Can manage users, edit all projects, tenders, payments and system settings.
+                    Full system access including employees and settings. Prohibited from viewing financial data.
                   </p>
                 </div>
                 <div className="space-y-2 pt-2">
                   <h4 className="text-sm font-bold text-blue-600">Manager</h4>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Standard business access. Can manage projects, tenders and registrations but cannot manage employees or system users.
+                    Focused on financial audit and confidential records. Can view and audit but not insert financial data.
+                  </p>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <h4 className="text-sm font-bold text-green-600">Employee</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Standard business operations. Can insert financial data and manage projects/tenders.
                   </p>
                 </div>
                 <div className="space-y-2 pt-2">
                   <h4 className="text-sm font-bold text-slate-600">Client</h4>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    View-only access restricted to their own projects, tenders and payments. Cannot see data from other companies.
+                    View-only access restricted to their own projects, tenders and payments. Cannot see system settings.
                   </p>
                 </div>
               </CardContent>

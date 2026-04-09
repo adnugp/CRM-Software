@@ -55,32 +55,32 @@ const App = () => {
 
               {/* Admin/User only routes */}
               <Route path="/dashboard" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Dashboard />
                 </ProtectedRoute>
               } />
               <Route path="/tenders" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user']}>
                   <Tenders />
                 </ProtectedRoute>
               } />
               <Route path="/registrations" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Registrations />
                 </ProtectedRoute>
               } />
               <Route path="/files" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Files />
                 </ProtectedRoute>
               } />
               <Route path="/payments" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['user', 'manager']}>
                   <Payments />
                 </ProtectedRoute>
               } />
               <Route path="/partners" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user']}>
                   <Partners />
                 </ProtectedRoute>
               } />
@@ -96,9 +96,13 @@ const App = () => {
               } />
 
               {/* Projects - accessible to all roles but filtered for clients */}
-              <Route path="/projects" element={<Projects />} />
+              <Route path="/projects" element={
+                <ProtectedRoute allowedRoles={['admin', 'user', 'client']}>
+                  <Projects />
+                </ProtectedRoute>
+              } />
               <Route path="/projects/:id" element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'client']}>
                   <ProjectManagement />
                 </ProtectedRoute>
               } />
