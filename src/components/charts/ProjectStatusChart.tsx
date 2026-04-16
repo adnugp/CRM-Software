@@ -1,11 +1,26 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ProjectStatusChart: React.FC = () => {
+  const { user } = useAuth();
   const { projects } = useData();
 
-  const statusCounts = projects.reduce((acc, project) => {
+  const isClient = user?.role === 'client';
+  
+  const displayProjects = React.useMemo(() => {
+    if (isClient && user?.company) {
+      const clientCompany = user.company.toLowerCase().trim();
+      return projects.filter(p => 
+        p.company.toLowerCase().trim().includes(clientCompany) || 
+        clientCompany.includes(p.company.toLowerCase().trim())
+      );
+    }
+    return projects;
+  }, [projects, isClient, user?.company]);
+
+  const statusCounts = displayProjects.reduce((acc, project) => {
     acc[project.status] = (acc[project.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);

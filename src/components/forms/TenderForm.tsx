@@ -31,12 +31,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tender, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const tenderSchema = z.object({
   name: z.string().min(1, 'Tender name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
+  clientId: z.string().optional(),
   belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
   status: z.enum(['running', 'submitted', 'cancelled', 'to-be-evaluated', 'winner', 'awarded']),
   assignedTo: z.string().min(1, 'Assignee is required'),
@@ -61,6 +63,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
   onSubmit,
 }) => {
   const { employees, tenders } = useData();
+  const { allUsers } = useAuth();
   const isEditing = !!tender;
 
   // Remove duplicate employees based on ID and name
@@ -82,11 +85,17 @@ const TenderForm: React.FC<TenderFormProps> = ({
     return companies.sort();
   }, [tenders]);
 
+  // Get client users from allUsers
+  const clientUsers = React.useMemo(() => {
+    return allUsers.filter(u => u.role === 'client');
+  }, [allUsers]);
+
   const form = useForm<TenderFormData>({
     resolver: zodResolver(tenderSchema),
     defaultValues: {
       name: tender?.name || '',
       company: tender?.company || '',
+      clientId: tender?.clientId || '',
       belongsTo: tender?.belongsTo || undefined,
       status: tender?.status || 'running',
       assignedTo: tender?.assignedTo || '',
@@ -101,6 +110,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
       form.reset({
         name: tender.name,
         company: tender.company,
+        clientId: tender.clientId || '',
         belongsTo: tender.belongsTo,
         status: tender.status,
         assignedTo: tender.assignedTo,
@@ -112,6 +122,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
       form.reset({
         name: '',
         company: '',
+        clientId: '',
         belongsTo: undefined,
         status: 'running',
         assignedTo: '',
@@ -134,14 +145,14 @@ const TenderForm: React.FC<TenderFormProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Tender' : 'Create New Tender'}</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
-            <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
+            <ScrollArea className="flex-1 h-[50vh] px-6 pb-6 overflow-y-auto">
               <div className="space-y-4 py-2">
                 <FormField
                   control={form.control}
@@ -178,6 +189,32 @@ const TenderForm: React.FC<TenderFormProps> = ({
                           </datalist>
                         </div>
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="clientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select client" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Client</SelectItem>
+                          {clientUsers.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.name} {client.company ? `(${client.company})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

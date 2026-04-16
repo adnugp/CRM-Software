@@ -30,12 +30,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Project, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
+  clientId: z.string().optional(),
   belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
   status: z.enum(['running', 'in-progress', 'completed', 'handed-over']),
   assignedTo: z.string().min(1, 'Assignee is required'),
@@ -59,13 +61,20 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   onSubmit,
 }) => {
   const { employees } = useData();
+  const { allUsers } = useAuth();
   const isEditing = !!project;
+
+  // Get client users from allUsers
+  const clientUsers = React.useMemo(() => {
+    return allUsers.filter(u => u.role === 'client');
+  }, [allUsers]);
 
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       name: project?.name || '',
       company: project?.company || '',
+      clientId: project?.clientId || '',
       belongsTo: project?.belongsTo || undefined,
       status: project?.status || 'running',
       assignedTo: project?.assignedTo || '',
@@ -79,6 +88,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       form.reset({
         name: project.name,
         company: project.company,
+        clientId: project.clientId || '',
         belongsTo: project.belongsTo,
         status: project.status,
         assignedTo: project.assignedTo,
@@ -89,6 +99,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       form.reset({
         name: '',
         company: '',
+        clientId: '',
         belongsTo: undefined,
         status: 'running',
         assignedTo: '',
@@ -114,10 +125,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
-            <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
+            <ScrollArea className="flex-1 h-[50vh] px-6 pb-6 overflow-y-auto">
               <div className="space-y-4 py-2">
                 <FormField
                   control={form.control}
@@ -128,6 +139,46 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                       <FormControl>
                         <Input placeholder="Enter project name" {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="clientId"
+                  render={({ field }) => (
+                    <FormItem className="relative border-primary/30 bg-primary/5 rounded-lg p-4 -mx-2">
+                      <div className="absolute -top-3 left-4 bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded">
+                        IMPORTANT
+                      </div>
+                      <FormLabel className="text-base font-semibold">Client</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          if (value && value !== 'none') {
+                            const selectedClient = clientUsers.find(c => c.id === value);
+                            if (selectedClient?.company) {
+                              form.setValue('company', selectedClient.company);
+                            }
+                          }
+                        }} 
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="border-primary/50 bg-background">
+                            <SelectValue placeholder="Select client" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Client</SelectItem>
+                          {clientUsers.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.name} {client.company ? `(${client.company})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

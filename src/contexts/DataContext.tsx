@@ -115,20 +115,59 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           getFiles().catch(() => []),
         ]);
 
-        // Merge local data with mock data as a baseline, avoiding duplicates by ID
-        const mergedProjects = [...projectsData];
-        mockProjects.forEach(mockP => {
-          if (!mergedProjects.find(p => p.id === mockP.id)) {
-            mergedProjects.push(mockP);
-          }
-        });
-        setProjects(mergedProjects);
-        setTenders(tendersData.length > 0 ? tendersData : mockTenders);
-        setEmployees(employeesData.length > 0 ? employeesData : mockEmployees);
-        setRegistrations(registrationsData.length > 0 ? registrationsData : mockRegistrations);
-        setPayments(paymentsData.length > 0 ? paymentsData : mockPayments);
-        setSubscriptions(subscriptionsData.length > 0 ? subscriptionsData : mockSubscriptions);
-        setPartners(partnersData.length > 0 ? partnersData : mockPartners);
+        // Improved Fix: Only initialize mock data if the localStorage key is MISSING (null).
+        // This prevents mock data from "reappearing" after deleting the last item.
+        const isSet = (key: string) => localStorage.getItem(`crm_${key}`) !== null;
+
+        if (!isSet('projects') && mockProjects.length > 0) {
+          setCollection('projects', mockProjects);
+          setProjects(mockProjects);
+        } else {
+          setProjects(projectsData);
+        }
+
+        if (!isSet('tenders') && mockTenders.length > 0) {
+          setCollection('tenders', mockTenders);
+          setTenders(mockTenders);
+        } else {
+          setTenders(tendersData);
+        }
+
+        if (!isSet('employees') && mockEmployees.length > 0) {
+          setCollection('employees', mockEmployees);
+          setEmployees(mockEmployees);
+        } else {
+          setEmployees(employeesData);
+        }
+
+        if (!isSet('registrations') && mockRegistrations.length > 0) {
+          setCollection('registrations', mockRegistrations);
+          setRegistrations(mockRegistrations);
+        } else {
+          setRegistrations(registrationsData);
+        }
+
+        if (!isSet('payments') && mockPayments.length > 0) {
+          setCollection('payments', mockPayments);
+          setPayments(mockPayments);
+        } else {
+          setPayments(paymentsData);
+        }
+
+        if (!isSet('subscriptions') && mockSubscriptions.length > 0) {
+          setCollection('subscriptions', mockSubscriptions);
+          setSubscriptions(mockSubscriptions);
+        } else {
+          setSubscriptions(subscriptionsData);
+        }
+
+        if (!isSet('partners') && mockPartners.length > 0) {
+          setCollection('partners', mockPartners);
+          setPartners(mockPartners);
+        } else {
+          setPartners(partnersData);
+        }
+
         setFiles(filesData);
 
         setLoading({
@@ -142,17 +181,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           files: false,
         });
       } catch (error) {
-        console.error('Error fetching data, using mock data:', error);
-        // Use mock data as fallback
-        setProjects(mockProjects);
-        setTenders(mockTenders);
-        setEmployees(mockEmployees);
-        setRegistrations(mockRegistrations);
-        setPayments(mockPayments);
-        setSubscriptions(mockSubscriptions);
-        setPartners(mockPartners);
-        setFiles([]);
-
+        console.error('Error fetching data:', error);
         setLoading({
           projects: false,
           tenders: false,
@@ -166,13 +195,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
+    // Helper to sync mock to storage if empty
+    const setCollection = (key: string, data: any[]) => {
+      localStorage.setItem(`crm_${key}`, JSON.stringify(data));
+    };
+
     fetchData();
   }, []);
 
+  // Helper to generate a human-readable Project ID
+  const generateProjectId = (belongsTo: string) => {
+    const prefix = belongsTo === 'Grow Plus Technologies' ? 'GPT' : 'SDE';
+    const existingCount = projects.filter(p => p.projectId?.startsWith(`PRJ-${prefix}`)).length;
+    const num = String(existingCount + 1).padStart(3, '0');
+    return `PRJ-${prefix}-${num}`;
+  };
+
   // CRUD functions
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
-    const id = await addProject(project);
-    const newProject = { ...project, id };
+    // Auto-generate projectId if not already set
+    const projectId = project.projectId || generateProjectId(project.belongsTo);
+    // Sanitize clientId: treat 'none' as empty
+    const clientId = project.clientId && project.clientId !== 'none' ? project.clientId : undefined;
+    const projectWithIds = { ...project, projectId, clientId };
+    const id = await addProject(projectWithIds);
+    const newProject = { ...projectWithIds, id };
     setProjects(prev => [newProject, ...prev]);
     return id;
   };
@@ -216,6 +263,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedToName: assignedName || '',
           deadline: tender.deadline,
           budget: 0,
+          clientId: tender.clientId && tender.clientId !== 'none' ? tender.clientId : undefined,
+          clientName: tender.clientName || undefined,
           description: `Automatically created from Awarded Tender (Direct Add): ${tender.name}`,
           createdAt: new Date()
         };
@@ -264,6 +313,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedToName: assignedName || '',
           deadline: updatedTenderData.deadline,
           budget: 0,
+          clientId: updatedTenderData.clientId && updatedTenderData.clientId !== 'none' ? updatedTenderData.clientId : undefined,
+          clientName: updatedTenderData.clientName || undefined,
           description: `Automatically created from Awarded Tender: ${updatedTenderData.name}`,
           createdAt: new Date()
         };

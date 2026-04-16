@@ -52,15 +52,25 @@ const App = () => {
                   <Register />
                 </ProtectedRoute>
               } />
+              <Route path="/registration/employee" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Register />
+                </ProtectedRoute>
+              } />
+              <Route path="/registration/client" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Register />
+                </ProtectedRoute>
+              } />
 
               {/* Admin/User only routes */}
               <Route path="/dashboard" element={
-                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager', 'client']}>
                   <Dashboard />
                 </ProtectedRoute>
               } />
               <Route path="/tenders" element={
-                <ProtectedRoute allowedRoles={['admin', 'user']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Tenders />
                 </ProtectedRoute>
               } />
@@ -75,17 +85,17 @@ const App = () => {
                 </ProtectedRoute>
               } />
               <Route path="/payments" element={
-                <ProtectedRoute allowedRoles={['user', 'manager']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Payments />
                 </ProtectedRoute>
               } />
               <Route path="/partners" element={
-                <ProtectedRoute allowedRoles={['admin', 'user']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Partners />
                 </ProtectedRoute>
               } />
               <Route path="/employees" element={
-                <ProtectedRoute allowedRoles={['admin']}>
+                <ProtectedRoute allowedRoles={['admin', 'manager']}>
                   <Employees />
                 </ProtectedRoute>
               } />
@@ -97,12 +107,12 @@ const App = () => {
 
               {/* Projects - accessible to all roles but filtered for clients */}
               <Route path="/projects" element={
-                <ProtectedRoute allowedRoles={['admin', 'user', 'client']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'client', 'manager']}>
                   <Projects />
                 </ProtectedRoute>
               } />
               <Route path="/projects/:id" element={
-                <ProtectedRoute allowedRoles={['admin', 'user', 'client']}>
+                <ProtectedRoute allowedRoles={['admin', 'user', 'client', 'manager']}>
                   <ProjectManagement />
                 </ProtectedRoute>
               } />

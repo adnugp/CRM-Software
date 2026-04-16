@@ -5,8 +5,8 @@ interface AuthContextType {
   user: User | null;
   allUsers: (User & { password?: string })[];
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
-  addUser: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
+  register: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
+  addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
   removeUser: (id: string) => Promise<boolean>;
   logout: () => void;
   refreshUsers: () => void;
@@ -81,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: 'admin@admin.com',
             name: adminEntry?.name || 'Admin User',
             role: 'admin',
+            organizationId: adminEntry?.organizationId,
           };
           setUser(adminUser);
           localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(adminUser));
@@ -95,6 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: foundUser.email,
           name: foundUser.name,
           role: foundUser.role,
+          company: foundUser.company,
+          organizationId: foundUser.organizationId,
         };
         setUser(userProfile);
         localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userProfile));
@@ -110,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
+  const register = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<boolean> => {
     try {
       console.log('Attempting registration (Local Storage) for:', email);
 
@@ -129,6 +132,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email,
         name: name,
         role: role,
+        company: company || (role === 'client' ? name : undefined),
+        organizationId: organizationId || (role === 'client' ? `ORG-${name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}` : undefined),
       };
 
       // Save to local mock users list (with password for future login)
@@ -147,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [refreshUsers]);
 
-  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
+  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<boolean> => {
     try {
       console.log('Attempting to add user (Local Storage) for:', email);
 
@@ -166,6 +171,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email,
         name: name,
         role: role,
+        company: company,
+        organizationId: organizationId,
       };
 
       // Save to local mock users list (with password for future login)

@@ -34,6 +34,24 @@ export const projects: Project[] = [
   { id: '4', name: 'Cloud Migration', company: 'TechCorp', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Ahmed Hassan', deadline: '2024-05-10', description: 'Migrate infrastructure to AWS', budget: 30000 },
   { id: '5', name: 'Security Audit', company: 'Al Thahir Group', belongsTo: 'Sadeem Energy', status: 'handed-over', assignedTo: '4', assignedToName: 'Emily Chen', deadline: '2024-03-30', description: 'Comprehensive security assessment', budget: 15000 },
   { id: '6', name: 'Data Analytics Platform', company: 'ZXY Industries', belongsTo: 'Sadeem Energy', status: 'running', assignedTo: '2', assignedToName: 'Sarah Johnson', deadline: '2024-06-15', description: 'Build custom analytics dashboard', budget: 60000 },
+  { 
+    id: '7', 
+    name: 'Smart Surveillance System', 
+    company: 'Dubai Police', 
+    organizationId: 'ORG-DP-001',
+    belongsTo: 'Grow Plus Technologies', 
+    status: 'in-progress', 
+    assignedTo: '1', 
+    assignedToName: 'Mohamed Ismayil', 
+    deadline: '2024-08-20', 
+    description: 'Advanced AI surveillance for city safety.', 
+    budget: 250000,
+    tasks: [
+      { id: 'dp1', projectId: '7', name: 'Camera Installation', description: 'Install high-res cameras at HQ', assignedTo: '1', assignedToName: 'Mohamed Ismayil', dueDate: '2024-05-10', status: 'completed', priority: 'high' },
+      { id: 'dp2', projectId: '7', name: 'AI Model Training', description: 'Train facial recognition models', assignedTo: '1', assignedToName: 'Mohamed Ismayil', dueDate: '2024-06-15', status: 'in-progress', priority: 'high' },
+      { id: 'dp3', projectId: '7', name: 'Control Room Setup', description: 'Configure monitoring dashboards', assignedTo: '1', assignedToName: 'Mohamed Ismayil', dueDate: '2024-07-20', status: 'pending', priority: 'medium' }
+    ]
+  },
 ];
 
 export const tenders: Tender[] = [
@@ -43,6 +61,7 @@ export const tenders: Tender[] = [
   { id: '4', rfqCode: 'RFQ-SE-2024-008', portal: 'Etisalat Portal', name: 'Banking Software Upgrade', company: 'National Bank', belongsTo: 'Sadeem Energy', status: 'cancelled', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-02-20', document: 'banking_upgrade.pdf', description: 'Core banking system upgrade' },
   { id: '5', rfqCode: 'RFQ-GP-2024-022', portal: 'MOE Portal', name: 'Education Platform', company: 'Ministry of Education', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-04-30', document: 'education_platform.pdf', description: 'E-learning platform development' },
   { id: '6', rfqCode: 'RFQ-SE-2024-031', portal: 'RTA Portal', name: 'Transport Management System', company: 'RTA', belongsTo: 'Sadeem Energy', status: 'submitted', assignedTo: '2', assignedToName: 'Mohamed Ajumal', deadline: '2024-06-15', document: 'transport_system.pdf', description: 'Transport management system' },
+  { id: '7', rfqCode: 'RFQ-DP-2024-088', portal: 'Dubai Police Portal', name: 'Cybersecurity Enhancement', company: 'Dubai Police', organizationId: 'ORG-DP-001', belongsTo: 'Grow Plus Technologies', status: 'running', assignedTo: '1', assignedToName: 'Mohamed Ismayil', deadline: '2024-07-15', description: 'Upgrading network security across departments.' },
 ];
 
 export const registrations: Registration[] = [

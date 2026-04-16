@@ -34,7 +34,7 @@ const statusOptions = [
 
 const Tenders: React.FC = () => {
   const { tenders, employees, addTender, updateTender, deleteTender } = useData();
-  const { user } = useAuth();
+  const { user, allUsers } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -47,7 +47,7 @@ const Tenders: React.FC = () => {
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [selectedTenderForDoc, setSelectedTenderForDoc] = useState<Tender | null>(null);
 
-  const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
 
   const tenderCompanies = [...new Set(tenders.map(t => t.company))];
 
@@ -105,10 +105,14 @@ const Tenders: React.FC = () => {
 
   const handleFormSubmit = async (data: any) => {
     const assignee = employees.find(a => a.id === data.assignedTo);
+    // Resolve client name from allUsers
+    const clientUser = allUsers.find(u => u.id === data.clientId);
+    const clientName = clientUser?.name || '';
+    const clientId = data.clientId === 'none' ? undefined : data.clientId;
     if (editingTender) {
-      await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '' });
+      await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '', clientId, clientName });
     } else {
-      await addTender({ ...data, assignedToName: assignee?.name || '' });
+      await addTender({ ...data, assignedToName: assignee?.name || '', clientId, clientName });
     }
     setEditingTender(null);
   };
@@ -212,6 +216,7 @@ const Tenders: React.FC = () => {
                 <TableHead className="hidden lg:table-cell">Rfq/Rfp Code</TableHead>
                 <TableHead>Tender Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
+                <TableHead className="hidden lg:table-cell">Client</TableHead>
                 <TableHead className="hidden md:table-cell">Belongs To</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
@@ -238,6 +243,13 @@ const Tenders: React.FC = () => {
                       <Building className="h-4 w-4 text-muted-foreground" />
                       {tender.company}
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {tender.clientName ? (
+                      <span className="text-sm">{tender.clientName}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tender.belongsTo === 'Grow Plus Technologies'

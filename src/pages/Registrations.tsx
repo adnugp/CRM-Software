@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Building, FileCheck, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, Building, FileCheck, Pencil, Trash2, User } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -21,22 +21,24 @@ const parentCompanyOptions = [
 
 const Registrations: React.FC = () => {
   const { user } = useAuth();
-  const { registrations, addRegistration, updateRegistration, deleteRegistration } = useData();
+  const { registrations, employees, addRegistration, updateRegistration, deleteRegistration } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
   const [editingRegistration, setEditingRegistration] = useState<Registration | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
 
 
-  const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
   const isManager = user?.role === 'manager';
   const isEmployee = user?.role === 'user';
 
   const registrationCompanies = [...new Set(registrations.map(r => r.company))];
   const companyOptions = registrationCompanies.map(c => ({ value: c, label: c }));
+  const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
 
   const filteredRegistrations = useMemo(() => {
     let result = registrations;
@@ -49,17 +51,22 @@ const Registrations: React.FC = () => {
       result = result.filter(r => r.belongsTo === belongsToFilter);
     }
 
+    if (assigneeFilter !== 'all') {
+      result = result.filter(r => r.assignedTo === assigneeFilter);
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(r =>
         r.name.toLowerCase().includes(query) ||
         r.company.toLowerCase().includes(query) ||
-        r.type.toLowerCase().includes(query)
+        r.type.toLowerCase().includes(query) ||
+        r.assignedToName?.toLowerCase().includes(query)
       );
     }
 
     return result;
-  }, [searchQuery, companyFilter, belongsToFilter, registrations]);
+  }, [searchQuery, companyFilter, belongsToFilter, assigneeFilter, registrations]);
 
   const handleEdit = (registration: Registration) => {
     setEditingRegistration(registration);
@@ -83,10 +90,16 @@ const Registrations: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: any) => {
+    const assignee = employees.find(a => a.id === data.assignedTo);
+    const registrationData = {
+      ...data,
+      assignedToName: assignee?.name || '',
+    };
+
     if (editingRegistration) {
-      await updateRegistration(editingRegistration.id, data);
+      await updateRegistration(editingRegistration.id, registrationData);
     } else {
-      await addRegistration(data);
+      await addRegistration(registrationData);
     }
     setEditingRegistration(null);
   };
@@ -100,9 +113,9 @@ const Registrations: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHeader 
-        title={isManager ? "Registration Audit" : "Registrations"}
-        description={isManager ? "Review and audit company certifications" : "Track all company registrations and certifications"}
+      <PageHeader
+        title="Registrations"
+        description="Track all company registrations and certifications"
         action={canEdit && (
           <Button className="gradient-primary text-primary-foreground" onClick={handleOpenForm}>
             + New Registration
@@ -175,6 +188,13 @@ const Registrations: React.FC = () => {
           options={parentCompanyOptions}
           placeholder="All Parent Companies"
         />
+        <FilterDropdown
+          label="Assignee"
+          value={assigneeFilter}
+          onChange={setAssigneeFilter}
+          options={assigneeOptions}
+          placeholder="All Assignees"
+        />
       </div>
 
       {/* Registrations Table */}
@@ -189,6 +209,7 @@ const Registrations: React.FC = () => {
                 <TableHead className="hidden lg:table-cell">Type</TableHead>
                 <TableHead className="hidden lg:table-cell">Registration Date</TableHead>
                 <TableHead className="hidden md:table-cell">Expiry Date</TableHead>
+                <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead>Status</TableHead>
                 {/* <TableHead className="hidden sm:table-cell">Document</TableHead> */}
                 {canEdit && <TableHead>Actions</TableHead>}
@@ -210,11 +231,10 @@ const Registrations: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      registration.belongsTo === 'Grow Plus Technologies'
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${registration.belongsTo === 'Grow Plus Technologies'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                      }`}>
                       {registration.belongsTo}
                     </span>
                   </TableCell>
@@ -230,6 +250,16 @@ const Registrations: React.FC = () => {
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       {new Date(registration.expiryDate).toLocaleDateString()}
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {registration.assignedToName ? (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{registration.assignedToName}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={registration.status} variant="registration" />

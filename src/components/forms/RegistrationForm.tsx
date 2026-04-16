@@ -29,6 +29,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Registration, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { useData } from '@/contexts/DataContext';
 
 const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
@@ -40,6 +41,7 @@ const registrationSchema = z.object({
   registrationDate: z.string().min(1, 'Registration date is required'),
   expiryDate: z.string().min(1, 'Expiry date is required'),
   status: z.enum(['active', 'expired', 'pending']),
+  assignedTo: z.string().optional(),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
@@ -67,6 +69,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   registration,
   onSubmit,
 }) => {
+  const { employees } = useData();
   const isEditing = !!registration;
 
   const form = useForm<RegistrationFormData>({
@@ -79,6 +82,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       registrationDate: registration?.registrationDate || '',
       expiryDate: registration?.expiryDate || '',
       status: registration?.status || 'pending',
+      assignedTo: registration?.assignedTo || '',
     },
   });
 
@@ -92,6 +96,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         registrationDate: registration.registrationDate,
         expiryDate: registration.expiryDate,
         status: registration.status,
+        assignedTo: registration.assignedTo || '',
       });
     } else {
       form.reset({
@@ -102,6 +107,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         registrationDate: '',
         expiryDate: '',
         status: 'pending',
+        assignedTo: '',
       });
     }
   }, [registration, form]);
@@ -118,14 +124,14 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Registration' : 'New Registration'}</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
-            <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
+            <ScrollArea className="flex-1 h-[50vh] px-6 pb-6 overflow-y-auto">
               <div className="space-y-4 py-2">
                 <FormField
                   control={form.control}
@@ -251,6 +257,31 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                           <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="expired">Expired</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="assignedTo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assigned To</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select assignee" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {employees.map((employee) => (
+                            <SelectItem key={employee.id} value={employee.id}>
+                              {employee.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

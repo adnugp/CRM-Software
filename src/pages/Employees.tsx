@@ -23,14 +23,14 @@ const Employees: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== 'admin' && user?.role !== 'manager') {
     return <Navigate to="/" replace />;
   }
 
   const filteredEmployees = useMemo(() => {
     if (!searchQuery) return employeesList;
     const query = searchQuery.toLowerCase();
-    return employeesList.filter(e => 
+    return employeesList.filter(e =>
       e.name.toLowerCase().includes(query) ||
       e.email.toLowerCase().includes(query) ||
       e.department.toLowerCase().includes(query) ||
@@ -102,7 +102,7 @@ const Employees: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHeader 
+      <PageHeader
         title="Employees"
         description="Manage your team members"
         action={

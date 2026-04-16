@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {  CreditCard, Calendar, Building, DollarSign, RefreshCw, AlertCircle, CheckCircle, Plus, Pencil } from 'lucide-react';
+import { CreditCard, Calendar, Building, DollarSign, RefreshCw, AlertCircle, CheckCircle, Plus, Pencil } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -30,11 +30,13 @@ const Payments: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [subscriptionFormOpen, setSubscriptionFormOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
-  
-  const isEmployee = user?.role === 'user';
+
+  const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
-  const canEdit = isEmployee;
-  const canView = isEmployee || isManager;
+  const isEmployee = user?.role === 'user';
+  const canEdit = isAdmin || isManager || isEmployee;
+  const canView = true;
+
   const totalPending = payments
     .filter(p => p.status === 'pending' || p.status === 'overdue')
     .reduce((sum, p) => sum + p.amount, 0);
@@ -139,9 +141,9 @@ const Payments: React.FC = () => {
 
   return (
     <MainLayout>
-      <PageHeader 
-        title={isManager ? "Financial Audit" : "Payments & Subscriptions"}
-        description={isManager ? "Review and audit financial transactions" : "Manage pending payments and active subscriptions"}
+      <PageHeader
+        title="Payments & Subscriptions"
+        description="Manage pending payments and active subscriptions"
       />
 
       {/* Summary Cards */}
@@ -252,16 +254,16 @@ const Payments: React.FC = () => {
                     {canEdit && (
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => handleEditPayment(payment)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {payment.status !== 'paid' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               className="bg-primary text-primary-foreground"
                               onClick={() => handleMarkPaid(payment)}
                             >
@@ -329,8 +331,8 @@ const Payments: React.FC = () => {
                     </TableCell>
                     {canEdit && (
                       <TableCell>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => handleEditSubscription(subscription)}
                         >

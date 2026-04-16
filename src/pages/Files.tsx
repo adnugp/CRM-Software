@@ -34,14 +34,14 @@ const Files: React.FC = () => {
   const [companyFilter, setCompanyFilter] = useState('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [deleteFile, setDeleteFile] = useState<FileRecord | null>(null);
-  
+
   // Upload form state
   const [uploadName, setUploadName] = useState('');
   const [uploadCategory, setUploadCategory] = useState('');
   const [uploadCompany, setUploadCompany] = useState('');
   const [uploadDocument, setUploadDocument] = useState<DocumentFile | null>(null);
 
-  const canEdit = user?.role === 'admin' || user?.role === 'user';
+  const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
   const isManager = user?.role === 'manager';
 
   const categories = ['Projects', 'Tenders', 'Registrations', 'Contracts', 'Reports', 'Other'];
@@ -142,8 +142,8 @@ const Files: React.FC = () => {
   return (
     <MainLayout>
       <PageHeader
-        title={isManager ? "Audit Logs & Documents" : "Files"}
-        description={isManager ? "Review and audit company documents and confidential records" : "Upload and manage your documents"}
+        title="Files"
+        description="Upload and manage your documents"
         action={
           canEdit && (
             <Button onClick={() => setIsUploadDialogOpen(true)}>
@@ -199,8 +199,8 @@ const Files: React.FC = () => {
                   <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No files found</p>
                   {canEdit && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="mt-4"
                       onClick={() => setIsUploadDialogOpen(true)}
                     >

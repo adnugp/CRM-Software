@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink } from 'lucide-react';
+import { User, Users, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -16,20 +16,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/types';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from '@/contexts/DataContext';
 
 // Helper Component for User Rows
-const StaffRow: React.FC<{ 
-    user: any; 
+const StaffRow: React.FC<{
+    user: any;
     onRemove: () => void;
 }> = ({ user, onRemove }) => (
     <TableRow className="hover:bg-muted/20 transition-colors">
@@ -45,21 +45,28 @@ const StaffRow: React.FC<{
             </div>
         </TableCell>
         <TableCell>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${
-                user.role === 'admin' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' : 
-                user.role === 'user' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30' : 
-                'bg-amber-100 text-amber-700 dark:bg-amber-900/30'
-            }`}>
-                {user.role === 'admin' ? 'Admin' : user.role === 'user' ? 'Manager' : 'Client'}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${user.role === 'admin' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' :
+                    user.role === 'manager' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30' :
+                        user.role === 'user' ? 'bg-green-100 text-green-700 dark:bg-green-900/30' :
+                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30'
+                }`}>
+                {user.role === 'admin' ? 'Admin' :
+                    user.role === 'manager' ? 'Manager' :
+                        user.role === 'user' ? 'Employee' :
+                            'Client'}
             </span>
         </TableCell>
         <TableCell className="text-muted-foreground text-sm hidden md:table-cell">{user.email}</TableCell>
         <TableCell className="text-right">
-            <Button 
-                variant="ghost" 
-                size="sm" 
+            <Button
+                variant="ghost"
+                size="sm"
                 className="text-destructive hover:bg-destructive/10"
-                onClick={onRemove}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    console.info(`[Settings] Row Click: Revoke Access for ${user.name} (ID: ${user.id})`);
+                    onRemove();
+                }}
             >
                 <Trash2 className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Revoke Access</span>
@@ -148,37 +155,83 @@ const Settings: React.FC = () => {
     };
 
     const handleRemoveUser = async (id: string, name: string) => {
-        if (confirm(`Are you sure you want to remove ${name}? This will revoke their access immediately.`)) {
-            const success = await removeUser(id);
-            if (success) {
+        console.group(`Auth Action: Revoke Access`);
+        console.info(`Target User: ${name} (${id})`);
+
+        if (window.confirm(`Are you sure you want to remove ${name}? This will revoke their access immediately.`)) {
+            try {
+                const success = await removeUser(id);
+                console.info(`Result: ${success ? 'Success' : 'Failed/Restricted'}`);
+
+                if (success) {
+                    toast({
+                        title: "User Removed",
+                        description: `${name} has been successfully removed from the system.`,
+                    });
+                } else {
+                    toast({
+                        title: "Action Restricted",
+                        description: `Cannot remove ${name}. This account is protected or doesn't exist.`,
+                        variant: "destructive"
+                    });
+                }
+            } catch (err) {
+                console.error(`Error during revoke:`, err);
                 toast({
-                    title: "User Removed",
-                    description: `${name} has been successfully removed from the system.`,
+                    title: "System Error",
+                    description: "An unexpected error occurred while revoking access.",
+                    variant: "destructive"
                 });
             }
+        } else {
+            console.info(`Action cancelled by user.`);
         }
+        console.groupEnd();
     };
 
     const handleDeleteEmployeeRecord = async (id: string, name: string) => {
-      if (confirm(`PERMANENT DELETION: Are you sure you want to delete ${name}'s data? This cannot be undone and is for resigned employees only.`)) {
-          await deleteEmployee(id);
-          toast({
-              title: "Employee Record Deleted",
-              description: "The resigned employee's data has been wiped.",
-              variant: "destructive"
-          });
-      }
+        console.group(`Data Action: Wipe Employee`);
+        console.info(`Target Employee Record: ${name} (${id})`);
+
+        if (window.confirm(`PERMANENT DELETION: Are you sure you want to delete ${name}'s data? This cannot be undone and is for resigned employees only.`)) {
+            try {
+                await deleteEmployee(id);
+                console.info(`Employee record deleted from context and storage.`);
+                toast({
+                    title: "Employee Record Deleted",
+                    description: "The resigned employee's data has been wiped.",
+                    variant: "destructive"
+                });
+            } catch (err) {
+                console.error(`Error wiping employee:`, err);
+                toast({
+                    title: "Error",
+                    description: "Failed to wipe employee data.",
+                    variant: "destructive"
+                });
+            }
+        }
+        console.groupEnd();
     };
 
     const handleDeleteClientRecord = async (id: string, name: string) => {
-      if (confirm(`PERMANENT DELETION: Are you sure you want to delete the registration for ${name}? This will wipe all associated metadata.`)) {
-          await deleteRegistration(id);
-          toast({
-              title: "Client Record Deleted",
-              description: "The registration/project record has been wiped.",
-              variant: "destructive"
-          });
-      }
+        console.group(`Data Action: Wipe Client`);
+        console.info(`Target Client ID: ${id}`);
+
+        if (window.confirm(`PERMANENT DELETION: Are you sure you want to delete the registration for ${name}? This will wipe all associated metadata.`)) {
+            try {
+                await deleteRegistration(id);
+                console.info(`Client record deleted.`);
+                toast({
+                    title: "Client Record Deleted",
+                    description: "The registration/project record has been wiped.",
+                    variant: "destructive"
+                });
+            } catch (err) {
+                console.error(`Error wiping client:`, err);
+            }
+        }
+        console.groupEnd();
     };
 
     const isAdmin = user?.role === 'admin';
@@ -194,7 +247,7 @@ const Settings: React.FC = () => {
                 <div className="grid gap-8 mt-4 grid-cols-1 xl:grid-cols-3">
                     {/* Main Settings Column */}
                     <div className="xl:col-span-2 space-y-8">
-                        
+
                         {/* Admin-only Panel */}
                         {isAdmin && (
                             <Card className="overflow-hidden border-2 border-primary/20 shadow-lg animate-slide-up">
@@ -215,20 +268,20 @@ const Settings: React.FC = () => {
                                     <Tabs defaultValue="access" className="w-full">
                                         <div className="bg-muted/30 px-6 py-2 border-b">
                                             <TabsList className="bg-transparent gap-6">
-                                                <TabsTrigger 
-                                                    value="access" 
+                                                <TabsTrigger
+                                                    value="access"
                                                     className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 h-10 transition-all"
                                                 >
                                                     Access Control
                                                 </TabsTrigger>
-                                                <TabsTrigger 
-                                                    value="staff" 
+                                                <TabsTrigger
+                                                    value="staff"
                                                     className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 h-10 transition-all"
                                                 >
                                                     Staff Offboarding
                                                 </TabsTrigger>
-                                                <TabsTrigger 
-                                                    value="clients" 
+                                                <TabsTrigger
+                                                    value="clients"
                                                     className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 h-10 transition-all"
                                                 >
                                                     Client Offboarding
@@ -237,24 +290,53 @@ const Settings: React.FC = () => {
                                         </div>
 
                                         <TabsContent value="access" className="p-6 space-y-10 m-0">
-                                            {/* Link to Registration Portal */}
-                                            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 shadow-sm">
-                                                <div className="space-y-2 text-center md:text-left">
-                                                  <h3 className="text-xl font-bold text-primary flex items-center justify-center md:justify-start gap-2">
-                                                    <UserPlus className="h-6 w-6" />
-                                                    Registration Portal
-                                                  </h3>
-                                                  <p className="text-sm text-muted-foreground max-w-sm">
-                                                    Access the dedicated portal to onboard new employees, managers, or create restricted client access gateways.
-                                                  </p>
+                                            {/* Specialized Registration Portals */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {/* Employee Registration */}
+                                                <div className="group relative overflow-hidden flex flex-col items-center justify-between p-8 rounded-3xl bg-gradient-to-br from-blue-500/5 via-blue-500/10 to-transparent border border-blue-500/20 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-500">
+                                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                        <Users className="h-24 w-24 -mr-8 -mt-8" />
+                                                    </div>
+                                                    <div className="space-y-3 text-center mb-6 relative z-10">
+                                                        <div className="mx-auto h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                                            <UserPlus className="h-8 w-8" />
+                                                        </div>
+                                                        <h3 className="text-xl font-black text-blue-700">Team Onboarding</h3>
+                                                        <p className="text-xs font-medium text-slate-500 max-w-[220px] mx-auto leading-relaxed">
+                                                            Register new staff members, managers, and operational personnel.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        onClick={() => navigate('/registration/employee')}
+                                                        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/30 font-bold tracking-tight transition-all active:scale-95"
+                                                    >
+                                                        Register Employee
+                                                        <ExternalLink className="ml-2 h-4 w-4" />
+                                                    </Button>
                                                 </div>
-                                                <Button 
-                                                  onClick={() => navigate('/register')} 
-                                                  className="w-full md:w-auto px-10 h-12 gradient-primary text-white shadow-xl hover:-translate-y-1 transition-all"
-                                                >
-                                                  Open Portal
-                                                  <ExternalLink className="ml-2 h-4 w-4" />
-                                                </Button>
+
+                                                {/* Client Registration */}
+                                                <div className="group relative overflow-hidden flex flex-col items-center justify-between p-8 rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-transparent border border-primary/20 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-500">
+                                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                        <Shield className="h-24 w-24 -mr-8 -mt-8" />
+                                                    </div>
+                                                    <div className="space-y-3 text-center mb-6 relative z-10">
+                                                        <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                                            <Shield className="h-8 w-8" />
+                                                        </div>
+                                                        <h3 className="text-xl font-black text-primary">Client Gateway</h3>
+                                                        <p className="text-xs font-medium text-slate-500 max-w-[220px] mx-auto leading-relaxed">
+                                                            Create secure Entity IDs and access for Dubai Police, DEWA, and others.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        onClick={() => navigate('/registration/client')}
+                                                        className="w-full h-11 gradient-primary text-white rounded-xl shadow-lg shadow-primary/30 font-bold tracking-tight transition-all active:scale-95"
+                                                    >
+                                                        Onboard Client
+                                                        <ExternalLink className="ml-2 h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
 
                                             {/* Access Tables Split by System/Client */}
@@ -263,11 +345,11 @@ const Settings: React.FC = () => {
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">
                                                         <h4 className="text-lg font-bold flex items-center gap-2">
-                                                          <Shield className="h-5 w-5 text-primary" />
-                                                          System Access (Staff)
+                                                            <Shield className="h-5 w-5 text-primary" />
+                                                            System Access (Staff)
                                                         </h4>
                                                         <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold uppercase">
-                                                          {allUsers.filter(u => u.role !== 'client').length} Active Staff
+                                                            {allUsers.filter(u => u.role !== 'client').length} Active Staff
                                                         </span>
                                                     </div>
                                                     <div className="border rounded-xl bg-card overflow-hidden">
@@ -293,11 +375,11 @@ const Settings: React.FC = () => {
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">
                                                         <h4 className="text-lg font-bold flex items-center gap-2">
-                                                          <Lock className="h-5 w-5 text-amber-500" />
-                                                          External Access (Clients)
+                                                            <Lock className="h-5 w-5 text-amber-500" />
+                                                            External Access (Clients)
                                                         </h4>
                                                         <span className="text-xs bg-amber-500/10 text-amber-600 px-3 py-1 rounded-full font-bold uppercase">
-                                                          {allUsers.filter(u => u.role === 'client').length} Client Gateways
+                                                            {allUsers.filter(u => u.role === 'client').length} Client Gateways
                                                         </span>
                                                     </div>
                                                     <div className="border rounded-xl bg-card overflow-hidden">
@@ -330,13 +412,13 @@ const Settings: React.FC = () => {
                                         <TabsContent value="staff" className="p-6 m-0">
                                             <div className="space-y-6">
                                                 <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-xl">
-                                                  <p className="text-sm font-semibold text-destructive flex items-center gap-2">
-                                                    <AlertCircle className="h-4 w-4" />
-                                                    Resigned Staff Data Management
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground mt-1">
-                                                    Use this section to permanently wipe employee records when they resign. This is separate from revoking their login access.
-                                                  </p>
+                                                    <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+                                                        <AlertCircle className="h-4 w-4" />
+                                                        Resigned Staff Data Management
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Use this section to permanently wipe employee records when they resign. This is separate from revoking their login access.
+                                                    </p>
                                                 </div>
                                                 <div className="border rounded-xl overflow-hidden shadow-sm">
                                                     <Table>
@@ -358,14 +440,14 @@ const Settings: React.FC = () => {
                                                                         <TableCell className="text-sm">{emp.position}</TableCell>
                                                                         <TableCell className="text-xs text-muted-foreground">{emp.joinDate}</TableCell>
                                                                         <TableCell className="text-right">
-                                                                            <Button 
-                                                                              variant="outline" 
-                                                                              size="sm" 
-                                                                              className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
-                                                                              onClick={() => handleDeleteEmployeeRecord(emp.id, emp.name)}
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
+                                                                                onClick={() => handleDeleteEmployeeRecord(emp.id, emp.name)}
                                                                             >
-                                                                              <Trash2 className="h-4 w-4 md:mr-2" />
-                                                                              <span className="hidden md:inline">Wipe Employee Data</span>
+                                                                                <Trash2 className="h-4 w-4 md:mr-2" />
+                                                                                <span className="hidden md:inline">Wipe Employee Data</span>
                                                                             </Button>
                                                                         </TableCell>
                                                                     </TableRow>
@@ -380,13 +462,13 @@ const Settings: React.FC = () => {
                                         <TabsContent value="clients" className="p-6 m-0">
                                             <div className="space-y-6">
                                                 <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                                                  <p className="text-sm font-semibold text-amber-600 flex items-center gap-2">
-                                                    <AlertCircle className="h-4 w-4" />
-                                                    Closed Client/Project Data Removal
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground mt-1">
-                                                    Permanently remove registration data or completed project records. Typically used when a client project cycle ends.
-                                                  </p>
+                                                    <p className="text-sm font-semibold text-amber-600 flex items-center gap-2">
+                                                        <AlertCircle className="h-4 w-4" />
+                                                        Closed Client/Project Data Removal
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Permanently remove registration data or completed project records. Typically used when a client project cycle ends.
+                                                    </p>
                                                 </div>
                                                 <div className="border rounded-xl overflow-hidden shadow-sm">
                                                     <Table>
@@ -410,14 +492,14 @@ const Settings: React.FC = () => {
                                                                             <span className="text-[10px] uppercase font-bold bg-muted px-2 py-0.5 rounded-full">{reg.status}</span>
                                                                         </TableCell>
                                                                         <TableCell className="text-right">
-                                                                            <Button 
-                                                                              variant="outline" 
-                                                                              size="sm" 
-                                                                              className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
-                                                                              onClick={() => handleDeleteClientRecord(reg.id, reg.name)}
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
+                                                                                onClick={() => handleDeleteClientRecord(reg.id, reg.name)}
                                                                             >
-                                                                              <Trash2 className="h-4 w-4 md:mr-2" />
-                                                                              <span className="hidden md:inline">Wipe Profile</span>
+                                                                                <Trash2 className="h-4 w-4 md:mr-2" />
+                                                                                <span className="hidden md:inline">Wipe Profile</span>
                                                                             </Button>
                                                                         </TableCell>
                                                                     </TableRow>
@@ -463,11 +545,11 @@ const Settings: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <Label htmlFor="full-name">Full Name</Label>
-                                            <Input 
-                                                id="full-name" 
-                                                value={profileName} 
-                                                onChange={e => setProfileName(e.target.value)} 
-                                                placeholder="Your Name" 
+                                            <Input
+                                                id="full-name"
+                                                value={profileName}
+                                                onChange={e => setProfileName(e.target.value)}
+                                                placeholder="Your Name"
                                                 required
                                             />
                                         </div>
@@ -533,49 +615,26 @@ const Settings: React.FC = () => {
                     <div className="space-y-6">
                         {/* Appearance Section */}
                         <Card className="overflow-hidden border-2 transition-all hover:border-primary/20">
-                            <CardHeader className="bg-muted/30 pb-4">
-                                <CardTitle className="flex items-center gap-2 text-base">
-                                    <Palette className="h-5 w-5 text-primary" />
-                                    Theme & Appearance
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-6 space-y-4">
-                                <div className="space-y-3">
-                                    <p className="text-sm font-medium">Application Theme</p>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <Button 
-                                            variant={theme === 'light' ? 'default' : 'outline'} 
-                                            size="sm" 
-                                            className="gap-2"
-                                            onClick={() => setTheme('light')}
-                                        >
-                                            <Sun className="h-4 w-4" />
-                                            Light
-                                        </Button>
-                                        <Button 
-                                            variant={theme === 'dark' ? 'default' : 'outline'} 
-                                            size="sm" 
-                                            className="gap-2"
-                                            onClick={() => setTheme('dark')}
-                                        >
-                                            <Moon className="h-4 w-4" />
-                                            Dark
-                                        </Button>
-                                        <Button 
-                                            variant={theme === 'system' ? 'default' : 'outline'} 
-                                            size="sm" 
-                                            className="gap-2"
-                                            onClick={() => setTheme('system')}
-                                        >
-                                            <Monitor className="h-4 w-4" />
-                                            Auto
-                                        </Button>
+                            <CardContent className="p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-bold">
+                                        <Palette className="h-4 w-4 text-primary" />
+                                        App Theme
                                     </div>
+                                    <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
+                                        <SelectTrigger className="w-[120px] h-8 text-xs">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="light">Light Mode</SelectItem>
+                                            <SelectItem value="dark">Dark Mode</SelectItem>
+                                            <SelectItem value="system">System</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-
-                                <div className="flex items-center justify-between pt-2">
-                                    <p className="text-sm font-medium">Compact Mode</p>
-                                    <Button variant="ghost" size="sm" className="text-foreground/40" disabled>Soon</Button>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs text-muted-foreground">Compact View</p>
+                                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest"> </span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -597,7 +656,7 @@ const Settings: React.FC = () => {
                                             Enable Two-Factor Authentication for enhanced security.
                                         </AlertDescription>
                                     </Alert>
-                                    
+
                                     <Dialog>
                                         <DialogTrigger asChild>
                                             <Button variant="outline" className="w-full justify-start text-sm gap-2">
@@ -616,33 +675,33 @@ const Settings: React.FC = () => {
                                                 <div className="grid gap-4 py-6">
                                                     <div className="space-y-2">
                                                         <Label htmlFor="current">Current Password</Label>
-                                                        <Input 
-                                                            id="current" 
-                                                            type="password" 
-                                                            value={currentPassword} 
+                                                        <Input
+                                                            id="current"
+                                                            type="password"
+                                                            value={currentPassword}
                                                             onChange={e => setCurrentPassword(e.target.value)}
-                                                            required 
+                                                            required
                                                         />
                                                     </div>
                                                     <Separator className="my-2" />
                                                     <div className="space-y-2">
                                                         <Label htmlFor="new">New Password</Label>
-                                                        <Input 
-                                                            id="new" 
-                                                            type="password" 
-                                                            value={newPassword} 
+                                                        <Input
+                                                            id="new"
+                                                            type="password"
+                                                            value={newPassword}
                                                             onChange={e => setNewPassword(e.target.value)}
-                                                            required 
+                                                            required
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label htmlFor="confirm">Confirm New Password</Label>
-                                                        <Input 
-                                                            id="confirm" 
-                                                            type="password" 
-                                                            value={confirmNewPassword} 
+                                                        <Input
+                                                            id="confirm"
+                                                            type="password"
+                                                            value={confirmNewPassword}
                                                             onChange={e => setConfirmNewPassword(e.target.value)}
-                                                            required 
+                                                            required
                                                         />
                                                     </div>
                                                 </div>
@@ -659,9 +718,9 @@ const Settings: React.FC = () => {
                                         Manage Active Sessions
                                     </Button>
                                 </div>
-                                
+
                                 <Separator className="my-6" />
-                                
+
                                 <div className="space-y-2">
                                     <h4 className="text-xs font-semibold text-destructive uppercase">Danger Zone</h4>
                                     <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/10 text-sm">

@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: UserRole;
   company?: string;
+  organizationId?: string;
   avatar?: string;
 }
 
@@ -41,8 +42,12 @@ export interface ProjectCost {
 
 export interface Project {
   id: string;
+  projectId?: string;
+  clientId?: string;
+  clientName?: string;
   name: string;
   company: string;
+  organizationId?: string;
   belongsTo: ParentCompany;
   status: 'running' | 'in-progress' | 'completed' | 'handed-over';
   assignedTo: string;
@@ -59,8 +64,11 @@ export interface Project {
 
 export interface Tender {
   id: string;
+  clientId?: string;
+  clientName?: string;
   name: string;
   company: string;
+  organizationId?: string;
   rfqCode?: string;
   portal?: string;
   belongsTo: ParentCompany;
@@ -90,11 +98,14 @@ export interface Registration {
   id: string;
   name: string;
   company: string;
+  organizationId?: string;
   belongsTo: ParentCompany;
   type: string;
   registrationDate: string;
   expiryDate: string;
   status: 'active' | 'expired' | 'pending';
+  assignedTo?: string;
+  assignedToName?: string;
   document?: string;
   documentFile?: DocumentFile;
   createdAt?: Date;
@@ -107,6 +118,7 @@ export interface Payment {
   dueDate: string;
   status: 'pending' | 'paid' | 'overdue';
   company: string;
+  organizationId?: string;
   createdAt?: Date;
 }
 
@@ -125,6 +137,7 @@ export interface Partner {
   id: string;
   name: string;
   company: string;
+  organizationId?: string;
   email: string;
   phone: string;
   partnershipType: string;
@@ -138,6 +151,7 @@ export interface FileRecord {
   name: string;
   category: string;
   company: string;
+  organizationId?: string;
   uploadedAt: string;
   uploadedBy: string;
   document: DocumentFile;

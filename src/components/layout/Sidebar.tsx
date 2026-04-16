@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderKanban, 
-  FileText, 
-  ClipboardList, 
-  CreditCard, 
-  Users, 
+import {
+  LayoutDashboard,
+  FolderKanban,
+  FileText,
+  ClipboardList,
+  CreditCard,
+  Users,
   Handshake,
   UserPlus,
   Settings,
@@ -21,27 +21,29 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import gpLogo from '@/assets/gp-logo.png';
+import { useDragScroll } from '@/hooks/use-drag-scroll';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const scrollRef = useDragScroll();
 
   const isActive = (path: string) => location.pathname === path;
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'user', 'manager'] },
-    { path: '/projects', icon: FolderKanban, label: 'Projects', roles: ['admin', 'user', 'client'] },
-    { path: '/tenders', icon: FileText, label: 'Tenders', roles: ['admin', 'user'] },
+    { path: '/projects', icon: FolderKanban, label: 'Projects', roles: ['admin', 'user', 'client', 'manager'] },
+    { path: '/tenders', icon: FileText, label: 'Tenders', roles: ['admin', 'user', 'manager'] },
     { path: '/registrations', icon: ClipboardList, label: 'Registrations', roles: ['admin', 'user', 'manager'] },
     { path: '/files', icon: Files, label: 'Files', roles: ['admin', 'user', 'manager'] },
-    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['user', 'manager'] },
-    { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user'] },
-    { path: '/employees', icon: Users, label: 'Employees', roles: ['admin'] },
+    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['admin', 'user', 'manager'] },
+    { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user', 'manager'] },
+    { path: '/employees', icon: Users, label: 'Employees', roles: ['admin', 'manager'] },
     { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'manager'] },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
+  const filteredMenuItems = menuItems.filter(item =>
     !user || item.roles.includes(user.role)
   );
 
@@ -54,7 +56,10 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
+      <nav 
+        ref={scrollRef as any}
+        className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
+      >
         {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           return (

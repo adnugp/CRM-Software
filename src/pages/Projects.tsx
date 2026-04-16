@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Project, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { canViewProject } from '@/lib/project-visibility';
 
 const parentCompanyOptions = [
   { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
@@ -33,7 +34,7 @@ const statusOptions = [
 ];
 
 const Projects: React.FC = () => {
-  const { user } = useAuth();
+  const { user, allUsers } = useAuth();
   const { projects, employees, addProject, updateProject, deleteProject } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
@@ -63,8 +64,8 @@ const Projects: React.FC = () => {
   const filteredProjects = useMemo(() => {
     let result = projects;
 
-    if (isClient && user?.company) {
-      result = result.filter(p => p.company === user.company);
+    if (isClient) {
+      result = result.filter(p => canViewProject(user, p));
     }
 
     if (companyFilter !== 'all') {
@@ -117,10 +118,24 @@ const Projects: React.FC = () => {
 
   const handleFormSubmit = async (data: any) => {
     const assignee = employees.find(a => a.id === data.assignedTo);
+    // Resolve client name from allUsers
+    const clientUser = allUsers.find(u => u.id === data.clientId);
+    const clientName = clientUser?.name || '';
+    const organizationId = clientUser?.organizationId || undefined;
+    const clientId = data.clientId === 'none' ? undefined : data.clientId;
+    
+    const projectData = { 
+      ...data, 
+      assignedToName: assignee?.name || '', 
+      clientId, 
+      clientName,
+      organizationId 
+    };
+
     if (editingProject) {
-      await updateProject(editingProject.id, { ...data, assignedToName: assignee?.name || '' });
+      await updateProject(editingProject.id, projectData);
     } else {
-      await addProject({ ...data, assignedToName: assignee?.name || '' });
+      await addProject(projectData);
     }
     setEditingProject(null);
   };
@@ -223,8 +238,10 @@ const Projects: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                <TableHead>Project ID</TableHead>
                 <TableHead>Project Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
+                <TableHead className="hidden lg:table-cell">Client</TableHead>
                 <TableHead className="hidden md:table-cell">Belongs To</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
@@ -238,6 +255,11 @@ const Projects: React.FC = () => {
               {filteredProjects.map((project) => (
                 <TableRow key={project.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {project.projectId || project.id}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     <div>
                       <p className="font-medium text-foreground">{project.name}</p>
                       <p className="text-sm text-muted-foreground">{project.company}</p>
@@ -248,6 +270,16 @@ const Projects: React.FC = () => {
                       <Building className="h-4 w-4 text-muted-foreground" />
                       {project.company}
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {project.clientName ? (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{project.clientName}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${project.belongsTo === 'Grow Plus Technologies'
@@ -261,7 +293,7 @@ const Projects: React.FC = () => {
                     <StatusBadge status={project.status} variant="project" />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <div 
+                    <div
                       className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors group"
                       onClick={() => setShowCountId(showCountId === project.id ? null : project.id)}
                     >
@@ -325,11 +357,13 @@ const Projects: React.FC = () => {
                   {!isClient && (
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/projects/${project.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
+                        {user?.role !== 'admin' && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/projects/${project.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
