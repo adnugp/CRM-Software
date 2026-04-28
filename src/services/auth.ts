@@ -1,3 +1,4 @@
-// auth.ts - Firebase auth removed, using local storage auth instead
+import { getAuth } from 'firebase/auth';
+import app from './firebase';
 
-export const auth = null;
+export const auth = getAuth(app);
