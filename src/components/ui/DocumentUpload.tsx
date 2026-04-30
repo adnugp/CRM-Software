@@ -25,32 +25,56 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleFileSelect = (file: File) => {
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+  const handleFileSelect = async (file: File) => {
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
       toast({
         title: 'File too large',
-        description: 'Please select a file smaller than 10MB.',
+        description: 'Please select a file smaller than 50MB.',
         variant: 'destructive',
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:3001/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+
       onUpload({
         name: file.name,
         size: file.size,
         type: file.type,
-        data: result,
+        data: result.url, // Store the URL instead of Base64
       });
+
       toast({
         title: 'Document uploaded',
         description: `"${file.name}" has been attached successfully.`,
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'There was an error uploading your file. Is the backend running?',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,6 +184,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         className="hidden"
         onChange={handleInputChange}
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+        disabled={isUploading}
       />
       <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
       <p className="text-sm text-muted-foreground mb-2">
@@ -170,8 +195,9 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         variant="outline"
         size="sm"
         onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
       >
-        Browse Files
+        {isUploading ? 'Uploading...' : 'Browse Files'}
       </Button>
       <p className="text-xs text-muted-foreground mt-2">
         Max file size: 10MB

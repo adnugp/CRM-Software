@@ -8,6 +8,13 @@ import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import setupNotificationService from './notification-service.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 // Load environment variables
@@ -134,6 +141,50 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Set up file uploads directory
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Set up static serving for the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Configure Multer storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
+// Upload Endpoint
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  
+  // Construct full URL using req.protocol and req.get('host')
+  const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+  
+  res.json({
+    message: 'File uploaded successfully',
+    url: fileUrl,
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size
+  });
+});
 
 // In-memory storage for chat sessions
 const chatSessions = new Map();

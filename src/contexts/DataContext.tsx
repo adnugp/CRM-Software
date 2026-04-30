@@ -10,7 +10,6 @@ import {
   getFiles, addFile, updateFile, deleteFile
 } from '@/services/firestore';
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
-import { projects as mockProjects, tenders as mockTenders, employees as mockEmployees, registrations as mockRegistrations, payments as mockPayments, subscriptions as mockSubscriptions, partners as mockPartners } from '@/data/mockData';
 
 interface DataContextType {
   // Data
@@ -105,69 +104,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchData = async () => {
       try {
         const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-          getProjects().catch(() => mockProjects),
-          getTenders().catch(() => mockTenders),
-          getEmployees().catch(() => mockEmployees),
-          getRegistrations().catch(() => mockRegistrations),
-          getPayments().catch(() => mockPayments),
-          getSubscriptions().catch(() => mockSubscriptions),
-          getPartners().catch(() => mockPartners),
+          getProjects().catch(() => []),
+          getTenders().catch(() => []),
+          getEmployees().catch(() => []),
+          getRegistrations().catch(() => []),
+          getPayments().catch(() => []),
+          getSubscriptions().catch(() => []),
+          getPartners().catch(() => []),
           getFiles().catch(() => []),
         ]);
 
-        // Improved Fix: Only initialize mock data if the localStorage key is MISSING (null).
-        // This prevents mock data from "reappearing" after deleting the last item.
-        const isSet = (key: string) => localStorage.getItem(`crm_${key}`) !== null;
-
-        if (!isSet('projects') && mockProjects.length > 0) {
-          setCollection('projects', mockProjects);
-          setProjects(mockProjects);
-        } else {
-          setProjects(projectsData);
-        }
-
-        if (!isSet('tenders') && mockTenders.length > 0) {
-          setCollection('tenders', mockTenders);
-          setTenders(mockTenders);
-        } else {
-          setTenders(tendersData);
-        }
-
-        if (!isSet('employees') && mockEmployees.length > 0) {
-          setCollection('employees', mockEmployees);
-          setEmployees(mockEmployees);
-        } else {
-          setEmployees(employeesData);
-        }
-
-        if (!isSet('registrations') && mockRegistrations.length > 0) {
-          setCollection('registrations', mockRegistrations);
-          setRegistrations(mockRegistrations);
-        } else {
-          setRegistrations(registrationsData);
-        }
-
-        if (!isSet('payments') && mockPayments.length > 0) {
-          setCollection('payments', mockPayments);
-          setPayments(mockPayments);
-        } else {
-          setPayments(paymentsData);
-        }
-
-        if (!isSet('subscriptions') && mockSubscriptions.length > 0) {
-          setCollection('subscriptions', mockSubscriptions);
-          setSubscriptions(mockSubscriptions);
-        } else {
-          setSubscriptions(subscriptionsData);
-        }
-
-        if (!isSet('partners') && mockPartners.length > 0) {
-          setCollection('partners', mockPartners);
-          setPartners(mockPartners);
-        } else {
-          setPartners(partnersData);
-        }
-
+        setProjects(projectsData);
+        setTenders(tendersData);
+        setEmployees(employeesData);
+        setRegistrations(registrationsData);
+        setPayments(paymentsData);
+        setSubscriptions(subscriptionsData);
+        setPartners(partnersData);
         setFiles(filesData);
 
         setLoading({
@@ -193,11 +146,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           files: false,
         });
       }
-    };
-
-    // Helper to sync mock to storage if empty
-    const setCollection = (key: string, data: any[]) => {
-      localStorage.setItem(`crm_${key}`, JSON.stringify(data));
     };
 
     fetchData();
