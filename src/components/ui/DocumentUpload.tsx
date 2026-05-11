@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Upload, FileDown, X, File, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { storage } from '@/services/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface DocumentUploadProps {
   document?: DocumentFile | null;
@@ -26,6 +28,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleFileSelect = async (file: File) => {
     if (file.size > 50 * 1024 * 1024) { // 50MB limit
@@ -40,40 +43,64 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Create a unique filename to prevent overwriting
+      const uniqueFileName = `${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, `documents/${uniqueFileName}`);
+      
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
-      const response = await fetch('http://localhost:3001/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(Math.round(progress));
+        },
+        (error) => {
+          console.error('Firebase upload error:', error);
+          setIsUploading(false);
+          toast({
+            title: 'Upload failed',
+            description: 'There was an error uploading your file to Firebase.',
+            variant: 'destructive',
+          });
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            
+            onUpload({
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              data: downloadURL, // Store the Firebase URL
+            });
 
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result = await response.json();
-
-      onUpload({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        data: result.url, // Store the URL instead of Base64
-      });
-
-      toast({
-        title: 'Document uploaded',
-        description: `"${file.name}" has been attached successfully.`,
-      });
+            toast({
+              title: 'Document uploaded',
+              description: `"${file.name}" has been attached successfully.`,
+            });
+          } catch (urlError) {
+            console.error('Error getting download URL:', urlError);
+            toast({
+              title: 'Upload failed',
+              description: 'Failed to retrieve the file link.',
+              variant: 'destructive',
+            });
+          } finally {
+            setIsUploading(false);
+            setUploadProgress(0);
+          }
+        }
+      );
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Upload initiation error:', error);
+      setIsUploading(false);
+      setUploadProgress(0);
       toast({
         title: 'Upload failed',
-        description: 'There was an error uploading your file. Is the backend running?',
+        description: 'Failed to start the upload process.',
         variant: 'destructive',
       });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -110,12 +137,8 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const handleDownload = () => {
     if (!document) return;
     
-    const link = window.document.createElement('a');
-    link.href = document.data;
-    link.download = document.name;
-    window.document.body.appendChild(link);
-    link.click();
-    window.document.body.removeChild(link);
+    // Open the Firebase Storage URL in a new tab
+    window.open(document.data, '_blank');
   };
 
   const formatFileSize = (bytes: number) => {
@@ -197,10 +220,20 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         onClick={() => fileInputRef.current?.click()}
         disabled={isUploading}
       >
-        {isUploading ? 'Uploading...' : 'Browse Files'}
+        {isUploading ? `Uploading... ${uploadProgress}%` : 'Browse Files'}
       </Button>
-      <p className="text-xs text-muted-foreground mt-2">
-        Max file size: 10MB
+      
+      {isUploading && (
+        <div className="w-full bg-secondary rounded-full h-2.5 mt-4">
+          <div 
+            className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-in-out" 
+            style={{ width: `${uploadProgress}%` }}
+          ></div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground mt-4">
+        Max file size: 50MB
       </p>
     </div>
   );
