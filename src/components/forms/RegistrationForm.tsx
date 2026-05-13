@@ -22,6 +22,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -77,7 +78,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
     defaultValues: {
       name: registration?.name || '',
       company: registration?.company || '',
-      belongsTo: registration?.belongsTo || undefined,
+      belongsTo: registration?.belongsTo || 'Grow Plus Technologies',
       type: registration?.type || '',
       registrationDate: registration?.registrationDate || '',
       expiryDate: registration?.expiryDate || '',
@@ -102,7 +103,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       form.reset({
         name: '',
         company: '',
-        belongsTo: undefined,
+        belongsTo: 'Grow Plus Technologies',
         type: '',
         registrationDate: '',
         expiryDate: '',
@@ -127,6 +128,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Registration' : 'New Registration'}</DialogTitle>
+          <DialogDescription>
+            Enter registration details, ownership, type, dates, status, and assignment.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
@@ -167,7 +171,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select parent company" />
@@ -192,7 +196,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Registration Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select type" />
@@ -247,7 +251,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'pending'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />
@@ -270,7 +274,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Assigned To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select assignee" />

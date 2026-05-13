@@ -22,6 +22,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -116,6 +117,9 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Partner' : 'Add New Partner'}</DialogTitle>
+          <DialogDescription>
+            Enter partner contact details, partnership type, date, and status.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -183,7 +187,7 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Partnership Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select partnership type" />
@@ -223,7 +227,7 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || 'active'}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />

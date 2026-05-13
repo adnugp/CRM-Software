@@ -25,17 +25,39 @@ const getCollection = async <T>(collectionName: string): Promise<T[]> => {
   }
 };
 
+// Firestore rejects undefined values anywhere in a document payload.
+const removeUndefined = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value
+      .filter(item => item !== undefined)
+      .map(item => removeUndefined(item));
+  }
+
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    return Object.entries(value).reduce((result, [key, entry]) => {
+      if (entry !== undefined) {
+        result[key] = removeUndefined(entry);
+      }
+      return result;
+    }, {} as Record<string, any>);
+  }
+
+  return value;
+};
+
 const addDocument = async <T>(collectionName: string, data: Omit<T, 'id'>): Promise<string> => {
+  const cleanData = removeUndefined(data);
   const docRef = await addDoc(collection(db, collectionName), {
-    ...data,
+    ...cleanData,
     createdAt: serverTimestamp()
   });
   return docRef.id;
 };
 
 const updateDocument = async <T>(collectionName: string, id: string, data: Partial<T>): Promise<void> => {
+  const cleanData = removeUndefined(data);
   const docRef = doc(db, collectionName, id);
-  await updateDoc(docRef, data as any);
+  await updateDoc(docRef, cleanData as any);
 };
 
 const deleteDocument = async (collectionName: string, id: string): Promise<void> => {

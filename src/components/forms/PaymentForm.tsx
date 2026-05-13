@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,6 +65,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{payment ? 'Edit Payment' : 'Add New Payment'}</DialogTitle>
+          <DialogDescription>
+            Enter payment details, amount, due date, company, and status.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

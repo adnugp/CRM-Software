@@ -78,6 +78,8 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+const normalizeOptionalId = (value?: string) => value && value !== 'none' ? value : '';
+
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -164,7 +166,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Auto-generate projectId if not already set
     const projectId = project.projectId || generateProjectId(project.belongsTo);
     // Sanitize clientId: treat 'none' as empty
-    const clientId = project.clientId && project.clientId !== 'none' ? project.clientId : undefined;
+    const clientId = normalizeOptionalId(project.clientId);
     const projectWithIds = { ...project, projectId, clientId };
     const id = await addProject(projectWithIds);
     const newProject = { ...projectWithIds, id };
@@ -211,8 +213,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedToName: assignedName || '',
           deadline: tender.deadline,
           budget: 0,
-          clientId: tender.clientId && tender.clientId !== 'none' ? tender.clientId : undefined,
-          clientName: tender.clientName || undefined,
+          clientId: normalizeOptionalId(tender.clientId),
+          clientName: tender.clientName || '',
           description: `Automatically created from Awarded Tender (Direct Add): ${tender.name}`,
           createdAt: new Date()
         };
@@ -261,8 +263,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           assignedToName: assignedName || '',
           deadline: updatedTenderData.deadline,
           budget: 0,
-          clientId: updatedTenderData.clientId && updatedTenderData.clientId !== 'none' ? updatedTenderData.clientId : undefined,
-          clientName: updatedTenderData.clientName || undefined,
+          clientId: normalizeOptionalId(updatedTenderData.clientId),
+          clientName: updatedTenderData.clientName || '',
           description: `Automatically created from Awarded Tender: ${updatedTenderData.name}`,
           createdAt: new Date()
         };

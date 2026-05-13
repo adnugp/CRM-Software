@@ -23,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -96,7 +97,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
       name: tender?.name || '',
       company: tender?.company || '',
       clientId: tender?.clientId || '',
-      belongsTo: tender?.belongsTo || undefined,
+      belongsTo: tender?.belongsTo || 'Grow Plus Technologies',
       status: tender?.status || 'running',
       assignedTo: tender?.assignedTo || '',
       deadline: tender?.deadline || '',
@@ -123,7 +124,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
         name: '',
         company: '',
         clientId: '',
-        belongsTo: undefined,
+        belongsTo: 'Grow Plus Technologies',
         status: 'running',
         assignedTo: '',
         deadline: '',
@@ -148,6 +149,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Tender' : 'Create New Tender'}</DialogTitle>
+          <DialogDescription>
+            Enter tender details, ownership, status, assignment, and deadline.
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -200,7 +204,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Client (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'none'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select client" />
@@ -256,7 +260,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select parent company" />
@@ -281,7 +285,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'running'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />
@@ -307,7 +311,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Assigned To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select assignee" />

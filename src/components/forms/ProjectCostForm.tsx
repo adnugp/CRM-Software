@@ -16,6 +16,7 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -84,6 +85,9 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>{isEditing ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
+                    <DialogDescription>
+                        Enter expense description, amount, date, and category.
+                    </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">

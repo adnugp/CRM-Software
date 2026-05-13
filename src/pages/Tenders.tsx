@@ -10,7 +10,7 @@ import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
 import TenderForm from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tender, ParentCompany } from '@/types';
@@ -106,9 +106,9 @@ const Tenders: React.FC = () => {
   const handleFormSubmit = async (data: any) => {
     const assignee = employees.find(a => a.id === data.assignedTo);
     // Resolve client name from allUsers
-    const clientUser = allUsers.find(u => u.id === data.clientId);
+    const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
+    const clientUser = allUsers.find(u => u.id === clientId);
     const clientName = clientUser?.name || '';
-    const clientId = data.clientId === 'none' ? undefined : data.clientId;
     if (editingTender) {
       await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '', clientId, clientName });
     } else {
@@ -345,6 +345,9 @@ const Tenders: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Manage Document - {selectedTenderForDoc?.name}</DialogTitle>
+            <DialogDescription>
+              Upload, replace, or remove the document attached to this tender.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <DocumentUpload

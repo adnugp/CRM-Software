@@ -22,6 +22,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -111,6 +112,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{isEditing ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+          <DialogDescription>
+            Enter employee contact details, department, position, join date, and status.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
@@ -152,7 +156,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Department</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select department" />
@@ -222,7 +226,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || 'active'}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />

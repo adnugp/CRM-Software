@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -119,10 +119,10 @@ const Projects: React.FC = () => {
   const handleFormSubmit = async (data: any) => {
     const assignee = employees.find(a => a.id === data.assignedTo);
     // Resolve client name from allUsers
-    const clientUser = allUsers.find(u => u.id === data.clientId);
+    const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
+    const clientUser = allUsers.find(u => u.id === clientId);
     const clientName = clientUser?.name || '';
-    const organizationId = clientUser?.organizationId || undefined;
-    const clientId = data.clientId === 'none' ? undefined : data.clientId;
+    const organizationId = clientUser?.organizationId || '';
     
     const projectData = { 
       ...data, 
@@ -405,6 +405,9 @@ const Projects: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Manage Document - {selectedProjectForDoc?.name}</DialogTitle>
+            <DialogDescription>
+              Upload, replace, or remove the document attached to this project.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <DocumentUpload

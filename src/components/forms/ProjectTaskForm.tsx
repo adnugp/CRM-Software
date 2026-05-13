@@ -23,6 +23,7 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -103,6 +104,9 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
             <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle>{isEditing ? 'Edit Task' : 'Add New Task'}</DialogTitle>
+                    <DialogDescription>
+                        Enter task details, assignee, due date, priority, and status.
+                    </DialogDescription>
                 </DialogHeader>
                 
                 <Form {...form}>
@@ -144,7 +148,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Assign To</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select onValueChange={field.onChange} value={field.value || ''}>
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Select" />
@@ -185,7 +189,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Priority</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select onValueChange={field.onChange} value={field.value || 'medium'}>
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Select" />
@@ -208,7 +212,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Status</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select onValueChange={field.onChange} value={field.value || 'pending'}>
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Select" />
