@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import Lottie from 'lottie-react';
 import chatbotAnimation from '@/assets/Hello Chat Bot Super Clean.json';
-import robotIcon from '@/assets/robot.png';
+import robotIcon from '/src/assets/robot.png';
 import userIcon from '@/assets/user-removebg-preview.png';
 import { cn } from '@/lib/utils';
 
@@ -1207,7 +1207,7 @@ const AIChatbotWidget: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden shadow-lg">
                 <img
-                  src="/src/assets/artificial-intelligence.png"
+                  src={robotIcon}
                   alt="AI Assistant"
                   className="w-full h-full object-cover"
                 />

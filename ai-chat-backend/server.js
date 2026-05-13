@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import admin from 'firebase-admin';
 import setupNotificationService from './notification-service.js';
 import multer from 'multer';
 import path from 'path';
@@ -77,7 +79,9 @@ function findBestMatch(input, options, threshold = 0.6) {
 
 // Initialize Firebase
 let db = null;
+let adminDb = null;
 try {
+  // Client-side Firebase for basic operations
   const firebaseConfig = {
     apiKey: "AIzaSyBcCR3upbuvG1fQFUOE9qLnITa8tk41cXI",
     authDomain: "crm-gpt-2026.firebaseapp.com",
@@ -90,7 +94,20 @@ try {
 
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
-  console.log('✅ Firebase initialized successfully');
+
+  // Initialize Firebase Admin SDK for server-side operations
+  const adminConfig = {
+    projectId: "crm-gpt-2026",
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "firebase-adminsdk-xxxxx@crm-gpt-2026.iam.gserviceaccount.com",
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_CONTENT\n-----END PRIVATE KEY-----\n"
+  };
+
+  const adminApp = admin.initializeApp({
+    credential: admin.credential.cert(adminConfig)
+  });
+  
+  adminDb = admin.firestore(adminApp);
+  console.log('✅ Firebase (Client + Admin) initialized successfully');
 } catch (error) {
   console.error('❌ Firebase initialization error:', error);
   console.log('⚠️ Running in demo mode with mock data.');
@@ -189,34 +206,160 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 // In-memory storage for chat sessions
 const chatSessions = new Map();
 
-// Query Firebase CRM data
+// Query Firebase CRM data using Admin SDK for full access
 async function queryFirebaseData(collectionName) {
-  if (!db) {
-    console.log(`Firebase not available, returning mock data for ${collectionName}`);
-    return mockCRMData[collectionName] || [];
+  // Use Admin SDK for full database access
+  if (adminDb) {
+    try {
+      console.log(`🔥 Querying Firebase Admin collection: ${collectionName}`);
+      const collectionRef = adminDb.collection(collectionName);
+      
+      // Try to get all documents without ordering first
+      let querySnapshot;
+      try {
+        querySnapshot = await collectionRef.orderBy('createdAt', 'desc').get();
+      } catch (orderError) {
+        console.log(`No createdAt field in ${collectionName}, getting all documents`);
+        querySnapshot = await collectionRef.get();
+      }
+
+      if (querySnapshot.empty) {
+        console.log(`⚠️ No documents found in ${collectionName} collection`);
+        return [];
+      }
+
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      console.log(`✅ Found ${data.length} documents in ${collectionName} from Firebase`);
+      return data;
+    } catch (error) {
+      console.error(`❌ Error querying ${collectionName} with Admin SDK:`, error);
+    }
   }
+
+  // Fallback to client SDK if Admin SDK fails
+  if (db) {
+    try {
+      console.log(`🔄 Falling back to client SDK for ${collectionName}`);
+      const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log(`⚠️ No documents found in ${collectionName} with client SDK`);
+        return [];
+      }
+
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      console.log(`✅ Found ${data.length} documents in ${collectionName} with client SDK`);
+      return data;
+    } catch (error) {
+      console.error(`❌ Error querying ${collectionName} with client SDK:`, error);
+    }
+  }
+
+  // Final fallback to mock data
+  console.log(`📋 Using mock data for ${collectionName} as Firebase is not available`);
+  return mockCRMData[collectionName] || [];
+}
+
+// Fetch all CRM data from Firebase for comprehensive AI responses
+async function fetchAllCRMData() {
+  console.log('🔄 Fetching all CRM data from Firebase...');
+  
+  const collections = [
+    'tenders', 'projects', 'payments', 'employees', 
+    'files', 'registrations', 'contacts', 'partners',
+    'subscriptions', 'tickets', 'deals', 'leads',
+    'accounts', 'activities', 'notes', 'tasks'
+  ];
 
   try {
-    console.log(`Querying Firebase collection: ${collectionName}`);
-    const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const results = await Promise.allSettled(
+      collections.map(collection => queryFirebaseData(collection))
+    );
 
-    if (querySnapshot.empty) {
-      console.log(`No documents found in ${collectionName}`);
-      return [];
-    }
+    const allData = {};
+    collections.forEach((collection, index) => {
+      const result = results[index];
+      if (result.status === 'fulfilled') {
+        allData[collection] = result.value;
+        console.log(`✅ ${collection}: ${result.value.length} items`);
+      } else {
+        console.error(`❌ Failed to fetch ${collection}:`, result.reason);
+        allData[collection] = [];
+      }
+    });
 
-    const data = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    console.log(`Found ${data.length} documents in ${collectionName}`);
-    return data;
+    const totalItems = Object.values(allData).reduce((sum, items) => sum + items.length, 0);
+    console.log(`🎯 Total CRM data fetched: ${totalItems} items across ${collections.length} collections`);
+    
+    return allData;
   } catch (error) {
-    console.error(`Error querying ${collectionName}:`, error);
-    return mockCRMData[collectionName] || [];
+    console.error('❌ Error fetching all CRM data:', error);
+    return mockCRMData;
   }
+}
+
+// Search across all CRM data with comprehensive filtering
+async function searchAllCRMData(query) {
+  console.log(`🔍 Searching across all CRM data for: "${query}"`);
+  
+  const allData = await fetchAllCRMData();
+  const searchResults = [];
+  const queryLower = query.toLowerCase();
+
+  Object.entries(allData).forEach(([collection, items]) => {
+    items.forEach(item => {
+      // Search in all string fields
+      const searchableText = Object.values(item)
+        .filter(value => typeof value === 'string')
+        .join(' ')
+        .toLowerCase();
+
+      if (searchableText.includes(queryLower)) {
+        searchResults.push({
+          ...item,
+          _collection: collection,
+          _relevanceScore: calculateRelevanceScore(searchableText, queryLower)
+        });
+      }
+    });
+  });
+
+  // Sort by relevance score
+  searchResults.sort((a, b) => b._relevanceScore - a._relevanceScore);
+  
+  console.log(`🎯 Found ${searchResults.length} matching items across all collections`);
+  return searchResults.slice(0, 20); // Return top 20 results
+}
+
+// Calculate relevance score for search results
+function calculateRelevanceScore(text, query) {
+  const words = query.split(' ');
+  let score = 0;
+  
+  words.forEach(word => {
+    if (word.length > 2) {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = text.match(regex);
+      if (matches) {
+        score += matches.length * 2;
+      }
+      // Partial matches get lower score
+      if (text.includes(word)) {
+        score += 1;
+      }
+    }
+  });
+  
+  return score;
 }
 
 // Query Ollama for AI response
@@ -256,19 +399,20 @@ async function queryOllama(prompt, context = []) {
   }
 }
 
-// Generate AI response with comprehensive direct filtering
+// Generate AI response with comprehensive Firebase data
 async function generateAIResponse(message, sessionId) {
   try {
     console.log(`🔍 Processing message: "${message}"`);
-    console.log('🚀 Starting generateAIResponse function...');
+    console.log('🚀 Starting generateAIResponse with comprehensive Firebase data...');
 
     let lowerMessage = message.toLowerCase().trim();
     console.log(`📝 Lowercase message: "${lowerMessage}"`);
 
     const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
-    console.log('📝 Checking greetings...');
+    const conversationalPhrases = ['how are you', 'how are you doing', 'how do you do', 'what\'s up', 'how\'s it going'];
+    console.log('📝 Checking greetings and conversational phrases...');
 
-    // More precise greeting detection - check if message is exactly a greeting or starts with greeting
+    // Enhanced greeting detection - check if message is exactly a greeting or starts with greeting
     const isGreeting = greetings.some(greeting => {
       const trimmedMessage = lowerMessage.trim();
       return trimmedMessage === greeting ||
@@ -277,14 +421,62 @@ async function generateAIResponse(message, sessionId) {
         (trimmedMessage.includes(' ' + greeting + ' '));
     });
 
-    if (isGreeting) {
-      console.log('📝 Greeting detected, returning greeting response');
+    // Check for conversational phrases
+    const isConversational = conversationalPhrases.some(phrase => {
+      const trimmedMessage = lowerMessage.trim();
+      return trimmedMessage === phrase ||
+        trimmedMessage.includes(phrase) ||
+        phrase.includes(trimmedMessage);
+    });
+
+    if (isGreeting || isConversational) {
+      console.log('📝 Greeting/Conversational phrase detected, returning friendly response');
       return {
-        response: 'Hello! I\'m your CRM AI assistant. I can help you with tenders, projects, payments, employees, files, and registrations. What would you like to know?'
+        response: isConversational 
+          ? "I'm doing great, thank you for asking! I'm your CRM AI assistant with access to all your Firebase data. I can help you with tenders, projects, payments, employees, files, registrations, contacts, partners, and more. What would you like to know?"
+          : 'Hello! I\'m your CRM AI assistant with access to all your Firebase data. I can help you with tenders, projects, payments, employees, files, registrations, contacts, partners, and more. What would you like to know?'
       };
     }
 
-    console.log('📝 Checking tender queries...');
+    // Fetch all CRM data from Firebase for comprehensive analysis
+    console.log('📊 Fetching comprehensive CRM data from Firebase...');
+    const allCRMData = await fetchAllCRMData();
+    
+    // Use comprehensive search across all collections
+    console.log('🔍 Performing comprehensive search across all collections...');
+    const searchResults = await searchAllCRMData(message);
+
+    // If we have comprehensive search results, return them
+    if (searchResults.length > 0) {
+      console.log(`🎯 Found ${searchResults.length} comprehensive results`);
+      
+      // Group results by collection type
+      const groupedResults = searchResults.reduce((acc, result) => {
+        const collection = result._collection;
+        if (!acc[collection]) acc[collection] = [];
+        acc[collection].push(result);
+        return acc;
+      }, {});
+
+      let response = `Found ${searchResults.length} items matching "${message}":\n\n`;
+      
+      Object.entries(groupedResults).forEach(([collection, items]) => {
+        response += `� ${collection.charAt(0).toUpperCase() + collection.slice(1)} (${items.length} items):\n`;
+        items.slice(0, 3).forEach(item => {
+          const name = item.name || item.title || item.description || 'Unnamed';
+          const company = item.company || item.assignedToName || '';
+          response += `  • ${name}${company ? ` - ${company}` : ''}\n`;
+        });
+        if (items.length > 3) {
+          response += `  ... and ${items.length - 3} more\n`;
+        }
+        response += '\n';
+      });
+
+      return { response };
+    }
+
+    console.log('📝 Checking specific collection queries...');
 
     // Handle tender queries directly
     if (lowerMessage.includes('tender') || lowerMessage.includes('tenders')) {
@@ -741,6 +933,193 @@ async function generateAIResponse(message, sessionId) {
       return { response };
     }
 
+    // Handle contact queries directly
+    if (lowerMessage.includes('contact') || lowerMessage.includes('contacts')) {
+      console.log('🎯 Direct contact query detected');
+      const contacts = await queryFirebaseData('contacts');
+
+      if (contacts.length === 0) {
+        return { response: 'No contact data available in your CRM.' };
+      }
+
+      let filteredContacts = contacts;
+      let filterDescription = '';
+
+      // Company filtering
+      if (lowerMessage.includes('sadeem') || lowerMessage.includes('growplus')) {
+        filteredContacts = filteredContacts.filter(c =>
+          (c.company || '').toLowerCase().includes(lowerMessage.includes('sadeem') ? 'sadeem' : 'growplus')
+        );
+        filterDescription = lowerMessage.includes('sadeem') ? 'Sadeem Energy' : 'Grow Plus Technologies';
+      }
+
+      const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count');
+      if (isCountQuery) {
+        return { response: `Found ${filteredContacts.length} ${filterDescription || 'contact(s)'} in your CRM.` };
+      }
+
+      if (filteredContacts.length === 0) {
+        return { response: `No ${filterDescription || 'contacts'} found in your CRM.` };
+      }
+
+      const response = `Found ${filteredContacts.length} ${filterDescription || 'contact(s)'}:\n\n${filteredContacts.slice(0, 5).map(c => `• ${c.name} - ${c.email || c.phone || 'No contact info'}${c.company ? ` - ${c.company}` : ''}`).join('\n')}`;
+      return { response };
+    }
+
+    // Handle partner queries directly
+    if (lowerMessage.includes('partner') || lowerMessage.includes('partners')) {
+      console.log('🎯 Direct partner query detected');
+      const partners = await queryFirebaseData('partners');
+
+      if (partners.length === 0) {
+        return { response: 'No partner data available in your CRM.' };
+      }
+
+      let filteredPartners = partners;
+      let filterDescription = '';
+
+      // Type filtering
+      if (lowerMessage.includes('technology')) {
+        filteredPartners = filteredPartners.filter(p => (p.type || '').toLowerCase().includes('technology'));
+        filterDescription = 'technology';
+      } else if (lowerMessage.includes('regional')) {
+        filteredPartners = filteredPartners.filter(p => (p.type || '').toLowerCase().includes('regional'));
+        filterDescription = 'regional';
+      }
+
+      const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count');
+      if (isCountQuery) {
+        return { response: `Found ${filteredPartners.length} ${filterDescription || 'partner(s)'} in your CRM.` };
+      }
+
+      if (filteredPartners.length === 0) {
+        return { response: `No ${filterDescription || 'partners'} found in your CRM.` };
+      }
+
+      const response = `Found ${filteredPartners.length} ${filterDescription || 'partner(s)'}:\n\n${filteredPartners.slice(0, 5).map(p => `• ${p.name} - ${p.type || 'Partner'}${p.region ? ` - ${p.region}` : ''}`).join('\n')}`;
+      return { response };
+    }
+
+    // Handle deal queries directly
+    if (lowerMessage.includes('deal') || lowerMessage.includes('deals')) {
+      console.log('🎯 Direct deal query detected');
+      const deals = await queryFirebaseData('deals');
+
+      if (deals.length === 0) {
+        return { response: 'No deal data available in your CRM.' };
+      }
+
+      let filteredDeals = deals;
+      let filterDescription = '';
+
+      // Status filtering
+      if (lowerMessage.includes('open') || lowerMessage.includes('active')) {
+        filteredDeals = filteredDeals.filter(d => (d.status || '').toLowerCase().includes('open') || (d.status || '').toLowerCase().includes('active'));
+        filterDescription = 'open/active';
+      } else if (lowerMessage.includes('closed') || lowerMessage.includes('won')) {
+        filteredDeals = filteredDeals.filter(d => (d.status || '').toLowerCase().includes('closed') || (d.status || '').toLowerCase().includes('won'));
+        filterDescription = 'closed/won';
+      } else if (lowerMessage.includes('lost')) {
+        filteredDeals = filteredDeals.filter(d => (d.status || '').toLowerCase().includes('lost'));
+        filterDescription = 'lost';
+      }
+
+      const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count');
+      if (isCountQuery) {
+        return { response: `Found ${filteredDeals.length} ${filterDescription || 'deal(s)'} in your CRM.` };
+      }
+
+      if (filteredDeals.length === 0) {
+        return { response: `No ${filterDescription || 'deals'} found in your CRM.` };
+      }
+
+      const response = `Found ${filteredDeals.length} ${filterDescription || 'deal(s)'}:\n\n${filteredDeals.slice(0, 5).map(d => `• ${d.name || d.title || 'Unnamed Deal'} - ${d.status || 'No status'}${d.value ? ` - $${d.value}` : ''}${d.company ? ` - ${d.company}` : ''}`).join('\n')}`;
+      return { response };
+    }
+
+    // Handle lead queries directly
+    if (lowerMessage.includes('lead') || lowerMessage.includes('leads')) {
+      console.log('🎯 Direct lead query detected');
+      const leads = await queryFirebaseData('leads');
+
+      if (leads.length === 0) {
+        return { response: 'No lead data available in your CRM.' };
+      }
+
+      let filteredLeads = leads;
+      let filterDescription = '';
+
+      // Status filtering
+      if (lowerMessage.includes('new') || lowerMessage.includes('fresh')) {
+        filteredLeads = filteredLeads.filter(l => (l.status || '').toLowerCase().includes('new'));
+        filterDescription = 'new';
+      } else if (lowerMessage.includes('qualified')) {
+        filteredLeads = filteredLeads.filter(l => (l.status || '').toLowerCase().includes('qualified'));
+        filterDescription = 'qualified';
+      } else if (lowerMessage.includes('converted')) {
+        filteredLeads = filteredLeads.filter(l => (l.status || '').toLowerCase().includes('converted'));
+        filterDescription = 'converted';
+      }
+
+      const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count');
+      if (isCountQuery) {
+        return { response: `Found ${filteredLeads.length} ${filterDescription || 'lead(s)'} in your CRM.` };
+      }
+
+      if (filteredLeads.length === 0) {
+        return { response: `No ${filterDescription || 'leads'} found in your CRM.` };
+      }
+
+      const response = `Found ${filteredLeads.length} ${filterDescription || 'lead(s)'}:\n\n${filteredLeads.slice(0, 5).map(l => `• ${l.name || l.company || 'Unnamed Lead'} - ${l.status || 'No status'}${l.email ? ` - ${l.email}` : ''}`).join('\n')}`;
+      return { response };
+    }
+
+    // Handle ticket queries directly
+    if (lowerMessage.includes('ticket') || lowerMessage.includes('tickets')) {
+      console.log('🎯 Direct ticket query detected');
+      const tickets = await queryFirebaseData('tickets');
+
+      if (tickets.length === 0) {
+        return { response: 'No ticket data available in your CRM.' };
+      }
+
+      let filteredTickets = tickets;
+      let filterDescription = '';
+
+      // Priority filtering
+      if (lowerMessage.includes('high') || lowerMessage.includes('urgent')) {
+        filteredTickets = filteredTickets.filter(t => (t.priority || '').toLowerCase().includes('high') || (t.priority || '').toLowerCase().includes('urgent'));
+        filterDescription = 'high priority';
+      } else if (lowerMessage.includes('medium')) {
+        filteredTickets = filteredTickets.filter(t => (t.priority || '').toLowerCase().includes('medium'));
+        filterDescription = 'medium priority';
+      } else if (lowerMessage.includes('low')) {
+        filteredTickets = filteredTickets.filter(t => (t.priority || '').toLowerCase().includes('low'));
+        filterDescription = 'low priority';
+      }
+
+      // Status filtering
+      if (lowerMessage.includes('open')) {
+        filteredTickets = filteredTickets.filter(t => (t.status || '').toLowerCase().includes('open'));
+        filterDescription = filterDescription ? `${filterDescription} open` : 'open';
+      } else if (lowerMessage.includes('closed') || lowerMessage.includes('resolved')) {
+        filteredTickets = filteredTickets.filter(t => (t.status || '').toLowerCase().includes('closed') || (t.status || '').toLowerCase().includes('resolved'));
+        filterDescription = filterDescription ? `${filterDescription} closed` : 'closed';
+      }
+
+      const isCountQuery = lowerMessage.includes('how many') || lowerMessage.includes('count');
+      if (isCountQuery) {
+        return { response: `Found ${filteredTickets.length} ${filterDescription || 'ticket(s)'} in your CRM.` };
+      }
+
+      if (filteredTickets.length === 0) {
+        return { response: `No ${filterDescription || 'tickets'} found in your CRM.` };
+      }
+
+      const response = `Found ${filteredTickets.length} ${filterDescription || 'ticket(s)'}:\n\n${filteredTickets.slice(0, 5).map(t => `• ${t.title || t.subject || 'Unnamed Ticket'} - ${t.priority || 'No priority'}${t.status ? ` - ${t.status}` : ''}${t.assignedTo ? ` - ${t.assignedTo}` : ''}`).join('\n')}`;
+      return { response };
+    }
+
     // Handle registration queries directly
     if (lowerMessage.includes('registration') || lowerMessage.includes('registrations') ||
       lowerMessage.includes('commercial license') || lowerMessage.includes('comercial license') ||
@@ -1035,11 +1414,26 @@ User Question: "${message}"
 
 Please provide a comprehensive and helpful response:`;
 
-    const aiResponse = await queryOllama(aiPrompt);
+    try {
+      const aiResponse = await queryOllama(aiPrompt);
 
-    if (aiResponse && aiResponse.response) {
+      if (aiResponse && aiResponse.response) {
+        return {
+          response: aiResponse.response
+        };
+      }
+    } catch (aiError) {
+      console.error('AI service error:', aiError.message);
+      
+      // Fallback response when AI is not available
+      if (searchResults && searchResults.length > 0) {
+        return {
+          response: `I found ${searchResults.length} items matching your query. However, I'm currently unable to provide detailed analysis. Here are the top results:\n\n${searchResults.slice(0, 3).map(item => `• ${item.name || item.title || 'Unnamed'} (${item._collection})`).join('\n')}`
+        };
+      }
+      
       return {
-        response: aiResponse.response
+        response: 'I apologize, but my AI service is currently unavailable. However, I can still help you search through your CRM data. Try asking about specific items like "show me tenders" or "list all projects".'
       };
     }
 
