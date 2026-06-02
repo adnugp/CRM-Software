@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBcCR3upbuvG1fQFUOE9qLnITa8tk41cXI",
   authDomain: "crm-gpt-2026.firebaseapp.com",
   projectId: "crm-gpt-2026",

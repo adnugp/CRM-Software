@@ -80,6 +80,14 @@ const TenderForm: React.FC<TenderFormProps> = ({
     });
   }, [employees]);
 
+  const staffAssignees = React.useMemo(() => {
+    const staff = allUsers.filter(u => u.role !== 'client').map(u => ({ id: u.id, name: u.name }));
+    if (staff.length > 0) {
+      return staff;
+    }
+    return uniqueEmployees.map(e => ({ id: e.id, name: e.name }));
+  }, [allUsers, uniqueEmployees]);
+
   // Get unique company names from existing tenders
   const uniqueCompanies = React.useMemo(() => {
     const companies = [...new Set(tenders.map(t => t.company).filter(Boolean))];
@@ -318,9 +326,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {uniqueEmployees.map((employee) => (
-                            <SelectItem key={employee.id} value={employee.id}>
-                              {employee.name}
+                          {staffAssignees.map((assignee) => (
+                            <SelectItem key={assignee.id} value={assignee.id}>
+                              {assignee.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

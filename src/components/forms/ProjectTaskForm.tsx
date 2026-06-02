@@ -31,6 +31,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProjectTask } from '@/types';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const taskSchema = z.object({
     name: z.string().min(1, 'Task name is required').max(100, 'Name must be less than 100 characters'),
@@ -57,7 +58,13 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
     task,
 }) => {
     const { employees } = useData();
+    const { allUsers } = useAuth();
     const isEditing = !!task;
+
+    const staffAssignees = React.useMemo(() => {
+        const users = allUsers.filter(u => u.role !== 'client').map(u => ({ id: u.id, name: u.name }));
+        return users.length > 0 ? users : employees.map(e => ({ id: e.id, name: e.name }));
+    }, [allUsers, employees]);
 
     const form = useForm<TaskFormData>({
         resolver: zodResolver(taskSchema),
@@ -155,9 +162,9 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {employees.map((emp) => (
-                                                            <SelectItem key={emp.id} value={emp.id}>
-                                                                {emp.name}
+                                                        {staffAssignees.map((assignee) => (
+                                                            <SelectItem key={assignee.id} value={assignee.id}>
+                                                                {assignee.name}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>

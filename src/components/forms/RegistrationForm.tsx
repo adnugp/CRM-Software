@@ -30,6 +30,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Registration, ParentCompany } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 
 const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
@@ -71,7 +72,13 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onSubmit,
 }) => {
   const { employees } = useData();
+  const { allUsers } = useAuth();
   const isEditing = !!registration;
+
+  const staffAssignees = React.useMemo(() => {
+    const users = allUsers.filter(u => u.role !== 'client').map(u => ({ id: u.id, name: u.name }));
+    return users.length > 0 ? users : employees.map(e => ({ id: e.id, name: e.name }));
+  }, [allUsers, employees]);
 
   const form = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -281,9 +288,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {employees.map((employee) => (
-                            <SelectItem key={employee.id} value={employee.id}>
-                              {employee.name}
+                          {staffAssignees.map((assignee) => (
+                            <SelectItem key={assignee.id} value={assignee.id}>
+                              {assignee.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

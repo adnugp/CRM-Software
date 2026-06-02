@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User as AppUser, UserRole } from '@/types';
 import { auth } from '@/services/auth';
-import { db } from '@/services/firebase';
+import { db, firebaseConfig } from '@/services/firebase';
+import { initializeApp, getApps } from 'firebase/app';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -9,6 +10,7 @@ import {
   onAuthStateChanged,
   updateProfile as updateFirebaseProfile,
   updatePassword as updateFirebasePassword,
+  getAuth,
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
@@ -114,7 +116,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       // Store extra user details in Firestore
-      await setDoc(doc(db, 'users', uid), newUserData);
+      const cleanUserData = Object.fromEntries(
+        Object.entries(newUserData).filter(([_, v]) => v !== undefined)
+      );
+      await setDoc(doc(db, 'users', uid), cleanUserData);
       await refreshUsers();
       
       const completeUser = { id: uid, ...newUserData };
@@ -126,15 +131,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [refreshUsers]);
 
+  const getSecondaryApp = () => {
+    const existingApp = getApps().find((appInstance) => appInstance.name === 'secondary');
+    if (existingApp) {
+      return existingApp;
+    }
+    return initializeApp(firebaseConfig, 'secondary');
+  };
+
   const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<boolean> => {
-    // Note: Creating a user via Firebase client SDK will log them in. 
-    // Usually, admins adding users is done via Cloud Functions or a secondary app instance.
-    // For this context, we will just simulate it by temporarily saving the current auth state,
-    // creating the user, and reverting the auth state. This is a common workaround but not ideal for production.
+    // Use a separate Firebase app instance for user creation so the current
+    // authenticated admin session is not replaced by the newly created user.
     try {
-      const currentFirebaseUser = auth.currentUser;
-      
-      const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const secondaryApp = getSecondaryApp();
+      const secondaryAuth = getAuth(secondaryApp);
+
+      const newUserCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const newUid = newUserCredential.user.uid;
       
       const newUserData: Omit<AppUser, 'id'> = {
@@ -145,18 +157,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         organizationId,
       };
 
-      await setDoc(doc(db, 'users', newUid), newUserData);
-      
-      // Attempt to re-authenticate the original user or just signOut to let them log in again.
-      // Re-authenticating would require password, so we just sign out or leave it (they will be the new user).
-      // Since this is client-side, we'll log out the new user and ask the admin to log back in (or we can just restore if we had credentials, but we don't).
-      // A better way is using a secondary app instance, but for simplicity we just log out the new user if we were already logged in.
-      if (currentFirebaseUser && currentFirebaseUser.uid !== newUid) {
-          // In a real app we'd use Firebase Admin SDK to add users without logging out.
-          // Since we can't easily switch back without a password, we won't log out here automatically
-          // but just note it.
-      }
-      
+      const cleanUserData = Object.fromEntries(
+        Object.entries(newUserData).filter(([_, v]) => v !== undefined)
+      );
+      await setDoc(doc(db, 'users', newUid), cleanUserData);
+      await signOut(secondaryAuth);
       await refreshUsers();
       return true;
     } catch (error) {

@@ -93,7 +93,10 @@ const Projects: React.FC = () => {
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
-  const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
+  const staffAssigneeOptions = useMemo(() => {
+    const staff = allUsers.filter(u => u.role !== 'client').map(u => ({ value: u.id, label: u.name }));
+    return staff.length > 0 ? staff : employees.map(a => ({ value: a.id, label: a.name }));
+  }, [allUsers, employees]);
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
@@ -117,7 +120,7 @@ const Projects: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: any) => {
-    const assignee = employees.find(a => a.id === data.assignedTo);
+    const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     // Resolve client name from allUsers
     const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
     const clientUser = allUsers.find(u => u.id === clientId);
@@ -226,7 +229,7 @@ const Projects: React.FC = () => {
             label="Assignee"
             value={assigneeFilter}
             onChange={setAssigneeFilter}
-            options={assigneeOptions}
+            options={staffAssigneeOptions}
             placeholder="All Assignees"
           />
         </div>

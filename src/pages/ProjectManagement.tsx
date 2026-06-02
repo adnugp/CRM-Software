@@ -59,12 +59,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ProjectTimeline from '@/components/projects/ProjectTimeline';
-import { canViewProject } from '@/lib/project-visibility';
 
 const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { projects, employees, updateProject } = useData();
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, allUsers } = useAuth();
     const [activeTab, setActiveTab] = useState('overview');
     const [taskFormOpen, setTaskFormOpen] = useState(false);
     const [costFormOpen, setCostFormOpen] = useState(false);
@@ -83,15 +82,31 @@ const ProjectManagement: React.FC = () => {
 
     // Security check for clients
     const canAccess = useMemo(() => {
-        return canViewProject(currentUser, project as any);
-    }, [project, currentUser]);
+        if (!project) return false;
+        if (!isClient) return true;
+
+        // Match by organizationId if available, fallback to company name
+        const userOrgId = currentUser?.organizationId;
+        const projectOrgId = project.organizationId;
+
+        if (userOrgId && projectOrgId) {
+            return userOrgId === projectOrgId;
+        }
+
+        const userCompany = currentUser?.company?.toLowerCase().trim() || "";
+        const projectCompany = project.company?.toLowerCase()?.trim() || "";
+
+        if (!userCompany || !projectCompany) return false;
+
+        return projectCompany.includes(userCompany) || userCompany.includes(projectCompany);
+    }, [project, isClient, currentUser]);
 
     if (!project || !canAccess) {
         return <Navigate to="/projects" replace />;
     }
 
     const handleAddTask = async (data: any) => {
-        const assignee = employees.find(e => e.id === data.assignedTo);
+        const assignee = employees.find(e => e.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
         const newTask = {
             ...data,
             id: `task-${Date.now()}`,
@@ -266,10 +281,10 @@ const ProjectManagement: React.FC = () => {
                 <TabsList className="bg-muted/50 p-1">
                     <TabsTrigger value="overview" className="data-[state=active]:bg-background">Overview</TabsTrigger>
                     {isClient && (
-                         <TabsTrigger value="milestones" className="data-[state=active]:bg-background">Project Milestones</TabsTrigger>
+                        <TabsTrigger value="milestones" className="data-[state=active]:bg-background">Project Milestones</TabsTrigger>
                     )}
                     {isClient && (
-                         <TabsTrigger value="documents" className="data-[state=active]:bg-background">Document Vault</TabsTrigger>
+                        <TabsTrigger value="documents" className="data-[state=active]:bg-background">Document Vault</TabsTrigger>
                     )}
                     {!isClient && (
                         <TabsTrigger value="tasks" className="data-[state=active]:bg-background">Tasks & Productivity</TabsTrigger>
@@ -390,7 +405,7 @@ const ProjectManagement: React.FC = () => {
                                         </div>
                                         <h3 className="font-bold text-lg">{project.assignedToName}</h3>
                                         <p className="text-sm text-muted-foreground">Senior Project Manager</p>
-                                        
+
                                         <div className="w-full mt-6 space-y-3">
                                             <Button variant="outline" className="w-full justify-start gap-3">
                                                 <Users className="h-4 w-4 text-primary" />
@@ -762,7 +777,7 @@ const ProjectManagement: React.FC = () => {
                                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Operating Costs</p>
                                         <p className="text-3xl font-black text-orange-500">${totalCosts.toLocaleString()}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                                            <div className="h-full bg-orange-500" style={{ width: `${(totalCosts/budget)*100}%` }} />
+                                            <div className="h-full bg-orange-500" style={{ width: `${(totalCosts / budget) * 100}%` }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
@@ -796,7 +811,7 @@ const ProjectManagement: React.FC = () => {
                                                 <div className="space-y-1">
                                                     <p className="font-bold text-foreground">Capital Efficiency</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        With an efficiency ratio of <span className="text-foreground font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</span>, the project is delivering 
+                                                        With an efficiency ratio of <span className="text-foreground font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</span>, the project is delivering
                                                         maximum value per dollar spent. Resource optimization has resulted in a <span className="text-success font-bold">12% reduction</span> in projected overhead.
                                                     </p>
                                                 </div>
@@ -808,7 +823,7 @@ const ProjectManagement: React.FC = () => {
                                                 <div className="space-y-1">
                                                     <p className="font-bold text-foreground">Revenue Trajectory</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        The project is tracking <span className="text-primary font-bold">8% ahead of the financial roadmap</span>. Current burn rate of 
+                                                        The project is tracking <span className="text-primary font-bold">8% ahead of the financial roadmap</span>. Current burn rate of
                                                         <span className="text-foreground font-bold">${(totalCosts / 30).toFixed(0)}/day</span> is sustainable throughout the project lifecycle.
                                                     </p>
                                                 </div>
@@ -823,8 +838,8 @@ const ProjectManagement: React.FC = () => {
                                         </h3>
                                         <div className="p-6 rounded-2xl bg-card border border-border shadow-inner space-y-4">
                                             <p className="text-sm text-muted-foreground leading-relaxed italic">
-                                                "The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately 
-                                                <span className="text-foreground font-bold font-mono">1.8%</span>. We anticipate no additional funding requirements from high-level capital reserves. 
+                                                "The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately
+                                                <span className="text-foreground font-bold font-mono">1.8%</span>. We anticipate no additional funding requirements from high-level capital reserves.
                                                 Recommended action: Proceed with secondary phase scaling as project remains self-fundable."
                                             </p>
                                             <div className="pt-4 border-t flex items-center gap-3">

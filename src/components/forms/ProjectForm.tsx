@@ -70,6 +70,14 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     return allUsers.filter(u => u.role === 'client');
   }, [allUsers]);
 
+  const staffAssignees = React.useMemo(() => {
+    const staff = allUsers.filter(u => u.role !== 'client');
+    if (staff.length > 0) {
+      return staff;
+    }
+    return employees.map(e => ({ id: e.id, name: e.name }));
+  }, [allUsers, employees]);
+
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -264,9 +272,9 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {employees.map((employee) => (
-                            <SelectItem key={employee.id} value={employee.id}>
-                              {employee.name}
+                          {staffAssignees.map((assignee) => (
+                            <SelectItem key={assignee.id} value={assignee.id}>
+                              {assignee.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
