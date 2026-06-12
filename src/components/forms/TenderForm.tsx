@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import {
   Select,
@@ -88,10 +89,20 @@ const TenderForm: React.FC<TenderFormProps> = ({
     return uniqueEmployees.map(e => ({ id: e.id, name: e.name }));
   }, [allUsers, uniqueEmployees]);
 
-  // Get unique company names from existing tenders
+  // Get unique company names from existing tenders (case-insensitive, trimmed)
   const uniqueCompanies = React.useMemo(() => {
-    const companies = [...new Set(tenders.map(t => t.company).filter(Boolean))];
-    return companies.sort();
+    const seen = new Set<string>();
+    const companies = tenders
+      .map(t => t.company?.trim())
+      .filter((c): c is string => !!c)
+      .filter(c => {
+        const key = c.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort();
+    return companies;
   }, [tenders]);
 
   // Get client users from allUsers
@@ -186,6 +197,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Company/Organization</FormLabel>
+                      <FormDescription>
+                        The client company or organization this tender is for. Suggestions are from existing tenders.
+                      </FormDescription>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -212,6 +226,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Client (Optional)</FormLabel>
+                      <FormDescription>
+                        The client contact person associated with this tender (different from the company/organization above).
+                      </FormDescription>
                       <Select onValueChange={field.onChange} value={field.value || 'none'}>
                         <FormControl>
                           <SelectTrigger>

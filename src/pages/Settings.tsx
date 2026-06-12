@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Users, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Users, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -78,10 +78,11 @@ const StaffRow: React.FC<{
 
 // Settings Page Component
 const Settings: React.FC = () => {
-    const { user, allUsers, removeUser, updateProfile, updatePassword } = useAuth();
+    const { user, allUsers, removeUser, updateProfile, updateAvatar, updatePassword } = useAuth();
     const { employees, registrations, deleteEmployee, deleteRegistration } = useData();
     const { toast } = useToast();
     const navigate = useNavigate();
+    const avatarInputRef = useRef<HTMLInputElement>(null);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
         return (localStorage.getItem('crm-theme') as 'light' | 'dark' | 'system') || 'system';
     });
@@ -92,6 +93,7 @@ const Settings: React.FC = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
 
     useEffect(() => {
@@ -528,8 +530,12 @@ const Settings: React.FC = () => {
                             </CardHeader>
                             <CardContent className="pt-6 space-y-6">
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-6 border-b border-border">
-                                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl font-bold">
-                                        {profileName.charAt(0).toUpperCase()}
+                                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl font-bold overflow-hidden">
+                                        {user?.avatar ? (
+                                            <img src={user.avatar} alt={profileName} className="h-full w-full object-cover" />
+                                        ) : (
+                                            profileName.charAt(0).toUpperCase()
+                                        )}
                                     </div>
                                     <div className="space-y-1">
                                         <h3 className="text-xl font-bold">{profileName}</h3>
@@ -538,7 +544,37 @@ const Settings: React.FC = () => {
                                             {user?.role} Role
                                         </div>
                                     </div>
-                                    <Button variant="outline" className="sm:ml-auto">Change Avatar</Button>
+                                    <input
+                                      ref={avatarInputRef}
+                                      type="file"
+                                      className="hidden"
+                                      accept=".jpg,.jpeg,.png,.gif,.webp"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          setIsUploadingAvatar(true);
+                                          const url = await updateAvatar(file);
+                                          if (url) {
+                                            toast({
+                                              title: 'Avatar updated',
+                                              description: 'Your profile picture has been changed.',
+                                            });
+                                          } else {
+                                            toast({
+                                              title: 'Upload failed',
+                                              description: 'Failed to upload avatar. Please try again.',
+                                              variant: 'destructive',
+                                            });
+                                          }
+                                          setIsUploadingAvatar(false);
+                                        }
+                                        if (avatarInputRef.current) avatarInputRef.current.value = '';
+                                      }}
+                                    />
+                                    <Button variant="outline" className="sm:ml-auto" onClick={() => avatarInputRef.current?.click()} disabled={isUploadingAvatar}>
+                                      <Camera className="h-4 w-4 mr-2" />
+                                      {isUploadingAvatar ? 'Uploading...' : 'Change Avatar'}
+                                    </Button>
                                 </div>
 
                                 <form onSubmit={handleUpdateProfile} className="space-y-6">
@@ -714,7 +750,12 @@ const Settings: React.FC = () => {
                                         </DialogContent>
                                     </Dialog>
 
-                                    <Button variant="outline" className="w-full justify-start text-sm">
+                                    <Button variant="outline" className="w-full justify-start text-sm" onClick={() => {
+                                      toast({
+                                        title: 'Coming Soon',
+                                        description: 'Managing active sessions requires the Firebase Admin SDK. Contact your system administrator.',
+                                      });
+                                    }}>
                                         Manage Active Sessions
                                     </Button>
                                 </div>

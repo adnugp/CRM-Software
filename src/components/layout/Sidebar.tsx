@@ -29,7 +29,10 @@ const Sidebar: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const scrollRef = useDragScroll();
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'user', 'manager'] },
@@ -84,8 +87,12 @@ const Sidebar: React.FC = () => {
       {/* User section */}
       <div className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground font-semibold">
-            {user?.name.charAt(0).toUpperCase()}
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground font-semibold overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              user?.name.charAt(0).toUpperCase()
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.name}</p>

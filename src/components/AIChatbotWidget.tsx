@@ -611,8 +611,9 @@ const AIChatbotWidget: React.FC = () => {
         wsRef.current = null;
       }
 
-      console.log('Attempting to connect to WebSocket at ws://localhost:3001');
-      const ws = new WebSocket('ws://localhost:3001');
+      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+      console.log('Attempting to connect to WebSocket at', wsUrl);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {

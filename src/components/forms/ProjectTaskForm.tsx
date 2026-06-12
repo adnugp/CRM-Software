@@ -115,7 +115,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                         Enter task details, assignee, due date, priority, and status.
                     </DialogDescription>
                 </DialogHeader>
-                
+
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
                         <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">

@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const Register: React.FC = () => {
   const location = useLocation();
   const isClientRegistration = location.pathname.includes('client');
@@ -36,6 +38,11 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!EMAIL_REGEX.test(email)) {
+      setError('Please enter a valid email address (e.g., user@domain.com).');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');

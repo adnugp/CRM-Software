@@ -279,6 +279,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTenders(prev => prev.filter(t => t.id !== id));
   };
 
+  // GPT-0071: The employees collection in Firestore is the single source of truth.
+  // All employee data (name, email, department, position, phone, joinDate, status)
+  // must be managed through the Employees page. Avoid syncing from external auth providers.
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     const id = await addEmployee(employee);
     const newEmployee = { ...employee, id };

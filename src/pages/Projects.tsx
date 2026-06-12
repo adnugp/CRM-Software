@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FileDown, Calendar, User, Building, Pencil, Trash2, Upload, Eye } from 'lucide-react';
+import { Calendar, User, Building, Pencil, Trash2, Upload, Eye, Files } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -7,7 +7,8 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
+import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { DocumentFile } from '@/types';
 import ProjectForm from '@/components/forms/ProjectForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -153,33 +154,14 @@ const Projects: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentUpload = async (doc: DocumentFile) => {
+  const handleDocumentsChange = async (docs: DocumentFile[]) => {
     if (selectedProjectForDoc) {
-      await updateProject(selectedProjectForDoc.id, { documentFile: doc, document: doc.name });
-      setSelectedProjectForDoc(prev => prev ? { ...prev, documentFile: doc, document: doc.name } : null);
-    }
-  };
-
-  const handleDocumentRemove = async () => {
-    if (selectedProjectForDoc) {
-      await updateProject(selectedProjectForDoc.id, { documentFile: undefined, document: undefined });
-      setSelectedProjectForDoc(prev => prev ? { ...prev, documentFile: undefined, document: undefined } : null);
-    }
-  };
-
-  const handleDownloadDocument = (project: Project) => {
-    if (project.documentFile) {
-      const link = document.createElement('a');
-      link.href = project.documentFile.data;
-      link.download = project.documentFile.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      toast({
-        title: 'Download started',
-        description: `Downloading ${project.document}...`,
+      await updateProject(selectedProjectForDoc.id, {
+        documents: docs,
+        documentFile: docs.length > 0 ? docs[0] : undefined,
+        document: docs.length > 0 ? docs[0].name : undefined,
       });
+      setSelectedProjectForDoc(prev => prev ? { ...prev, documents: docs } : null);
     }
   };
 
@@ -334,28 +316,30 @@ const Projects: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {project.document || project.documentFile ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-primary hover:text-primary/80"
-                        onClick={() => handleDownloadDocument(project)}
-                      >
-                        <FileDown className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                    ) : !isClient ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenDocumentDialog(project)}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Upload
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">No document</span>
-                    )}
+                    {(() => {
+                      const docs = project.documents?.length ? project.documents : (project.documentFile ? [project.documentFile] : []);
+                      if (docs.length > 0) {
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">{docs.length} file{docs.length > 1 ? 's' : ''}</span>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" className="h-7" onClick={() => handleOpenDocumentDialog(project)}>
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return !isClient ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenDocumentDialog(project)}>
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No document</span>
+                      );
+                    })()}
                   </TableCell>
                   {!isClient && (
                     <TableCell>
@@ -407,16 +391,15 @@ const Projects: React.FC = () => {
       <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage Document - {selectedProjectForDoc?.name}</DialogTitle>
+            <DialogTitle>Manage Documents - {selectedProjectForDoc?.name}</DialogTitle>
             <DialogDescription>
-              Upload, replace, or remove the document attached to this project.
+              Upload and manage multiple documents for this project.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <DocumentUpload
-              document={selectedProjectForDoc?.documentFile}
-              onUpload={handleDocumentUpload}
-              onRemove={handleDocumentRemove}
+          <div className="py-4 max-h-[400px] overflow-y-auto">
+            <MultiDocumentUpload
+              documents={selectedProjectForDoc?.documents || []}
+              onChange={handleDocumentsChange}
               readOnly={isClient}
             />
           </div>

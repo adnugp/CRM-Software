@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { FileDown, Calendar, User, Building, Pencil, Trash2, Upload } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Calendar, User, Building, Pencil, Trash2, Upload, ChevronLeft, ChevronRight, Eye, Files } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
+import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { DocumentFile } from '@/types';
 import TenderForm from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -49,6 +50,13 @@ const Tenders: React.FC = () => {
 
   const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery]);
+
   const tenderCompanies = [...new Set(tenders.map(t => t.company))];
 
   const filteredTenders = useMemo(() => {
@@ -78,6 +86,13 @@ const Tenders: React.FC = () => {
     }
     return result;
   }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, tenders]);
+
+  const totalPages = Math.ceil(filteredTenders.length / itemsPerPage);
+  const safeCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
+  const paginatedTenders = filteredTenders.slice(
+    (safeCurrentPage - 1) * itemsPerPage,
+    safeCurrentPage * itemsPerPage
+  );
 
   const companyOptions = tenderCompanies.map(c => ({ value: c, label: c }));
   const staffAssigneeOptions = useMemo(() => {
@@ -130,33 +145,14 @@ const Tenders: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentUpload = async (doc: DocumentFile) => {
+  const handleDocumentsChange = async (docs: DocumentFile[]) => {
     if (selectedTenderForDoc) {
-      await updateTender(selectedTenderForDoc.id, { documentFile: doc, document: doc.name });
-      setSelectedTenderForDoc(prev => prev ? { ...prev, documentFile: doc, document: doc.name } : null);
-    }
-  };
-
-  const handleDocumentRemove = async () => {
-    if (selectedTenderForDoc) {
-      await updateTender(selectedTenderForDoc.id, { documentFile: undefined, document: undefined });
-      setSelectedTenderForDoc(prev => prev ? { ...prev, documentFile: undefined, document: undefined } : null);
-    }
-  };
-
-  const handleDownloadDocument = (tender: Tender) => {
-    if (tender.documentFile) {
-      const link = document.createElement('a');
-      link.href = tender.documentFile.data;
-      link.download = tender.documentFile.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      toast({
-        title: 'Download started',
-        description: `Downloading ${tender.document}...`,
+      await updateTender(selectedTenderForDoc.id, {
+        documents: docs,
+        documentFile: docs.length > 0 ? docs[0] : undefined,
+        document: docs.length > 0 ? docs[0].name : undefined,
       });
+      setSelectedTenderForDoc(prev => prev ? { ...prev, documents: docs } : null);
     }
   };
 
@@ -230,7 +226,7 @@ const Tenders: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTenders.map((tender) => (
+              {paginatedTenders.map((tender) => (
                 <TableRow key={tender.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell className="hidden lg:table-cell">
                     <span className="text-sm font-medium">{tender.rfqCode || '-'}</span>
@@ -281,28 +277,30 @@ const Tenders: React.FC = () => {
                     <span className="text-sm">{tender.portal || '-'}</span>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {tender.document || tender.documentFile ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-primary hover:text-primary/80"
-                        onClick={() => handleDownloadDocument(tender)}
-                      >
-                        <FileDown className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                    ) : canEdit ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenDocumentDialog(tender)}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Upload
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">No document</span>
-                    )}
+                    {(() => {
+                      const docs = tender.documents?.length ? tender.documents : (tender.documentFile ? [tender.documentFile] : []);
+                      if (docs.length > 0) {
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">{docs.length} file{docs.length > 1 ? 's' : ''}</span>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" className="h-7" onClick={() => handleOpenDocumentDialog(tender)}>
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return canEdit ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenDocumentDialog(tender)}>
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No document</span>
+                      );
+                    })()}
                   </TableCell>
                   {canEdit && (
                     <TableCell>
@@ -327,6 +325,62 @@ const Tenders: React.FC = () => {
             No tenders found matching your filters.
           </div>
         )}
+
+        {filteredTenders.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Rows per page:</span>
+              <select
+                className="bg-transparent border rounded px-2 py-1 text-sm"
+                value={itemsPerPage}
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span>
+                {(safeCurrentPage - 1) * itemsPerPage + 1}-
+                {Math.min(safeCurrentPage * itemsPerPage, filteredTenders.length)} of {filteredTenders.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safeCurrentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                const start = Math.max(1, safeCurrentPage - 2);
+                const page = start + i;
+                if (page > totalPages) return null;
+                return (
+                  <Button
+                    key={page}
+                    variant={safeCurrentPage === page ? "outline" : "ghost"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className="min-w-[32px]"
+                  >
+                    {page}
+                  </Button>
+                );
+              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <TenderForm
@@ -347,16 +401,15 @@ const Tenders: React.FC = () => {
       <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage Document - {selectedTenderForDoc?.name}</DialogTitle>
+            <DialogTitle>Manage Documents - {selectedTenderForDoc?.name}</DialogTitle>
             <DialogDescription>
-              Upload, replace, or remove the document attached to this tender.
+              Upload and manage multiple documents for this tender.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <DocumentUpload
-              document={selectedTenderForDoc?.documentFile}
-              onUpload={handleDocumentUpload}
-              onRemove={handleDocumentRemove}
+          <div className="py-4 max-h-[400px] overflow-y-auto">
+            <MultiDocumentUpload
+              documents={selectedTenderForDoc?.documents || []}
+              onChange={handleDocumentsChange}
             />
           </div>
         </DialogContent>

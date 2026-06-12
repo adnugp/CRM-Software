@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +26,24 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
+// Initialize theme from localStorage on app startup
+const ThemeInitializer = () => {
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('crm-theme') as 'light' | 'dark' | 'system' | null;
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (!savedTheme || savedTheme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(savedTheme);
+    }
+  }, []);
+
+  return null;
+};
+
 // Chatbot wrapper component that handles conditional rendering
 const ChatbotWrapper = () => {
   const { user, isAuthenticated } = useAuth();
@@ -44,6 +63,7 @@ const App = () => {
       <AuthProvider>
         <DataProvider>
           <BrowserRouter>
+            <ThemeInitializer />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />

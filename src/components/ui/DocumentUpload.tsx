@@ -30,11 +30,32 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.jpg', '.jpeg', '.png', '.mp4'];
+  const blockedExtensions = ['.exe', '.bat', '.sh'];
+
   const handleFileSelect = async (file: File) => {
-    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    if (file.size > 50 * 1024 * 1024) {
       toast({
         title: 'File too large',
         description: 'Please select a file smaller than 50MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (blockedExtensions.includes(ext)) {
+      toast({
+        title: 'File type not allowed',
+        description: 'Executable files (.exe, .bat, .sh) are not allowed.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!allowedExtensions.includes(ext)) {
+      toast({
+        title: 'File type not supported',
+        description: 'Allowed types: PDF, DOCX, XLSX, JPG, PNG, MP4.',
         variant: 'destructive',
       });
       return;
@@ -206,7 +227,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         type="file"
         className="hidden"
         onChange={handleInputChange}
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+        accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.mp4"
         disabled={isUploading}
       />
       <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />

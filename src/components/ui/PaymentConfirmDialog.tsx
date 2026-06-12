@@ -16,6 +16,7 @@ interface PaymentConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   paymentDescription: string;
   paymentAmount: number;
+  currency?: string;
   onConfirm: () => void;
 }
 
@@ -24,8 +25,12 @@ const PaymentConfirmDialog: React.FC<PaymentConfirmDialogProps> = ({
   onOpenChange,
   paymentDescription,
   paymentAmount,
+  currency = 'AED',
   onConfirm,
 }) => {
+  const formatCurrency = (amount: number) =>
+    `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -41,7 +46,7 @@ const PaymentConfirmDialog: React.FC<PaymentConfirmDialogProps> = ({
             <div className="mt-3 p-3 rounded-lg bg-muted">
               <p className="font-medium text-foreground">{paymentDescription}</p>
               <p className="text-lg font-bold text-primary">
-                ${paymentAmount.toLocaleString()}
+                {formatCurrency(paymentAmount)}
               </p>
             </div>
           </AlertDialogDescription>

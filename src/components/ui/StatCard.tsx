@@ -9,6 +9,7 @@ interface StatCardProps {
   trend?: {
     value: number;
     isPositive: boolean;
+    label?: string;
   };
   className?: string;
 }
@@ -28,7 +29,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, trend, cl
               'mt-1 text-sm font-medium',
               trend.isPositive ? 'text-success' : 'text-destructive'
             )}>
-              {trend.isPositive ? '+' : ''}{trend.value}% from last month
+              {trend.isPositive ? '+' : ''}{trend.value}% {trend.label || 'from last month'}
             </p>
           )}
         </div>

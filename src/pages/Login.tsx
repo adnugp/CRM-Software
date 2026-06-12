@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, LogIn, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle, LogIn, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '@/services/auth';
 import gpLogo from '@/assets/gp-logo.png';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,24 +19,91 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    const stored = localStorage.getItem('loginFailedAttempts');
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const [lockoutUntil, setLockoutUntil] = useState(() => {
+    const stored = localStorage.getItem('loginLockoutUntil');
+    return stored ? parseInt(stored, 10) : 0;
+  });
+
+  useEffect(() => {
+    if (lockoutUntil > Date.now()) {
+      const timer = setTimeout(() => {
+        setLockoutUntil(0);
+        localStorage.removeItem('loginLockoutUntil');
+      }, lockoutUntil - Date.now());
+      return () => clearTimeout(timer);
+    }
+  }, [lockoutUntil]);
+
+  const isLockedOut = lockoutUntil > Date.now();
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
+  const validateEmail = (value: string): boolean => EMAIL_REGEX.test(value);
+
+  const getFirebaseErrorMessage = (errorCode: string): string => {
+    switch (errorCode) {
+      case 'auth/user-not-found':
+        return 'No account found with this email address. Please check or register.';
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return 'Incorrect password. Please try again.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many login attempts. Account temporarily locked. Please try again later.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Contact your administrator.';
+      default:
+        return 'Invalid email or password. Please try again.';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address (e.g., user@domain.com).');
+      return;
+    }
+
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setIsLoading(true);
 
-    const success = await login(email, password);
-    
-    if (success) {
+    const result = await login(email, password);
+
+    if (result.success) {
+      setFailedAttempts(0);
+      localStorage.removeItem('loginFailedAttempts');
+      localStorage.removeItem('loginLockoutUntil');
       navigate('/');
     } else {
-      setError('Invalid email or password');
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      localStorage.setItem('loginFailedAttempts', newAttempts.toString());
+
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutTime = Date.now() + LOCKOUT_DURATION_MS;
+        setLockoutUntil(lockoutTime);
+        localStorage.setItem('loginLockoutUntil', lockoutTime.toString());
+        setError(`Too many failed attempts. Login locked for 15 minutes.`);
+      } else {
+        setError(getFirebaseErrorMessage(result.errorCode || 'auth/unknown'));
+      }
     }
     setIsLoading(false);
   };
@@ -37,15 +111,26 @@ const Login: React.FC = () => {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate sending reset email (mock implementation)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (email && email.includes('@')) {
+    try {
+      await sendPasswordResetEmail(auth, email);
       setResetEmailSent(true);
-    } else {
-      setError('Please enter a valid email address');
+    } catch (err: any) {
+      const code = err.code || '';
+      if (code === 'auth/user-not-found') {
+        setError('No account found with this email address.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many requests. Please try again later.');
+      } else {
+        setError('Failed to send reset email. Please try again.');
+      }
     }
     setIsLoading(false);
   };
@@ -56,16 +141,20 @@ const Login: React.FC = () => {
     setError('');
   };
 
+  const getLockoutRemaining = () => {
+    if (!isLockedOut) return '';
+    const remaining = Math.ceil((lockoutUntil - Date.now()) / 60000);
+    return `${remaining} minute${remaining !== 1 ? 's' : ''} remaining`;
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        {/* Logo and Title */}
         <div className="text-center mb-8 animate-fade-in">
           <img src={gpLogo} alt="SadeemGPT Logo" className="h-24 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-foreground tracking-tight">
@@ -73,7 +162,6 @@ const Login: React.FC = () => {
           </h1>
         </div>
 
-        {/* Card */}
         <div className="bg-card border border-border rounded-2xl shadow-2xl p-8 animate-slide-up">
           {!showForgotPassword ? (
             <>
@@ -92,6 +180,9 @@ const Login: React.FC = () => {
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-shake">
                     <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     {error}
+                    {isLockedOut && (
+                      <span className="font-semibold ml-1">{getLockoutRemaining()}</span>
+                    )}
                   </div>
                 )}
 
@@ -102,12 +193,18 @@ const Login: React.FC = () => {
                     <Input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError('');
+                      }}
                       placeholder="Enter your email"
-                      className="pl-10 h-12 border-2 focus:border-primary transition-colors"
+                      className={`pl-10 h-12 border-2 focus:border-primary transition-colors ${email && !validateEmail(email) ? 'border-destructive' : ''}`}
                       required
                     />
                   </div>
+                  {email && !validateEmail(email) && (
+                    <p className="text-xs text-destructive mt-1">Please enter a valid email (e.g., user@domain.com)</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -124,22 +221,30 @@ const Login: React.FC = () => {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="pl-10 h-12 border-2 focus:border-primary transition-colors"
+                      className="pl-10 pr-10 h-12 border-2 focus:border-primary transition-colors"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
                   </div>
                 </div>
 
                 <Button
                   type="submit"
                   className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 shadow-lg hover:shadow-xl text-lg font-semibold"
-                  disabled={isLoading}
+                  disabled={isLoading || isLockedOut}
                 >
-                  {isLoading ? 'Signing in...' : 'Sign in'}
+                  {isLoading ? 'Signing in...' : isLockedOut ? `Locked (${getLockoutRemaining()})` : 'Sign in'}
                 </Button>
               </form>
             </>
@@ -182,7 +287,7 @@ const Login: React.FC = () => {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="Enter your email"
-                          className="pl-10 h-12 border-2 focus:border-primary transition-colors"
+                          className={`pl-10 h-12 border-2 focus:border-primary transition-colors ${email && !validateEmail(email) ? 'border-destructive' : ''}`}
                           required
                         />
                       </div>

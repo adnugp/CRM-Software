@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import SearchInput from '@/components/ui/SearchInput';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import DocumentUpload, { DocumentFile } from '@/components/ui/DocumentUpload';
-import { Plus, FileDown, Trash2, File, FolderOpen } from 'lucide-react';
+import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { DocumentFile } from '@/types';
+import { Plus, FileDown, Trash2, File, FolderOpen, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
@@ -24,22 +25,25 @@ interface FileRecord {
   uploadedAt: string;
   uploadedBy: string;
   document: DocumentFile;
+  documents: DocumentFile[];
 }
 
 const Files: React.FC = () => {
   const { user } = useAuth();
-  const { files: filesList, loading, addFile, deleteFile: deleteFileFromContext } = useData();
+  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [deleteFile, setDeleteFile] = useState<FileRecord | null>(null);
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [selectedFileForDoc, setSelectedFileForDoc] = useState<FileRecord | null>(null);
 
   // Upload form state
   const [uploadName, setUploadName] = useState('');
   const [uploadCategory, setUploadCategory] = useState('');
   const [uploadCompany, setUploadCompany] = useState('');
-  const [uploadDocument, setUploadDocument] = useState<DocumentFile | null>(null);
+  const [uploadDocuments, setUploadDocuments] = useState<DocumentFile[]>([]);
 
   const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
   const isManager = user?.role === 'manager';
@@ -60,11 +64,14 @@ const Files: React.FC = () => {
     });
   }, [filesList, searchQuery, categoryFilter, companyFilter]);
 
+  const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.jpg', '.jpeg', '.png', '.mp4'];
+  const blockedExtensions = ['.exe', '.bat', '.sh'];
+
   const handleUpload = async () => {
-    if (!uploadName || !uploadCategory || !uploadCompany || !uploadDocument) {
+    if (!uploadName || !uploadCategory || !uploadCompany || uploadDocuments.length === 0) {
       toast({
         title: 'Missing information',
-        description: 'Please fill in all fields and upload a file.',
+        description: 'Please fill in all fields and upload at least one file.',
         variant: 'destructive',
       });
       return;
@@ -77,7 +84,8 @@ const Files: React.FC = () => {
         company: uploadCompany,
         uploadedAt: new Date().toISOString().split('T')[0],
         uploadedBy: user?.name || 'Unknown',
-        document: uploadDocument,
+        document: uploadDocuments[0],
+        documents: uploadDocuments,
       };
 
       await addFile(fileData);
@@ -100,16 +108,45 @@ const Files: React.FC = () => {
     setUploadName('');
     setUploadCategory('');
     setUploadCompany('');
-    setUploadDocument(null);
+    setUploadDocuments([]);
   };
 
-  const handleDownload = (file: FileRecord) => {
+  const handleDownload = (file: FileRecord, doc?: DocumentFile) => {
+    const target = doc || file.documents?.[0] || file.document;
+    if (!target) return;
     const link = document.createElement('a');
-    link.href = file.document.data;
-    link.download = file.document.name;
+    link.href = target.data;
+    link.download = target.name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadAll = (file: FileRecord) => {
+    const docs = file.documents?.length ? file.documents : file.document ? [file.document] : [];
+    docs.forEach((doc) => {
+      const link = document.createElement('a');
+      link.href = doc.data;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  };
+
+  const handleOpenDocumentDialog = (file: FileRecord) => {
+    setSelectedFileForDoc(file);
+    setDocumentDialogOpen(true);
+  };
+
+  const handleDocumentsChange = async (docs: DocumentFile[]) => {
+    if (selectedFileForDoc) {
+      await updateFile(selectedFileForDoc.id, {
+        documents: docs,
+        document: docs.length > 0 ? docs[0] : undefined,
+      });
+      setSelectedFileForDoc(prev => prev ? { ...prev, documents: docs } : null);
+    }
   };
 
   const confirmDelete = async () => {
@@ -215,30 +252,44 @@ const Files: React.FC = () => {
                 <TableRow key={file.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                         <File className="h-5 w-5 text-primary" />
                       </div>
                       <div>
                         <p className="font-medium">{file.name}</p>
-                        <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                          {file.document.name}
-                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(file.documents?.length
+                            ? file.documents
+                            : file.document ? [file.document] : []
+                          ).map((doc, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] text-muted-foreground cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleDownload(file, doc); }}
+                            >
+                              <FileDown className="h-3 w-3" />
+                              {doc.name}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>{file.category}</TableCell>
                   <TableCell>{file.company}</TableCell>
-                  <TableCell>{formatFileSize(file.document.size)}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const docs = file.documents?.length ? file.documents : file.document ? [file.document] : [];
+                      const total = docs.reduce((sum, d) => sum + d.size, 0);
+                      return formatFileSize(total);
+                    })()}
+                  </TableCell>
                   <TableCell>{file.uploadedAt}</TableCell>
                   <TableCell>{file.uploadedBy}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDownload(file)}
-                      >
-                        <FileDown className="h-4 w-4" />
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenDocumentDialog(file)}>
+                        <Eye className="h-4 w-4" />
                       </Button>
                       {canEdit && (
                         <Button
@@ -305,11 +356,10 @@ const Files: React.FC = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Document</Label>
-              <DocumentUpload
-                document={uploadDocument}
-                onUpload={setUploadDocument}
-                onRemove={() => setUploadDocument(null)}
+              <Label>Documents</Label>
+              <MultiDocumentUpload
+                documents={uploadDocuments}
+                onChange={setUploadDocuments}
               />
             </div>
             <div className="flex justify-end gap-2 pt-4">
@@ -323,6 +373,25 @@ const Files: React.FC = () => {
                 Upload
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Dialog */}
+      <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Documents - {selectedFileForDoc?.name}</DialogTitle>
+            <DialogDescription>
+              View and manage documents for this file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[400px] overflow-y-auto">
+            <MultiDocumentUpload
+              documents={selectedFileForDoc?.documents || []}
+              onChange={handleDocumentsChange}
+              readOnly={!canEdit}
+            />
           </div>
         </DialogContent>
       </Dialog>

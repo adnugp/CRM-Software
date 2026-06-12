@@ -14,6 +14,13 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -27,6 +34,7 @@ const costSchema = z.object({
     amount: z.coerce.number().min(0.01, 'Amount must be greater than 0'),
     date: z.string().min(1, 'Date is required'),
     category: z.string().min(1, 'Category is required').max(200, 'Category must be less than 200 characters'),
+    type: z.enum(['debit', 'credit']).default('debit'),
 });
 
 type CostFormData = z.infer<typeof costSchema>;
@@ -53,6 +61,7 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
             amount: cost?.amount || 0,
             date: cost?.date || '',
             category: cost?.category || '',
+            type: cost?.type || 'debit',
         },
     });
 
@@ -63,6 +72,7 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
                 amount: cost.amount,
                 date: cost.date,
                 category: cost.category,
+                type: cost.type || 'debit',
             });
         } else {
             form.reset({
@@ -70,6 +80,7 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
                 amount: 0,
                 date: '',
                 category: '',
+                type: 'debit',
             });
         }
     }, [cost, form]);
@@ -134,6 +145,28 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
                                 )}
                             />
                         </div>
+
+                        <FormField
+                            control={form.control}
+                            name="type"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Type</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || 'debit'}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select type" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="debit">Debit (Expense)</SelectItem>
+                                            <SelectItem value="credit">Credit (Income/Refund)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <FormField
                             control={form.control}

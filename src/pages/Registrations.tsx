@@ -20,7 +20,7 @@ const parentCompanyOptions = [
 ];
 
 const Registrations: React.FC = () => {
-  const { user } = useAuth();
+  const { user, allUsers } = useAuth();
   const { registrations, employees, addRegistration, updateRegistration, deleteRegistration } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
@@ -90,7 +90,7 @@ const Registrations: React.FC = () => {
   };
 
   const handleFormSubmit = async (data: any) => {
-    const assignee = employees.find(a => a.id === data.assignedTo);
+    const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     const registrationData = {
       ...data,
       assignedToName: assignee?.name || '',

@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User as AppUser, UserRole } from '@/types';
 import { auth } from '@/services/auth';
-import { db, firebaseConfig } from '@/services/firebase';
+import { db, storage, firebaseConfig } from '@/services/firebase';
 import { initializeApp, getApps } from 'firebase/app';
 import { 
   signInWithEmailAndPassword, 
@@ -14,11 +14,12 @@ import {
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface AuthContextType {
   user: AppUser | null;
   allUsers: (AppUser & { password?: string })[];
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; errorCode?: string }>;
   register: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
   addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
   removeUser: (id: string) => Promise<boolean>;
@@ -27,6 +28,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   updateProfile: (name: string, email: string) => Promise<boolean>;
+  updateAvatar: (file: File) => Promise<string | null>;
   updatePassword: (current: string, newP: string) => Promise<boolean>;
 }
 
@@ -89,13 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, [refreshUsers]);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; errorCode?: string }> => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('Login error:', error);
-      return false;
+      return { success: false, errorCode: error.code || 'auth/unknown' };
     }
   }, []);
 
@@ -178,6 +180,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('Session expired due to inactivity');
+      logout();
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [logout]);
+
+  useEffect(() => {
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+    const handleActivity = () => resetInactivityTimer();
+    events.forEach(event => window.addEventListener(event, handleActivity));
+    resetInactivityTimer();
+    return () => {
+      events.forEach(event => window.removeEventListener(event, handleActivity));
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [resetInactivityTimer]);
+
   const removeUser = useCallback(async (id: string): Promise<boolean> => {
     try {
       // Delete user doc from firestore (Note: this does not delete the user from Firebase Auth, 
@@ -214,6 +242,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, refreshUsers]);
 
+  const updateAvatar = useCallback(async (file: File): Promise<string | null> => {
+    try {
+      if (!user || !auth.currentUser) return null;
+
+      const uniqueFileName = `avatars/${user.id}_${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, uniqueFileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      const downloadURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          null,
+          (error) => {
+            console.error('Avatar upload error:', error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(url);
+            } catch (urlError) {
+              reject(urlError);
+            }
+          }
+        );
+      });
+
+      await setDoc(doc(db, 'users', user.id), { avatar: downloadURL }, { merge: true });
+      setUser(prev => prev ? { ...prev, avatar: downloadURL } : null);
+      await refreshUsers();
+      return downloadURL;
+    } catch (e) {
+      console.error('Update avatar error:', e);
+      return null;
+    }
+  }, [user, refreshUsers]);
+
   const updatePassword = useCallback(async (current: string, newP: string): Promise<boolean> => {
     try {
       if (!auth.currentUser) return false;
@@ -240,6 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: !!user,
       loading,
       updateProfile,
+      updateAvatar,
       updatePassword
     }}>
       {children}

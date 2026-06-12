@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreditCard, Calendar, Building, DollarSign, RefreshCw, AlertCircle, CheckCircle, Plus, Pencil } from 'lucide-react';
+import { CreditCard, Calendar, Building, DollarSign, RefreshCw, AlertCircle, CheckCircle, Plus, Pencil, XCircle, BadgeCheck } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -9,10 +9,48 @@ import SubscriptionForm from '@/components/forms/SubscriptionForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Payment, Subscription } from '@/types';
 import { toast } from '@/hooks/use-toast';
+
+const CURRENCY = 'AED';
+const VAT_RATE = 0.05;
+
+const formatCurrency = (amount: number) => {
+  return `${CURRENCY} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const Plans: Record<string, { label: string; color: string }> = {
+  basic: { label: 'Basic', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+  pro: { label: 'Pro', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  enterprise: { label: 'Enterprise', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+};
+
+const getPlanBadge = (subscription: Subscription) => {
+  const key = subscription.name?.toLowerCase().includes('enterprise') ? 'enterprise'
+    : subscription.name?.toLowerCase().includes('pro') ? 'pro'
+    : 'basic';
+  const plan = Plans[key] || Plans.basic;
+  return (
+    <Badge className={`${plan.color} border-none font-semibold`}>
+      <BadgeCheck className="h-3 w-3 mr-1" />
+      {plan.label}
+    </Badge>
+  );
+};
 
 const Payments: React.FC = () => {
   const {
@@ -21,7 +59,8 @@ const Payments: React.FC = () => {
     addPayment,
     updatePayment,
     addSubscription,
-    updateSubscription
+    updateSubscription,
+    loading
   } = useData();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -30,6 +69,10 @@ const Payments: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [subscriptionFormOpen, setSubscriptionFormOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+  const [cancelSubDialogOpen, setCancelSubDialogOpen] = useState(false);
+  const [subToCancel, setSubToCancel] = useState<Subscription | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
@@ -37,9 +80,22 @@ const Payments: React.FC = () => {
   const canEdit = isAdmin || isManager || isEmployee;
   const canView = true;
 
+  if (loading.payments || loading.subscriptions) {
+    return (
+      <MainLayout>
+        <PageHeader title="Payments & Subscriptions" description="Loading..." />
+        <div className="flex items-center justify-center py-20">
+          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </MainLayout>
+    );
+  }
+
   const totalPending = payments
     .filter(p => p.status === 'pending' || p.status === 'overdue')
     .reduce((sum, p) => sum + p.amount, 0);
+
+  const totalVAT = totalPending * VAT_RATE;
 
   const totalSubscriptions = subscriptions
     .filter(s => s.status === 'active')
@@ -52,6 +108,8 @@ const Payments: React.FC = () => {
 
   const confirmMarkPaid = async () => {
     if (selectedPayment) {
+      setIsProcessing(true);
+      setOperationError(null);
       try {
         await updatePayment(selectedPayment.id, { ...selectedPayment, status: 'paid' as const });
         toast({
@@ -60,11 +118,11 @@ const Payments: React.FC = () => {
         });
         setSelectedPayment(null);
       } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to mark payment as paid. Please try again.',
-          variant: 'destructive',
-        });
+        const msg = 'Failed to mark payment as paid. Please try again.';
+        setOperationError(msg);
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+      } finally {
+        setIsProcessing(false);
       }
     }
   };
@@ -80,6 +138,8 @@ const Payments: React.FC = () => {
   };
 
   const handlePaymentSubmit = async (paymentData: Omit<Payment, 'id'> & { id?: string }) => {
+    setIsProcessing(true);
+    setOperationError(null);
     try {
       if (paymentData.id) {
         await updatePayment(paymentData.id, paymentData);
@@ -96,11 +156,15 @@ const Payments: React.FC = () => {
         });
       }
     } catch (error) {
+      const msg = 'Failed to save payment. Please try again.';
+      setOperationError(msg);
       toast({
         title: 'Error',
-        description: 'Failed to save payment. Please try again.',
+        description: msg,
         variant: 'destructive',
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -115,6 +179,8 @@ const Payments: React.FC = () => {
   };
 
   const handleSubscriptionSubmit = async (subscriptionData: Omit<Subscription, 'id'> & { id?: string }) => {
+    setIsProcessing(true);
+    setOperationError(null);
     try {
       if (subscriptionData.id) {
         await updateSubscription(subscriptionData.id, subscriptionData);
@@ -131,11 +197,15 @@ const Payments: React.FC = () => {
         });
       }
     } catch (error) {
+      const msg = 'Failed to save subscription. Please try again.';
+      setOperationError(msg);
       toast({
         title: 'Error',
-        description: 'Failed to save subscription. Please try again.',
+        description: msg,
         variant: 'destructive',
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -146,6 +216,13 @@ const Payments: React.FC = () => {
         description="Manage pending payments and active subscriptions"
       />
 
+      {operationError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{operationError}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-xl border bg-card p-5 shadow-card animate-fade-in">
@@ -155,9 +232,12 @@ const Payments: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                ${totalPending.toLocaleString()}
+                {formatCurrency(totalPending)}
               </p>
               <p className="text-sm text-muted-foreground">Pending Payments</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                +{formatCurrency(totalVAT)} VAT (5%)
+              </p>
             </div>
           </div>
         </div>
@@ -168,7 +248,7 @@ const Payments: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                ${totalSubscriptions.toLocaleString()}/mo
+                {formatCurrency(totalSubscriptions)}/mo
               </p>
               <p className="text-sm text-muted-foreground">Monthly Subscriptions</p>
             </div>
@@ -239,7 +319,7 @@ const Payments: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center gap-1 font-semibold">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        {payment.amount.toLocaleString()}
+                        {formatCurrency(payment.amount)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -294,8 +374,10 @@ const Payments: React.FC = () => {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead>Service Name</TableHead>
+                  <TableHead>Plan</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Amount</TableHead>
+                  <TableHead>VAT (5%)</TableHead>
                   <TableHead>Billing Cycle</TableHead>
                   <TableHead>Next Billing</TableHead>
                   <TableHead>Status</TableHead>
@@ -308,14 +390,20 @@ const Payments: React.FC = () => {
                     <TableCell className="font-medium text-foreground">
                       {subscription.name}
                     </TableCell>
+                    <TableCell>
+                      {getPlanBadge(subscription)}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {subscription.provider}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 font-semibold">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        {subscription.amount.toLocaleString()}
+                        {formatCurrency(subscription.amount)}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatCurrency(subscription.amount * VAT_RATE)}
                     </TableCell>
                     <TableCell className="capitalize text-muted-foreground">
                       {subscription.billingCycle}
@@ -331,13 +419,27 @@ const Payments: React.FC = () => {
                     </TableCell>
                     {canEdit && (
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditSubscription(subscription)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditSubscription(subscription)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          {subscription.status === 'active' && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setSubToCancel(subscription);
+                                setCancelSubDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -353,8 +455,60 @@ const Payments: React.FC = () => {
         onOpenChange={setConfirmDialogOpen}
         paymentDescription={selectedPayment?.description || ''}
         paymentAmount={selectedPayment?.amount || 0}
+        currency={CURRENCY}
         onConfirm={confirmMarkPaid}
       />
+
+      <AlertDialog open={cancelSubDialogOpen} onOpenChange={setCancelSubDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                <XCircle className="h-5 w-5 text-destructive" />
+              </div>
+              <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-left">
+              Are you sure you want to cancel this subscription? This action cannot be undone.
+              <div className="mt-3 p-3 rounded-lg bg-muted">
+                <p className="font-medium text-foreground">{subToCancel?.name}</p>
+                <p className="text-lg font-bold text-destructive">
+                  {formatCurrency(subToCancel?.amount || 0)}/{subToCancel?.billingCycle}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (subToCancel) {
+                  setIsProcessing(true);
+                  setOperationError(null);
+                  try {
+                    await updateSubscription(subToCancel.id, { ...subToCancel, status: 'cancelled' });
+                    toast({
+                      title: 'Subscription Cancelled',
+                      description: `"${subToCancel.name}" has been cancelled.`,
+                    });
+                    setSubToCancel(null);
+                  } catch (error) {
+                    const msg = 'Failed to cancel subscription. Please try again.';
+                    setOperationError(msg);
+                    toast({ title: 'Error', description: msg, variant: 'destructive' });
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Cancelling...' : 'Confirm Cancellation'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PaymentForm
         open={paymentFormOpen}

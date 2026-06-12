@@ -154,7 +154,12 @@ const wss = new WebSocketServer({ server });
 
 // Middleware
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:8080'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'https://crm-gpt-2026.web.app',
+    'https://crm-gpt-2026.firebaseapp.com'
+  ],
   credentials: true
 }));
 app.use(express.json());

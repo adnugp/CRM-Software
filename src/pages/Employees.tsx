@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Phone, Calendar, Briefcase, UserCheck, Pencil, Trash2 } from 'lucide-react';
+import { Phone, Calendar, Briefcase, UserCheck, Pencil, Trash2, Eye, Mail, Building } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -9,6 +9,7 @@ import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import EmployeeForm from '@/components/forms/EmployeeForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Employee } from '@/types';
@@ -22,6 +23,7 @@ const Employees: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
 
   if (user?.role !== 'admin' && user?.role !== 'manager') {
     return <Navigate to="/" replace />;
@@ -187,7 +189,7 @@ const Employees: React.FC = () => {
             </TableHeader>
             <TableBody>
               {filteredEmployees.map((employee) => (
-                <TableRow key={employee.id} className="hover:bg-muted/30 transition-colors">
+                <TableRow key={employee.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setDetailEmployee(employee)}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
@@ -250,6 +252,49 @@ const Employees: React.FC = () => {
         employee={editingEmployee}
         onSubmit={handleFormSubmit}
       />
+
+      {/* Employee Detail Dialog */}
+      <Dialog open={!!detailEmployee} onOpenChange={(open) => !open && setDetailEmployee(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+            <DialogDescription>Full information for the selected employee.</DialogDescription>
+          </DialogHeader>
+          {detailEmployee && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-2xl">
+                  {detailEmployee.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">{detailEmployee.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <StatusBadge status={detailEmployee.status} variant="employee" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span>{detailEmployee.email}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span>{detailEmployee.phone}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <span>{detailEmployee.department} - {detailEmployee.position}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>Joined {new Date(detailEmployee.joinDate).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}

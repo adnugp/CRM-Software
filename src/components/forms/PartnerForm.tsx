@@ -35,6 +35,8 @@ const partnerSchema = z.object({
   email: z.string().email('Invalid email address').max(255, 'Email must be less than 255 characters'),
   phone: z.string().min(1, 'Phone is required').max(20, 'Phone must be less than 20 characters'),
   partnershipType: z.string().min(1, 'Partnership type is required'),
+  category: z.string().optional(),
+  partnershipTypeOther: z.string().optional(),
   since: z.string().min(1, 'Partnership date is required'),
   status: z.enum(['active', 'inactive']),
 });
@@ -55,6 +57,16 @@ const partnershipTypes = [
   'Investment Partner',
   'Distribution Partner',
   'Reseller Partner',
+  'Others',
+];
+
+const partnerCategories = [
+  'Technology',
+  'Financial',
+  'Marketing',
+  'Operations',
+  'Legal',
+  'Other',
 ];
 
 const PartnerForm: React.FC<PartnerFormProps> = ({
@@ -64,6 +76,7 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
   onSubmit,
 }) => {
   const isEditing = !!partner;
+  const [otherSpecify, setOtherSpecify] = React.useState('');
 
   const form = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
@@ -73,6 +86,8 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
       email: partner?.email || '',
       phone: partner?.phone || '',
       partnershipType: partner?.partnershipType || '',
+      category: partner?.category || '',
+      partnershipTypeOther: '',
       since: partner?.since || '',
       status: partner?.status || 'active',
     },
@@ -80,15 +95,19 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
 
   React.useEffect(() => {
     if (partner) {
+      const isOther = !partnershipTypes.includes(partner.partnershipType);
       form.reset({
         name: partner.name,
         company: partner.company,
         email: partner.email,
         phone: partner.phone,
-        partnershipType: partner.partnershipType,
+        partnershipType: isOther ? 'Others' : partner.partnershipType,
+        category: partner.category || '',
+        partnershipTypeOther: isOther ? partner.partnershipType : '',
         since: partner.since,
         status: partner.status,
       });
+      if (isOther) setOtherSpecify(partner.partnershipType);
     } else {
       form.reset({
         name: '',
@@ -96,14 +115,25 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
         email: '',
         phone: '',
         partnershipType: '',
+        category: '',
+        partnershipTypeOther: '',
         since: '',
         status: 'active',
       });
+      setOtherSpecify('');
     }
   }, [partner, form]);
 
+  const watchedPartnershipType = form.watch('partnershipType');
+
   const handleSubmit = (data: PartnerFormData) => {
-    onSubmit(data);
+    const payload = {
+      ...data,
+      partnershipType: data.partnershipType === 'Others' && data.partnershipTypeOther
+        ? data.partnershipTypeOther
+        : data.partnershipType,
+    };
+    onSubmit(payload);
     toast({
       title: isEditing ? 'Partner Updated' : 'Partner Added',
       description: `${data.name} has been ${isEditing ? 'updated' : 'added'} successfully.`,
@@ -187,7 +217,7 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Partnership Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={(v) => { field.onChange(v); if (v !== 'Others') setOtherSpecify(''); }} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select partnership type" />
@@ -197,6 +227,47 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
                       {partnershipTypes.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {watchedPartnershipType === 'Others' && (
+              <FormField
+                control={form.control}
+                name="partnershipTypeOther"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Specify Partnership Type</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter partnership type" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {partnerCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
                         </SelectItem>
                       ))}
                     </SelectContent>

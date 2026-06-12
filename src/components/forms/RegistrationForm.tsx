@@ -63,6 +63,7 @@ const registrationTypes = [
   'Municipality License',
   'Commercial License',
   'Import/Export License',
+  'Others',
 ];
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({
@@ -74,6 +75,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const { employees } = useData();
   const { allUsers } = useAuth();
   const isEditing = !!registration;
+
+  const [otherTypeSpecify, setOtherTypeSpecify] = React.useState('');
 
   const staffAssignees = React.useMemo(() => {
     const users = allUsers.filter(u => u.role !== 'client').map(u => ({ id: u.id, name: u.name }));
@@ -96,17 +99,20 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   React.useEffect(() => {
     if (registration) {
+      const isOther = registration.type.startsWith('Others:');
+      setOtherTypeSpecify(isOther ? registration.type.replace('Others: ', '') : '');
       form.reset({
         name: registration.name,
         company: registration.company,
         belongsTo: registration.belongsTo,
-        type: registration.type,
+        type: isOther ? 'Others' : registration.type,
         registrationDate: registration.registrationDate,
         expiryDate: registration.expiryDate,
         status: registration.status,
         assignedTo: registration.assignedTo || '',
       });
     } else {
+      setOtherTypeSpecify('');
       form.reset({
         name: '',
         company: '',
@@ -121,13 +127,18 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   }, [registration, form]);
 
   const handleSubmit = (data: RegistrationFormData) => {
-    onSubmit(data);
+    const finalData = {
+      ...data,
+      type: data.type === 'Others' ? (otherTypeSpecify ? `Others: ${otherTypeSpecify}` : 'Others') : data.type,
+    };
+    onSubmit(finalData);
     toast({
       title: isEditing ? 'Registration Updated' : 'Registration Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,
     });
     onOpenChange(false);
     form.reset();
+    setOtherTypeSpecify('');
   };
 
   return (
@@ -203,7 +214,10 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Registration Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <Select onValueChange={(value) => {
+                        field.onChange(value);
+                        if (value !== 'Others') setOtherTypeSpecify('');
+                      }} value={field.value || ''}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select type" />
@@ -217,6 +231,16 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                           ))}
                         </SelectContent>
                       </Select>
+                      {field.value === 'Others' && (
+                        <FormControl>
+                          <Input
+                            placeholder="Please specify registration type"
+                            autoFocus
+                            value={otherTypeSpecify}
+                            onChange={(e) => setOtherTypeSpecify(e.target.value)}
+                          />
+                        </FormControl>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

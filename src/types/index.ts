@@ -29,6 +29,7 @@ export interface ProjectTask {
   dueDate: string;
   status: 'pending' | 'in-progress' | 'completed';
   priority: 'low' | 'medium' | 'high';
+  fileAttachment?: DocumentFile;
 }
 
 export interface ProjectCost {
@@ -38,6 +39,7 @@ export interface ProjectCost {
   amount: number;
   date: string;
   category: string;
+  type?: 'debit' | 'credit';
 }
 
 export interface Project {
@@ -55,6 +57,7 @@ export interface Project {
   deadline: string;
   document?: string;
   documentFile?: DocumentFile;
+  documents?: DocumentFile[];
   description?: string;
   budget?: number;
   tasks?: ProjectTask[];
@@ -78,6 +81,7 @@ export interface Tender {
   deadline: string;
   document?: string;
   documentFile?: DocumentFile;
+  documents?: DocumentFile[];
   description?: string;
   createdAt?: Date;
 }
@@ -141,6 +145,7 @@ export interface Partner {
   email: string;
   phone: string;
   partnershipType: string;
+  category?: string;
   since: string;
   status: 'active' | 'inactive';
   createdAt?: Date;
@@ -155,5 +160,6 @@ export interface FileRecord {
   uploadedAt: string;
   uploadedBy: string;
   document: DocumentFile;
+  documents: DocumentFile[];
   createdAt?: Date;
 }

@@ -25,12 +25,27 @@ const ProjectStatusChart: React.FC = () => {
     return acc;
   }, {} as Record<string, number>);
 
-  const data = [
-    { name: 'In Progress', value: statusCounts['in-progress'] || 0, color: 'hsl(var(--primary))' },
-    { name: 'Completed', value: statusCounts['completed'] || 0, color: 'hsl(var(--success))' },
-    { name: 'On Hold', value: statusCounts['on-hold'] || 0, color: 'hsl(var(--warning))' },
-    { name: 'Cancelled', value: statusCounts['cancelled'] || 0, color: 'hsl(var(--destructive))' },
-  ].filter(item => item.value > 0);
+  const statusLabels: Record<string, string> = {
+    'running': 'Running',
+    'in-progress': 'In Progress',
+    'completed': 'Completed',
+    'handed-over': 'Handed Over',
+  };
+
+  const statusColors: Record<string, string> = {
+    'running': 'hsl(var(--primary))',
+    'in-progress': 'hsl(var(--info))',
+    'completed': 'hsl(var(--success))',
+    'handed-over': 'hsl(var(--warning))',
+  };
+
+  const data = Object.entries(statusCounts)
+    .filter(([_, count]) => count > 0)
+    .map(([status, count]) => ({
+      name: statusLabels[status] || status,
+      value: count,
+      color: statusColors[status] || 'hsl(var(--muted-foreground))',
+    }));
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-card">

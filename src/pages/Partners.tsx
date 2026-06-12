@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Mail, Phone, Building, Calendar, Pencil, Trash2 } from 'lucide-react';
+import { Mail, Phone, Building, Calendar, Pencil, Trash2, Tags } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
 import SearchInput from '@/components/ui/SearchInput';
+import FilterDropdown from '@/components/ui/FilterDropdown';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import PartnerForm from '@/components/forms/PartnerForm';
 import { Button } from '@/components/ui/button';
@@ -14,20 +15,28 @@ import { useData } from '@/contexts/DataContext';
 const Partners: React.FC = () => {
   const { partners: partnersList, addPartner, updatePartner, deletePartner } = useData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [partnerToDelete, setPartnerToDelete] = useState<Partner | null>(null);
 
+  const partnershipTypes = useMemo(() => {
+    const types = [...new Set(partnersList.map(p => p.partnershipType))];
+    return types.map(t => ({ value: t, label: t }));
+  }, [partnersList]);
+
   const filteredPartners = useMemo(() => {
-    if (!searchQuery) return partnersList;
     const query = searchQuery.toLowerCase();
-    return partnersList.filter(p => 
-      p.name.toLowerCase().includes(query) ||
-      p.company.toLowerCase().includes(query) ||
-      p.partnershipType.toLowerCase().includes(query)
-    );
-  }, [searchQuery, partnersList]);
+    return partnersList.filter(p => {
+      const matchesSearch = !searchQuery ||
+        p.name.toLowerCase().includes(query) ||
+        p.company.toLowerCase().includes(query) ||
+        p.partnershipType.toLowerCase().includes(query);
+      const matchesType = !typeFilter || typeFilter === 'all' || p.partnershipType === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [searchQuery, typeFilter, partnersList]);
 
   const handleEdit = (partner: Partner) => {
     setEditingPartner(partner);
@@ -100,13 +109,20 @@ const Partners: React.FC = () => {
         }
       />
 
-      {/* Search - Single row */}
-      <div className="flex items-center gap-3 mb-6">
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
         <SearchInput
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder="Search partners..."
-          className="w-full sm:w-96"
+          className="w-full sm:w-64"
+        />
+        <FilterDropdown
+          label="Partnership Type"
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={partnershipTypes}
+          placeholder="All Types"
         />
       </div>
 
@@ -118,24 +134,30 @@ const Partners: React.FC = () => {
             className="rounded-xl border bg-card p-6 shadow-card hover:shadow-md transition-all duration-200 animate-fade-in"
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-lg">
-                  {partner.name.charAt(0)}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-lg">
+                    {partner.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{partner.name}</h3>
+                    <p className="text-sm text-muted-foreground">{partner.partnershipType}</p>
+                    {partner.category && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full mt-0.5">
+                        <Tags className="h-3 w-3" />
+                        {partner.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{partner.name}</h3>
-                  <p className="text-sm text-muted-foreground">{partner.partnershipType}</p>
-                </div>
+                <StatusBadge status={partner.status} variant="partner" />
               </div>
-              <StatusBadge status={partner.status} variant="partner" />
-            </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Building className="h-4 w-4 text-muted-foreground" />
-                <span className="text-foreground">{partner.company}</span>
-              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">{partner.company}</span>
+                </div>
               <div className="flex items-center gap-2 text-sm">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <a href={`mailto:${partner.email}`} className="text-primary hover:underline truncate">
