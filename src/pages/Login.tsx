@@ -298,7 +298,7 @@ const Login: React.FC = () => {
                       className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 shadow-lg hover:shadow-xl text-lg font-semibold"
                       disabled={isLoading}
                     >
-                      {isLoading ? 'Sending...' : 'Send Reset Link'}
+                      {isLoading ? 'Sending.....' : 'Send Reset Link'}
                     </Button>
                   </form>
                 </>

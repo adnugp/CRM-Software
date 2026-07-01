@@ -20,7 +20,7 @@ const Register: React.FC = () => {
   const location = useLocation();
   const isClientRegistration = location.pathname.includes('client');
   const isEmployeeRegistration = location.pathname.includes('employee');
-  
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,8 +55,8 @@ const Register: React.FC = () => {
     }
 
     if (role === 'client' && !clientCompany) {
-        setError('Please enter the Client Entity name');
-        return;
+      setError('Please enter the Client Entity name');
+      return;
     }
 
     setIsLoading(true);
@@ -64,27 +64,27 @@ const Register: React.FC = () => {
     // Generate accurate organizationId for clients
     let finalOrgId = undefined;
     if (role === 'client') {
-        const parentPrefix = parentCompany === 'Sadeem' ? 'SAD' : 'GP';
-        const clientPrefix = clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3);
-        
-        // Count existing for this combo
-        const existingCount = allUsers.filter(u => 
-            u.organizationId?.startsWith(`${parentPrefix}-${clientPrefix}`)
-        ).length;
-        
-        finalOrgId = `${parentPrefix}-${clientPrefix}-${(existingCount + 1).toString().padStart(3, '0')}`;
+      const parentPrefix = parentCompany === 'Sadeem' ? 'SAD' : 'GP';
+      const clientPrefix = clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3);
+
+      // Count existing for this combo
+      const existingCount = allUsers.filter(u =>
+        u.organizationId?.startsWith(`${parentPrefix}-${clientPrefix}`)
+      ).length;
+
+      finalOrgId = `${parentPrefix}-${clientPrefix}-${(existingCount + 1).toString().padStart(3, '0')}`;
     }
 
-    const success = await addUser(name, email, password, role, role === 'client' ? clientCompany : undefined, finalOrgId);
-    
-    if (success) {
+    const result = await addUser(name, email, password, role, role === 'client' ? clientCompany : undefined, finalOrgId);
+
+    if (result === true) {
       toast({
         title: "User Created",
         description: `Successfully created ${role} account for ${name}.`,
       });
       navigate('/');
     } else {
-      setError('Email already registered');
+      setError(result);
     }
     setIsLoading(false);
   };
@@ -92,8 +92,8 @@ const Register: React.FC = () => {
   return (
     <MainLayout>
       <div className="animate-fade-in space-y-6">
-        <PageHeader 
-          title="User Registration" 
+        <PageHeader
+          title="User Registration"
           description="Create and manage administrative, manager, or client accounts for the CRM system."
         />
 
@@ -155,62 +155,62 @@ const Register: React.FC = () => {
                     </div>
 
                     <div className={`space-y-2 pt-2 ${isClientRegistration ? 'hidden' : ''}`}>
-                        <Label htmlFor="reg-role">Access Role</Label>
-                        <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                            <SelectTrigger id="reg-role" className="h-11">
-                                <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="admin">Administrator (Full Access, No Finance)</SelectItem>
-                                <SelectItem value="manager">Manager (Full Access & Financial Audit)</SelectItem>
-                                <SelectItem value="user">Employee (Standard Access, Restricted Finance)</SelectItem>
-                                {!isEmployeeRegistration && <SelectItem value="client">Client (Restricted Access, No Settings)</SelectItem>}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground italic px-1">
-                            Roles define what data and actions the user can access.
-                        </p>
+                      <Label htmlFor="reg-role">Access Role</Label>
+                      <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
+                        <SelectTrigger id="reg-role" className="h-11">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator (Full Access, No Finance)</SelectItem>
+                          <SelectItem value="manager">Manager (Full Access & Financial Audit)</SelectItem>
+                          <SelectItem value="user">Employee (Standard Access, Restricted Finance)</SelectItem>
+                          {!isEmployeeRegistration && <SelectItem value="client">Client (Restricted Access, No Settings)</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground italic px-1">
+                        Roles define what data and actions the user can access.
+                      </p>
                     </div>
 
                     {role === 'client' && (
-                        <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-4 animate-in fade-in slide-in-from-top-2">
-                           <h3 className="text-sm font-bold text-primary flex items-center gap-2">
-                                <Shield className="h-4 w-4" />
-                                Client Entity Binding
-                           </h3>
-                           
-                           <div className="space-y-2">
-                                <Label htmlFor="parent-company">Parent Organization</Label>
-                                <Select value={parentCompany} onValueChange={(v: any) => setParentCompany(v)}>
-                                    <SelectTrigger id="parent-company">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Sadeem">Sadeem Energy (SAD)</SelectItem>
-                                        <SelectItem value="Grow Plus">Grow Plus Technology (GP)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                           </div>
+                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <h3 className="text-sm font-bold text-primary flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Client Entity Binding
+                        </h3>
 
-                           <div className="space-y-2">
-                                <Label htmlFor="client-entity">Client Entity Name (e.g. Dubai Police)</Label>
-                                <Input 
-                                    id="client-entity"
-                                    value={clientCompany}
-                                    onChange={(e) => setClientCompany(e.target.value)}
-                                    placeholder="Dubai Police / DEWA"
-                                    required
-                                />
-                           </div>
-
-                           <div className="pt-2">
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Preview Entity ID</p>
-                                <p className="text-lg font-mono font-bold text-primary">
-                                    {parentCompany === 'Sadeem' ? 'SAD' : 'GP'}-
-                                    {clientCompany ? clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3) : '???'}-001
-                                </p>
-                           </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="parent-company">Parent Organization</Label>
+                          <Select value={parentCompany} onValueChange={(v: any) => setParentCompany(v)}>
+                            <SelectTrigger id="parent-company">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Sadeem">Sadeem Energy (SAD)</SelectItem>
+                              <SelectItem value="Grow Plus">Grow Plus Technology (GP)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="client-entity">Client Entity Name (e.g. Dubai Police)</Label>
+                          <Input
+                            id="client-entity"
+                            value={clientCompany}
+                            onChange={(e) => setClientCompany(e.target.value)}
+                            placeholder="Dubai Police / DEWA"
+                            required
+                          />
+                        </div>
+
+                        <div className="pt-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Preview Entity ID</p>
+                          <p className="text-lg font-mono font-bold text-primary">
+                            {parentCompany === 'Sadeem' ? 'SAD' : 'GP'}-
+                            {clientCompany ? clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3) : '???'}-001
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
 

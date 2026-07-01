@@ -3,10 +3,10 @@ import { User as AppUser, UserRole } from '@/types';
 import { auth } from '@/services/auth';
 import { db, storage, firebaseConfig } from '@/services/firebase';
 import { initializeApp, getApps } from 'firebase/app';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   updateProfile as updateFirebaseProfile,
   updatePassword as updateFirebasePassword,
@@ -21,7 +21,7 @@ interface AuthContextType {
   allUsers: (AppUser & { password?: string })[];
   login: (email: string, password: string) => Promise<{ success: boolean; errorCode?: string }>;
   register: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
-  addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
+  addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<string | true>;
   removeUser: (id: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUsers: () => Promise<void>;
@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       await setDoc(doc(db, 'users', uid), cleanUserData);
       await refreshUsers();
-      
+
       const completeUser = { id: uid, ...newUserData };
       setUser(completeUser);
       return true;
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return initializeApp(firebaseConfig, 'secondary');
   };
 
-  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<boolean> => {
+  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<string | true> => {
     // Use a separate Firebase app instance for user creation so the current
     // authenticated admin session is not replaced by the newly created user.
     try {
@@ -150,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const newUserCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const newUid = newUserCredential.user.uid;
-      
+
       const newUserData: Omit<AppUser, 'id'> = {
         email,
         name,
@@ -166,9 +166,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOut(secondaryAuth);
       await refreshUsers();
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Add user error:', error);
-      return false;
+      if (error.code === 'auth/email-already-in-use') {
+        return 'Email already registered';
+      }
+      if (error.code === 'auth/weak-password') {
+        return 'Password should be at least 6 characters';
+      }
+      if (error.code === 'auth/invalid-email') {
+        return 'Invalid email address';
+      }
+      return 'Registration failed. Please try again.';
     }
   }, [refreshUsers]);
 
@@ -212,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // which requires Firebase Admin SDK. But it will revoke their app-level access if roles are checked).
       await deleteDoc(doc(db, 'users', id));
       await refreshUsers();
-      
+
       if (user?.id === id) {
         await logout();
       }
@@ -226,13 +235,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = useCallback(async (name: string, email: string): Promise<boolean> => {
     try {
       if (!user || !auth.currentUser) return false;
-      
+
       // Update Firebase Auth profile
       await updateFirebaseProfile(auth.currentUser, { displayName: name });
-      
+
       // Update Firestore user document
       await setDoc(doc(db, 'users', user.id), { name, email }, { merge: true });
-      
+
       setUser(prev => prev ? { ...prev, name, email } : null);
       await refreshUsers();
       return true;

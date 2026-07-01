@@ -134,8 +134,8 @@ const mockCRMData = {
   ],
   employees: [
     { id: '1', name: 'Mohamed Ismayil', email: 'mmismayil2003@gmail.com', company: 'Grow Plus Technologies', department: 'Engineering', position: 'AI Engineer', phone: '+971 50 123 4567', status: 'active', joinDate: '2023-01-15' },
-    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active', joinDate: '2023-02-20' },
-    { id: '3', name: 'Muhammed Adnan', email: 'muhammed.adnan@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Management', position: 'Project Manager', phone: '+971 50 345 6789', status: 'active', joinDate: '2022-06-10' }
+    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@example.com', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active', joinDate: '2023-02-20' },
+    { id: '3', name: 'Muhammed Adnan', email: 'adnan@example.com', company: 'Grow Plus Technologies', department: 'Management', position: 'Project Manager', phone: '+971 50 345 6789', status: 'active', joinDate: '2022-06-10' }
   ],
   files: [
     { id: '1', name: 'Contract Agreement', type: 'PDF', size: '2.5MB', uploadDate: '2024-01-15', status: 'active' },

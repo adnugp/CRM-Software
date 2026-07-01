@@ -116,7 +116,7 @@ try {
 const mockCRMData = {
   contacts: [
     { id: '1', name: 'Mohamed Ismayil', email: 'mmismayil2003@gmail.com', company: 'Grow Plus Technologies', department: 'Engineering', position: 'AI Engineer', phone: '+971 50 123 4567', status: 'active' },
-    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active' }
+    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@example.com', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active' }
   ],
   projects: [
     { id: '1', name: 'Website Redesign', company: 'TechCorp', status: 'in-progress', assignedToName: 'Mohamed Ismayil', deadline: '2024-03-15', description: 'Complete website redesign with modern UI/UX', belongsTo: 'Grow Plus Technologies' },
@@ -140,8 +140,8 @@ const mockCRMData = {
   ],
   employees: [
     { id: '1', name: 'Mohamed Ismayil', email: 'mmismayil2003@gmail.com', company: 'Grow Plus Technologies', department: 'Engineering', position: 'AI Engineer', phone: '+971 50 123 4567', status: 'active', joinDate: '2023-01-15' },
-    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active', joinDate: '2023-02-20' },
-    { id: '3', name: 'Muhammed Adnan', email: 'muhammed.adnan@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Management', position: 'Project Manager', phone: '+971 50 345 6789', status: 'active', joinDate: '2022-06-10' },
+    { id: '2', name: 'Mohamed Ajumal', email: 'ajumal@example.com', company: 'Grow Plus Technologies', department: 'Sales', position: 'AI Engineer', phone: '+971 50 234 5678', status: 'active', joinDate: '2023-02-20' },
+    { id: '3', name: 'Muhammed Adnan', email: 'adnan@example.com', company: 'Grow Plus Technologies', department: 'Management', position: 'Project Manager', phone: '+971 50 345 6789', status: 'active', joinDate: '2022-06-10' },
     { id: '4', name: 'Ahmed Hassan', email: 'ahmed.hassan@gptechnologies.ae', company: 'Grow Plus Technologies', department: 'Engineering', position: 'Senior Developer', phone: '+971 50 456 7890', status: 'active', joinDate: '2021-09-01' }
   ],
   partners: [

@@ -59,7 +59,7 @@ const sampleTenders = [
 ];
 const sampleEmployees = [
   { id: '1', name: 'Mohamed Ismayil', department: 'Engineering', status: 'active', email: 'mmismayil2003@gmail.com' },
-  { id: '2', name: 'Mohamed Ajumal', department: 'Sales', status: 'active', email: 'ajumal@gptechnologies.ae' }
+  { id: '2', name: 'Mohamed Ajumal', department: 'Sales', status: 'active', email: 'ajumal@example.com' }
 ];
 const sampleProjects = [
   { id: '1', name: 'AI Bot', company: 'Grow Plus', status: 'In Progress', assignedToName: 'Mohamed Ajumal' },
