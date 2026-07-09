@@ -27,6 +27,9 @@ import chatbotAnimation from '@/assets/Hello Chat Bot Super Clean.json';
 import robotIcon from '/src/assets/robot.png';
 import userIcon from '@/assets/user-removebg-preview.png';
 import { cn } from '@/lib/utils';
+import { useData } from '@/contexts/DataContext';
+import { answerCrmQuestion, type CrmData } from '@/services/crmChatEngine';
+import { FormattedAnswer } from '@/components/FormattedAnswer';
 
 // Memoized custom styles to prevent re-injection
 const getCustomStyles = () => `
@@ -434,11 +437,14 @@ interface ChatState {
 }
 
 const AIChatbotWidget: React.FC = () => {
+  // Live CRM data (already loaded by DataContext) — the chatbot answers from this.
+  const crm = useData();
+
   const [chatState, setChatState] = useState<ChatState>({
     isOpen: false,
     isMinimized: false,
     messages: [],
-    isConnected: false,
+    isConnected: true,
     isTyping: false,
     consecutiveNoDataResponses: 0,
     isAnimating: false,
@@ -449,8 +455,6 @@ const AIChatbotWidget: React.FC = () => {
   });
 
   const [inputValue, setInputValue] = useState('');
-  const [sessionId, setSessionId] = useState<string>(Date.now().toString());
-  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -536,161 +540,28 @@ const AIChatbotWidget: React.FC = () => {
     });
   }, []);
 
-  // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    switch (data.type) {
-      case 'chat_response':
-        const isNoDataResponse = data.response.includes('No matching CRM data available') ||
-          data.response.includes('I can only answer using CRM data');
-
-        const messageId = Date.now().toString();
-
-        // Add message immediately but start typing animation
-        setChatState(prev => ({
-          ...prev,
-          messages: [...prev.messages, {
-            id: messageId,
-            role: 'assistant',
-            content: data.response,
-            timestamp: new Date()
-          }],
-          isTyping: false,
-          consecutiveNoDataResponses: isNoDataResponse ? prev.consecutiveNoDataResponses + 1 : 0
-        }));
-
-        // Start typing animation for the AI response
-        startTypingAnimation(messageId, data.response);
-
-        if (isNoDataResponse && chatState.consecutiveNoDataResponses >= 2) {
-          setTimeout(() => {
-            setChatState(prev => ({
-              ...prev,
-              messages: [...prev.messages, {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: 'I notice you\'re asking questions that I can\'t answer with CRM data. I can help you with:\n\n• Project information and status\n• Employee details and assignments\n• Tender information and deadlines\n• General CRM data queries\n\nTry asking about specific CRM data, and I\'ll be happy to help!',
-                timestamp: new Date()
-              }]
-            }));
-            startTypingAnimation((Date.now() + 1).toString(), 'I notice you\'re asking questions that I can\'t answer with CRM data. I can help you with:\n\n• Project information and status\n• Employee details and assignments\n• Tender information and deadlines\n• General CRM data queries\n\nTry asking about specific CRM data, and I\'ll be happy to help!');
-          }, 1000);
-        }
-        break;
-
-      case 'error':
-        setChatState(prev => ({
-          ...prev,
-          isTyping: false,
-          messages: [...prev.messages, {
-            id: Date.now().toString(),
-            role: 'assistant',
-            content: '❌ Failed to send message. Please try again.',
-            timestamp: new Date()
-          }]
-        }));
-        break;
-
-      case 'connected':
-        setChatState(prev => ({ ...prev, isConnected: true }));
-        break;
-
-      case 'disconnected':
-        setChatState(prev => ({ ...prev, isConnected: false }));
-        break;
-
-      default:
-        break;
-    }
-  }, [chatState.consecutiveNoDataResponses, startTypingAnimation]);
-
-  const connectWebSocket = useCallback(() => {
-    try {
-      // Close existing connection if any
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
-      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
-      console.log('Attempting to connect to WebSocket at', wsUrl);
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('WebSocket connection established successfully');
-        setChatState(prev => ({ ...prev, isConnected: true }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
-        setChatState(prev => ({ ...prev, isConnected: false }));
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setChatState(prev => ({ ...prev, isConnected: false }));
-      };
-
-    } catch (error) {
-      console.error('Failed to create WebSocket connection:', error);
-      setChatState(prev => ({ ...prev, isConnected: false }));
-    }
-  }, [handleWebSocketMessage]);
-
-  // Initialize WebSocket connection only when chat is opened
+  // Auto-scroll: follow new messages, the typing indicator, and the answer as it
+  // streams in — but don't yank the user back down if they've scrolled up to read.
   useEffect(() => {
-    let reconnectTimeout: NodeJS.Timeout | null = null;
+    const end = messagesEndRef.current;
+    if (!end) return;
 
-    // Only connect if chat is open
-    if (chatState.isOpen) {
-      connectWebSocket();
+    const streaming = chatState.isTyping || chatState.typingMessages.size > 0;
+    const lastMsg = chatState.messages[chatState.messages.length - 1];
+    const justSent = lastMsg?.role === 'user'; // user just sent — always follow
 
-      // Setup automatic reconnection logic
-      const checkConnection = () => {
-        if (!wsRef.current || (wsRef.current.readyState !== WebSocket.OPEN && wsRef.current.readyState !== WebSocket.CONNECTING)) {
-          if (chatState.isOpen) {
-            console.log('Connection lost, attempting automatic reconnect...');
-            connectWebSocket();
-          }
-        }
-      };
-
-      reconnectTimeout = setInterval(checkConnection, 5000);
-    } else {
-      // Close connection when chat is closed
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'Chat closed');
-        wsRef.current = null;
-      }
-      setChatState(prev => ({ ...prev, isConnected: false }));
+    const viewport = end.closest('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+    if (!viewport) {
+      end.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth', block: 'end' });
+      return;
     }
 
-    // Cleanup function
-    return () => {
-      if (reconnectTimeout) {
-        clearInterval(reconnectTimeout);
-      }
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'Component unmounting');
-        wsRef.current = null;
-      }
-    };
-  }, [chatState.isOpen, connectWebSocket]); // Re-run if chat opens/closes or connection function changes
-
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatState.messages]);
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const nearBottom = distanceFromBottom < 150;
+    if (justSent || nearBottom) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: streaming ? 'auto' : 'smooth' });
+    }
+  }, [chatState.messages, chatState.isTyping, chatState.typingMessages]);
 
   // Focus input when chat opens
   useEffect(() => {
@@ -779,21 +650,7 @@ const AIChatbotWidget: React.FC = () => {
       return;
     }
 
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('WebSocket is not connected. Message not sent:', message);
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: '⚠️ Connection lost. Please wait for the connection to be restored.',
-          timestamp: new Date()
-        }]
-      }));
-      return;
-    }
-
-    // Add user message to chat and reset no-data counter
+    // Add the user's message and show the typing indicator
     setChatState(prev => ({
       ...prev,
       messages: [...prev.messages, {
@@ -806,27 +663,42 @@ const AIChatbotWidget: React.FC = () => {
       consecutiveNoDataResponses: 0
     }));
 
-    // Send message to backend
+    // Answer locally from the live CRM data — no backend, no LLM.
+    const crmData: CrmData = {
+      projects: crm.projects,
+      tenders: crm.tenders,
+      employees: crm.employees,
+      registrations: crm.registrations,
+      payments: crm.payments,
+      subscriptions: crm.subscriptions,
+      partners: crm.partners,
+      files: crm.files,
+    };
+
+    let answer: string;
     try {
-      wsRef.current.send(JSON.stringify({
-        type: 'chat',
-        message: message,
-        sessionId: sessionId
-      }));
+      answer = answerCrmQuestion(message, crmData);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error answering question:', error);
+      answer = 'Sorry, something went wrong while looking that up. Please try rephrasing your question.';
+    }
+
+    // Brief delay so the typing indicator shows, then reveal the answer
+    const answerId = (Date.now() + 1).toString();
+    setTimeout(() => {
       setChatState(prev => ({
         ...prev,
         isTyping: false,
         messages: [...prev.messages, {
-          id: Date.now().toString(),
+          id: answerId,
           role: 'assistant',
-          content: '❌ Failed to send message. Please try again.',
+          content: answer,
           timestamp: new Date()
         }]
       }));
-    }
-  }, [sessionId]);
+      startTypingAnimation(answerId, answer);
+    }, 500);
+  }, [crm, startTypingAnimation]);
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
@@ -944,8 +816,8 @@ const AIChatbotWidget: React.FC = () => {
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-lg border-2 border-white animate-pulse shadow-sm"></div>
                 </div>
                 <div className="text-center">
-                  <h3 className="text-white font-bold text-base">Text Support</h3>
-                  <p className="text-green-100 text-xs font-medium">AI assistant</p>
+                  <h3 className="text-white font-bold text-base">CRM Assistant</h3>
+                  <p className="text-green-100 text-xs font-medium">Answers from your live data</p>
                 </div>
               </div>
 
@@ -1004,9 +876,13 @@ const AIChatbotWidget: React.FC = () => {
                         ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white ml-auto"
                         : "bg-white text-gray-900 border border-green-200"
                     )}>
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                        {truncateMessage(message.content, chatState.expandedMessages.has(message.id))}
-                      </p>
+                      {message.role === 'assistant' ? (
+                        <FormattedAnswer text={truncateMessage(message.content, chatState.expandedMessages.has(message.id))} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                          {truncateMessage(message.content, chatState.expandedMessages.has(message.id))}
+                        </p>
+                      )}
 
                       {/* Long message options */}
                       {isLongMessage(message.content) && (
@@ -1115,7 +991,7 @@ const AIChatbotWidget: React.FC = () => {
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Write a message..."
                     disabled={!chatState.isConnected || chatState.isTyping}
-                    className="w-full rounded-full border-green-300 focus:border-green-500 focus:ring-green-500 px-4 py-3 pr-14 bg-white shadow-sm transition-all duration-200"
+                    className="w-full rounded-full border-green-300 focus:border-green-500 focus:ring-green-500 px-4 py-3 pr-14 bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all duration-200"
                   />
                   
                   {/* Send Button */}
@@ -1131,26 +1007,6 @@ const AIChatbotWidget: React.FC = () => {
                 </div>
               </div>
             </form>
-
-            {!chatState.isConnected && (
-              <div className="mt-3 flex items-center justify-between text-xs text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Connection lost. Attempting to reconnect...</span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    console.log('Manual reconnection triggered');
-                    connectWebSocket();
-                  }}
-                  className="h-7 px-3 text-xs text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                >
-                  Reconnect Now
-                </Button>
-              </div>
-            )}
           </div>
         </Card>
       </div>
@@ -1191,46 +1047,57 @@ const AIChatbotWidget: React.FC = () => {
     );
   }
 
-  // If chat is minimized, show small bar
+  // If chat is minimized, show a compact pill
   if (chatState.isMinimized) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
-        <Card className={cn(
-          "w-80 flex flex-col border-0 overflow-hidden rounded-2xl shadow-2xl shadow-black/20 bg-white/90 backdrop-blur-xl",
-          chatState.isAnimating && chatState.animationType === 'minimize' && "animate-minimize",
-          chatState.isAnimating && chatState.animationType === 'expand' && "animate-expand"
-        )}
-        style={{
-          boxShadow: '0 35px 60px -15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px rgba(0, 0, 0, 0.1)',
-          background: 'linear-gradient(to bottom, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.08) 15%, rgba(16, 185, 129, 0.05) 30%, rgba(255, 255, 255, 0.9) 60%, rgba(255, 255, 255, 0.95) 100%)'
-        }}>
-          <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 p-3 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden shadow-lg">
-                <img
-                  src={robotIcon}
-                  alt="AI Assistant"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="font-medium text-sm text-white">AI Assistant</span>
-              <div className={cn(
-                "w-2 h-2 rounded-full transition-all duration-300",
-                chatState.isConnected ? "bg-green-400 animate-pulse shadow-sm" : "bg-red-500 shadow-sm"
-              )} />
-            </div>
-            <div className="flex items-center space-x-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={expandChat}
-                className="h-8 w-8 p-0 text-white hover:bg-white/20 rounded-full transition-all duration-300 hover:scale-110"
-              >
-                <MessageCircle className="w-4 h-4" />
-              </Button>
-            </div>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Expand chat"
+          onClick={expandChat}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') expandChat(); }}
+          className={cn(
+            "group flex items-center gap-3 py-2 pl-2 pr-2 rounded-full cursor-pointer select-none",
+            "bg-gradient-to-r from-green-500 to-emerald-600 ring-1 ring-white/25",
+            "shadow-lg shadow-emerald-900/25 hover:shadow-xl hover:scale-[1.03] transition-all duration-300",
+            chatState.isAnimating && chatState.animationType === 'minimize' && "animate-minimize",
+            chatState.isAnimating && chatState.animationType === 'expand' && "animate-expand"
+          )}
+          title="Open chat"
+        >
+          {/* Avatar */}
+          <div className="w-9 h-9 rounded-full bg-white/20 ring-2 ring-white/40 flex items-center justify-center overflow-hidden shadow-sm">
+            <img src={robotIcon} alt="AI Assistant" className="w-full h-full object-cover" />
           </div>
-        </Card>
+
+          {/* Label */}
+          <div className="flex flex-col leading-tight pr-1">
+            <span className="text-sm font-semibold text-white">CRM Assistant</span>
+            <span className="text-[11px] text-green-50/90 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
+              Tap to open
+            </span>
+          </div>
+
+          {/* Expand + close controls */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); expandChat(); }}
+            className="h-8 w-8 flex items-center justify-center rounded-full text-white/90 hover:text-white hover:bg-white/20 transition-colors"
+            title="Expand"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggleChat(); }}
+            className="h-8 w-8 flex items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -1279,8 +1146,8 @@ const AIChatbotWidget: React.FC = () => {
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-lg border-2 border-white animate-pulse shadow-sm"></div>
                   </div>
                   <div className="text-center">
-                    <h3 className="text-white font-bold text-base">Text Support</h3>
-                    <p className="text-green-100 text-xs font-medium">AI assistant</p>
+                    <h3 className="text-white font-bold text-base">CRM Assistant</h3>
+                    <p className="text-green-100 text-xs font-medium">Answers from your live data</p>
                   </div>
                 </div>
 
@@ -1339,15 +1206,18 @@ const AIChatbotWidget: React.FC = () => {
                           ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white ml-auto border border-white/30"
                           : "bg-white/95 text-gray-900 border border-green-400/60 backdrop-blur-sm"
                       )}>
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium transition-all duration-300">
-                          {message.role === 'assistant' && chatState.typingMessages.has(message.id)
-                            ? chatState.typingMessages.get(message.id)?.content || ''
-                            : truncateMessage(message.content, chatState.expandedMessages.has(message.id))
-                          }
-                          {message.role === 'assistant' && chatState.typingMessages.has(message.id) && (
+                        {message.role === 'assistant' && chatState.typingMessages.has(message.id) ? (
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium transition-all duration-300">
+                            {chatState.typingMessages.get(message.id)?.content || ''}
                             <span className="inline-block w-2 h-4 bg-green-600 animate-pulse ml-1 rounded-sm transition-all duration-200"></span>
-                          )}
-                        </p>
+                          </p>
+                        ) : message.role === 'assistant' ? (
+                          <FormattedAnswer text={truncateMessage(message.content, chatState.expandedMessages.has(message.id))} />
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium transition-all duration-300">
+                            {truncateMessage(message.content, chatState.expandedMessages.has(message.id))}
+                          </p>
+                        )}
 
                         {/* Long message options */}
                         {isLongMessage(message.content) && (
@@ -1445,6 +1315,26 @@ const AIChatbotWidget: React.FC = () => {
 
             {/* Input Area */}
             <div className="bg-gradient-to-t from-green-50 to-emerald-50/30 p-4">
+              {/* Quick suggestions — shown before the conversation gets going */}
+              {chatState.messages.length <= 1 && !chatState.isTyping && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { label: 'Overview', q: 'give me an overview' },
+                    { label: 'Running projects', q: 'show running projects' },
+                    { label: 'Pending payments', q: 'total pending payments' },
+                    { label: 'Expiring soon', q: 'registrations expiring soon' },
+                  ].map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => sendMessage(s.q)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full bg-white text-green-700 border border-green-300 hover:bg-green-50 hover:border-green-400 shadow-sm transition-colors"
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <form onSubmit={handleSubmit}>
                 {/* Main Input */}
                 <div className="flex items-center space-x-3">
@@ -1456,7 +1346,7 @@ const AIChatbotWidget: React.FC = () => {
                       onChange={(e) => setInputValue(e.target.value)}
                       placeholder="Write a message..."
                       disabled={!chatState.isConnected || chatState.isTyping}
-                      className="w-full rounded-full border-green-300 focus:border-green-500 focus:ring-green-500 px-4 py-3 pr-14 bg-white shadow-sm transition-all duration-200"
+                      className="w-full rounded-full border-green-300 focus:border-green-500 focus:ring-green-500 px-4 py-3 pr-14 bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all duration-200"
                     />
                     
                     {/* Send Button */}
@@ -1472,26 +1362,6 @@ const AIChatbotWidget: React.FC = () => {
                   </div>
                 </div>
               </form>
-
-              {!chatState.isConnected && (
-                <div className="mt-3 flex items-center justify-between text-xs text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-                  <div className="flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Connection lost. Attempting to reconnect...</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      console.log('Manual reconnection triggered');
-                      connectWebSocket();
-                    }}
-                    className="h-7 px-3 text-xs text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                  >
-                    Reconnect Now
-                  </Button>
-                </div>
-              )}
             </div>
           </Card>
         </div>
