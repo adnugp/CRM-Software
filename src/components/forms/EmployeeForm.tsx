@@ -1,3 +1,4 @@
+import {useAuth} from '@/contexts/AuthContext';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,6 +33,7 @@ import { Employee } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const employeeSchema = z.object({
+  userId:z.string().optional(),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   email: z.string().email('Invalid email address').max(255, 'Email must be less than 255 characters'),
   department: z.string().min(1, 'Department is required'),
@@ -45,9 +47,9 @@ type EmployeeFormData = z.infer<typeof employeeSchema>;
 
 interface EmployeeFormProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean) => void | Promise<void>;
   employee?: Employee | null;
-  onSubmit: (data: EmployeeFormData) => void;
+  onSubmit: (data: EmployeeFormData) => void | Promise<void>;
 }
 
 const departments = ['Engineering', 'Sales', 'Operations', 'Marketing', 'Finance', 'HR'];
@@ -58,11 +60,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   employee,
   onSubmit,
 }) => {
+  const {allUsers}=useAuth();
   const isEditing = !!employee;
 
   const form = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
+      userId:employee?.userId||'',
       name: employee?.name || '',
       email: employee?.email || '',
       department: employee?.department || '',
@@ -76,6 +80,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   React.useEffect(() => {
     if (employee) {
       form.reset({
+        userId:employee.userId||'',
         name: employee.name,
         email: employee.email,
         department: employee.department,
@@ -86,6 +91,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       });
     } else {
       form.reset({
+        userId:'',
         name: '',
         email: '',
         department: '',
@@ -97,14 +103,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     }
   }, [employee, form]);
 
-  const handleSubmit = (data: EmployeeFormData) => {
-    onSubmit(data);
-    toast({
-      title: isEditing ? 'Employee Updated' : 'Employee Added',
-      description: `${data.name} has been ${isEditing ? 'updated' : 'added'} successfully.`,
-    });
-    onOpenChange(false);
-    form.reset();
+  const handleSubmit = async (data:EmployeeFormData) => {
+    try {await onSubmit(data);onOpenChange(false);form.reset();}
+    catch(error){toast({title:'Unable to save employee',description:error instanceof Error?error.message:'Save failed',variant:'destructive'});}
   };
 
   return (
@@ -120,7 +121,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
             <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
-              <div className="space-y-4 py-2">
+              <div className="space-y-4 py-2"><FormField control={form.control} name="userId" render={({field})=><FormItem><FormLabel>Linked workspace account</FormLabel><FormControl><select className="w-full p-2 border rounded bg-background" {...field}><option value="">Directory entry only</option>{allUsers.filter(member=>member.role!=='client').map(member=><option key={member.id} value={member.id}>{member.name} ({member.email})</option>)}</select></FormControl><FormMessage/></FormItem>}/>
                 <FormField
                   control={form.control}
                   name="name"

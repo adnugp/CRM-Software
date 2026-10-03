@@ -21,7 +21,11 @@ import Partners from "./pages/Partners";
 import Employees from "./pages/Employees";
 import ProjectManagement from "./pages/ProjectManagement";
 import NotFound from "./pages/NotFound";
+import Workspaces from './pages/Workspaces';
+import BusinessHub from './pages/BusinessHub';
+import WorkspaceAdmin from './pages/WorkspaceAdmin';
 import Settings from "./pages/Settings";
+import RouteTransition from "./components/layout/RouteTransition";
 import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -33,7 +37,9 @@ const ThemeInitializer = () => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
 
-    if (!savedTheme || savedTheme === 'system') {
+    if (!savedTheme) {
+      root.classList.add('light');
+    } else if (savedTheme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
     } else {
@@ -56,16 +62,23 @@ const ChatbotWrapper = () => {
   return <AIChatbotWidget />;
 };
 
+const WorkspaceScope = ({children}:{children:React.ReactNode}) => {
+ const {activeWorkspace,user}=useAuth();
+ return <DataProvider key={(activeWorkspace?.id||'none')+'/'+(user?.id||'anon')+'/'+(activeWorkspace?.role||'none')}>{children}</DataProvider>;
+};
 const App = () => {
   console.log('App component rendering...');
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <DataProvider>
+        <WorkspaceScope>
           <BrowserRouter>
             <ThemeInitializer />
-            <Routes>
+            <RouteTransition><Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/workspaces" element={<Workspaces />} />
+              <Route path="/operations" element={<ProtectedRoute><BusinessHub /></ProtectedRoute>} />
+              <Route path="/workspace" element={<ProtectedRoute allowedRoles={['admin']}><WorkspaceAdmin /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={
                 <ProtectedRoute allowedRoles={['admin']}>
@@ -137,10 +150,10 @@ const App = () => {
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
-            </Routes>
+            </Routes></RouteTransition>
             <ChatbotWrapper />
           </BrowserRouter>
-        </DataProvider>
+        </WorkspaceScope>
       </AuthProvider>
     </QueryClientProvider>
   );

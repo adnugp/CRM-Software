@@ -1,3 +1,5 @@
+import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import React, { useState, useMemo } from 'react';
 import { Calendar, Building, FileCheck, Pencil, Trash2, User } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -20,12 +22,13 @@ const parentCompanyOptions = [
 ];
 
 const Registrations: React.FC = () => {
-  const { user, allUsers } = useAuth();
+  const { user, allUsers, activeWorkspace } = useAuth();
   const { registrations, employees, addRegistration, updateRegistration, deleteRegistration } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [documentId,setDocumentId]=useState<string|null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRegistration, setEditingRegistration] = useState<Registration | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -38,7 +41,7 @@ const Registrations: React.FC = () => {
 
   const registrationCompanies = [...new Set(registrations.map(r => r.company))];
   const companyOptions = registrationCompanies.map(c => ({ value: c, label: c }));
-  const assigneeOptions = employees.map(a => ({ value: a.id, label: a.name }));
+  const assigneeOptions = allUsers.filter(member=>member.role!=='client').map(member=>({value:member.id,label:member.name}));
 
   const filteredRegistrations = useMemo(() => {
     let result = registrations;
@@ -82,14 +85,15 @@ const Registrations: React.FC = () => {
     if (registrationToDelete) {
       await deleteRegistration(registrationToDelete.id);
       toast({
-        title: 'Registration deleted',
-        description: `"${registrationToDelete.name}" has been deleted successfully.`,
+        title: 'Registration archived',
+        description: `"${registrationToDelete.name}" has been archived successfully.`,
       });
       setRegistrationToDelete(null);
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Omit<Registration,'id'|'assignedToName'>) => {
+    if(user?.role==='user')data={...data,assignedTo:editingRegistration?.assignedTo||user.id};
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     const registrationData = {
       ...data,
@@ -97,7 +101,7 @@ const Registrations: React.FC = () => {
     };
 
     if (editingRegistration) {
-      await updateRegistration(editingRegistration.id, registrationData);
+      await updateRegistration(editingRegistration.id, {...registrationData,version:editingRegistration.version});
     } else {
       await addRegistration(registrationData);
     }
@@ -185,7 +189,7 @@ const Registrations: React.FC = () => {
           label="Belongs To"
           value={belongsToFilter}
           onChange={setBelongsToFilter}
-          options={parentCompanyOptions}
+          options={activeWorkspace?.divisions.map(d=>({value:typeof d==='string'?d:d.name,label:typeof d==='string'?d:d.name}))||parentCompanyOptions}
           placeholder="All Parent Companies"
         />
         <FilterDropdown
@@ -211,7 +215,7 @@ const Registrations: React.FC = () => {
                 <TableHead className="hidden md:table-cell">Expiry Date</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead>Status</TableHead>
-                {/* <TableHead className="hidden sm:table-cell">Document</TableHead> */}
+                <TableHead>Documents</TableHead>
                 {canEdit && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -264,12 +268,11 @@ const Registrations: React.FC = () => {
                   <TableCell>
                     <StatusBadge status={registration.status} variant="registration" />
                   </TableCell>
-                  {/*<TableCell className="hidden sm:table-cell">
-                    <span className="text-muted-foreground text-sm">Document feature coming soon</span>
-                  </TableCell>*/}
+                  <TableCell><Button variant="outline" size="sm" onClick={()=>setDocumentId(registration.id)}>Documents</Button></TableCell>
                   {canEdit && (
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={async()=>{const expiryDate=window.prompt('New expiry date (YYYY-MM-DD)');if(!expiryDate)return;try{await addRegistration({...registration,documents:undefined,documentFile:undefined,document:undefined,registrationDate:new Date().toISOString().slice(0,10),expiryDate,status:'active',previousRegistrationId:registration.id});toast({title:'Renewal created',description:'The previous registration remains in the renewal history.'});}catch(e){toast({title:'Renewal failed',description:e instanceof Error?e.message:'Unable to renew',variant:'destructive'});}}}>Renew</Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(registration)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -292,6 +295,7 @@ const Registrations: React.FC = () => {
         )}
       </div>
 
+      <Dialog open={!!documentId} onOpenChange={open=>{if(!open)setDocumentId(null);}}><DialogContent><DialogHeader><DialogTitle>Registration documents</DialogTitle><DialogDescription>Certificates and renewal supporting documents</DialogDescription></DialogHeader><MultiDocumentUpload recordCollection="registrations" recordId={documentId||undefined} documents={registrations.find(r=>r.id===documentId)?.documents||[]} onChange={async documents=>{if(documentId)await updateRegistration(documentId,{documents});}}/></DialogContent></Dialog>
       <RegistrationForm
         open={formOpen}
         onOpenChange={setFormOpen}
@@ -302,8 +306,8 @@ const Registrations: React.FC = () => {
       <DeleteConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title="Delete Registration"
-        description={`Are you sure you want to delete "${registrationToDelete?.name}"? This action cannot be undone.`}
+        title="Archive Registration"
+        description={`Are you sure you want to delete "${registrationToDelete?.name}"? You can restore it from the archive.`}
         onConfirm={confirmDelete}
       />
 

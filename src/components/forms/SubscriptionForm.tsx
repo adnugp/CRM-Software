@@ -9,11 +9,14 @@ import { Subscription } from '@/types';
 interface SubscriptionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (subscription: Omit<Subscription, 'id'> & { id?: string }) => void;
+  onSubmit: (subscription: Omit<Subscription, 'id'> & { id?: string }) => Promise<void>;
+  currency?: string;
   subscription?: Subscription | null;
 }
 
-const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange, onSubmit, subscription }) => {
+const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange, onSubmit, subscription, currency = 'AED' }) => {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     provider: '',
@@ -24,11 +27,12 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
   });
 
   useEffect(() => {
+    setSaveError(null);
     if (subscription) {
       setFormData({
         name: subscription.name,
         provider: subscription.provider,
-        amount: subscription.amount.toString(),
+        amount: (Number.isSafeInteger(subscription.amountMinor) ? subscription.amountMinor! / 100 : subscription.amount).toString(),
         billingCycle: subscription.billingCycle,
         nextBillingDate: subscription.nextBillingDate,
         status: subscription.status,
@@ -45,22 +49,32 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
     }
   }, [subscription, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      id: subscription?.id,
-      name: formData.name,
-      provider: formData.provider,
-      amount: parseFloat(formData.amount),
-      billingCycle: formData.billingCycle,
-      nextBillingDate: formData.nextBillingDate,
-      status: formData.status,
-    });
-    onOpenChange(false);
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSubmit({
+        id: subscription?.id,
+        name: formData.name,
+        provider: formData.provider,
+        amount: parseFloat(formData.amount),
+        currency,
+        billingCycle: formData.billingCycle,
+        nextBillingDate: formData.nextBillingDate,
+        status: formData.status,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!saving) onOpenChange(nextOpen); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{subscription ? 'Edit Subscription' : 'Add New Subscription'}</DialogTitle>
@@ -69,6 +83,7 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
           <div className="space-y-2">
             <Label htmlFor="name">Service Name</Label>
             <Input
@@ -93,7 +108,7 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount ($)</Label>
+              <Label htmlFor="amount">Amount ({currency})</Label>
               <Input
                 id="amount"
                 type="number"
@@ -152,11 +167,11 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground">
-              {subscription ? 'Update Subscription' : 'Add Subscription'}
+            <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground">
+              {saving ? 'Saving...' : subscription ? 'Update Subscription' : 'Add Subscription'}
             </Button>
           </div>
         </form>

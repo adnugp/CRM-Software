@@ -33,13 +33,12 @@ import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   clientId: z.string().optional(),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  belongsTo: z.string().min(1,'Operating division is required'),
   status: z.enum(['running', 'in-progress', 'completed', 'handed-over']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
@@ -52,7 +51,7 @@ interface ProjectFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
-  onSubmit: (data: ProjectFormData) => void;
+  onSubmit: (data: ProjectFormData) => void | Promise<void>;
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({
@@ -62,7 +61,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   onSubmit,
 }) => {
   const { employees } = useData();
-  const { allUsers } = useAuth();
+  const { allUsers, activeWorkspace, user } = useAuth();
+  const parentCompanies = React.useMemo(()=>activeWorkspace?.divisions.map(d=>typeof d==='string'?d:d.name)||[],[activeWorkspace]);
   const isEditing = !!project;
 
   // Get client users from allUsers
@@ -84,7 +84,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       name: project?.name || '',
       company: project?.company || '',
       clientId: project?.clientId || '',
-      belongsTo: project?.belongsTo || 'Grow Plus Technologies',
+      belongsTo: project?.belongsTo || (parentCompanies[0]||''),
       status: project?.status || 'running',
       assignedTo: project?.assignedTo || '',
       deadline: project?.deadline || '',
@@ -109,17 +109,17 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         name: '',
         company: '',
         clientId: '',
-        belongsTo: 'Grow Plus Technologies',
+        belongsTo: (parentCompanies[0]||''),
         status: 'running',
         assignedTo: '',
         deadline: '',
         budget: 0,
       });
     }
-  }, [project, form]);
+  }, [project, form, parentCompanies]);
 
-  const handleSubmit = (data: ProjectFormData) => {
-    onSubmit(data);
+  const handleSubmit = async (data: ProjectFormData) => {
+    try { await onSubmit(data); } catch(e) { toast({title:'Unable to save',description:e instanceof Error?e.message:'Request failed',variant:'destructive'}); return; }
     toast({
       title: isEditing ? 'Project Updated' : 'Project Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,
@@ -216,7 +216,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
+                      <Select onValueChange={field.onChange} value={field.value || (parentCompanies[0]||'')}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select parent company" />
@@ -298,19 +298,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                   )}
                 />
 
-                <FormField
+                {(user?.role==='admin'||user?.role==='manager')&&<>                <FormField
                   control={form.control}
                   name="budget"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Budget ($)</FormLabel>
+                      <FormLabel>Total Budget ({activeWorkspace?.currency})</FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="Enter total project budget" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /></>}
               </div>
             </ScrollArea>
 

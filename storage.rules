@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+ match /b/{bucket}/o {
+  function member(w) { return firestore.get(/databases/(default)/documents/workspaces/$(w)/members/$(request.auth.uid)).data; }
+  function active(w) { return request.auth != null && (!firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) || firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get("disabled",false) != true) && member(w).active == true; }
+  function file(w,id) { return firestore.get(/databases/(default)/documents/workspaces/$(w)/files/$(id)).data; }
+  function linked(w,id) { return firestore.get(/databases/(default)/documents/workspaces/$(w)/$(file(w,id).recordCollection)/$(file(w,id).recordId)).data; }
+  function linkedAccess(w,id) { return file(w,id).recordCollection == 'files' ? member(w).role != 'client' : member(w).role in ['admin','manager'] || (member(w).role == 'user' && (linked(w,id).get('assignedTo','') == request.auth.uid || request.auth.uid in linked(w,id).get('assignedUserIds',[]))) || (member(w).role == 'client' && file(w,id).recordCollection in ['projects','milestones','comments'] && request.auth.uid in linked(w,id).get('sharedWith',[])); }
+  function access(w,id) { return active(w) && linkedAccess(w,id) && (file(w,id).recordCollection != 'files' || member(w).role in ['admin','manager'] || (member(w).role == 'user' && (file(w,id).get('assignedTo','') == request.auth.uid || request.auth.uid in file(w,id).get('assignedUserIds',[])))); }
+  match /workspaces/{w}/documents/{fileId}/{versionId}/{filename} {
+   allow read: if access(w,fileId) && file(w,fileId).quarantine == 'clean' && file(w,fileId).currentVersionId == versionId;
+   allow create: if resource == null && access(w,fileId) && member(w).role != 'client' && file(w,fileId).quarantine == 'pending' && file(w,fileId).currentVersionId == versionId && request.resource.size <= 20 * 1024 * 1024 && request.resource.size == file(w,fileId).size && request.resource.contentType == file(w,fileId).mimeType && request.resource.contentType.matches('(application/pdf|text/plain|text/csv|image/png|image/jpeg|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)');
+  }
+  match /users/{uid}/avatars/{filename} {
+   allow read: if request.auth != null && request.auth.uid == uid;
+   allow write: if request.auth != null && request.auth.uid == uid && request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/(png|jpeg|webp)');
+  }
+ }
+}
+
+
+
+
+
+
+

@@ -90,7 +90,7 @@ const Projects: React.FC = () => {
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user?.company, projects]);
+  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user, projects]);
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
@@ -113,14 +113,14 @@ const Projects: React.FC = () => {
     if (projectToDelete) {
       await deleteProject(projectToDelete.id);
       toast({
-        title: 'Project deleted',
-        description: `"${projectToDelete.name}" has been deleted successfully.`,
+        title: 'Project archived',
+        description: `"${projectToDelete.name}" has been archived successfully.`,
       });
       setProjectToDelete(null);
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Omit<Project,'id'|'assignedToName'>) => {
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     // Resolve client name from allUsers
     const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
@@ -133,11 +133,16 @@ const Projects: React.FC = () => {
       assignedToName: assignee?.name || '', 
       clientId, 
       clientName,
-      organizationId 
+      sharedWith: (clientId ? [clientId] : []) as string[] | undefined
     };
 
+    if(user?.role==='user'){
+      delete projectData.budget; delete projectData.sharedWith;
+      projectData.assignedTo=editingProject?.assignedTo||user.id;
+      projectData.assignedToName=editingProject?.assignedToName||user.name;
+    }
     if (editingProject) {
-      await updateProject(editingProject.id, projectData);
+      await updateProject(editingProject.id, {...projectData,version:editingProject.version});
     } else {
       await addProject(projectData);
     }
@@ -383,8 +388,8 @@ const Projects: React.FC = () => {
       <DeleteConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title="Delete Project"
-        description={`Are you sure you want to delete "${projectToDelete?.name}"? This action cannot be undone.`}
+        title="Archive Project"
+        description={`Are you sure you want to delete "${projectToDelete?.name}"? You can restore it from the archive.`}
         onConfirm={confirmDelete}
       />
 
@@ -397,7 +402,7 @@ const Projects: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[400px] overflow-y-auto">
-            <MultiDocumentUpload
+            <MultiDocumentUpload recordCollection="projects" recordId={selectedProjectForDoc?.id}
               documents={selectedProjectForDoc?.documents || []}
               onChange={handleDocumentsChange}
               readOnly={isClient}

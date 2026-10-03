@@ -49,8 +49,8 @@ const Register: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters');
       return;
     }
 
@@ -181,7 +181,7 @@ const Register: React.FC = () => {
 
                         <div className="space-y-2">
                           <Label htmlFor="parent-company">Parent Organization</Label>
-                          <Select value={parentCompany} onValueChange={(v: any) => setParentCompany(v)}>
+                          <Select value={parentCompany} onValueChange={(v) => setParentCompany(v as typeof parentCompany)}>
                             <SelectTrigger id="parent-company">
                               <SelectValue />
                             </SelectTrigger>
@@ -292,7 +292,7 @@ const Register: React.FC = () => {
                   <div className="space-y-2">
                     <h4 className="text-sm font-bold text-primary">Administrator</h4>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Full system access including employees and settings. Prohibited from viewing financial data.
+                      Workspace administration, team membership, business records and financial data.
                     </p>
                   </div>
                 )}
@@ -308,7 +308,7 @@ const Register: React.FC = () => {
                   <div className="space-y-2 pt-2">
                     <h4 className="text-sm font-bold text-green-600">Employee</h4>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Standard business operations and project management. Can enter project budgets but is restricted from viewing or entering profits, costs, and financial leakages.
+                      Assigned projects, tenders and tasks. Financial data and account administration require a manager or administrator.
                     </p>
                   </div>
                 )}

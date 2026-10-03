@@ -29,7 +29,7 @@ import { useData } from '@/contexts/DataContext';
 
 // Helper Component for User Rows
 const StaffRow: React.FC<{
-    user: any;
+    user: import('@/types').User;
     onRemove: () => void;
 }> = ({ user, onRemove }) => (
     <TableRow className="hover:bg-muted/20 transition-colors">
@@ -657,7 +657,7 @@ const Settings: React.FC = () => {
                                         <Palette className="h-4 w-4 text-primary" />
                                         App Theme
                                     </div>
-                                    <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
+                                    <Select value={theme} onValueChange={(value) => setTheme(value as typeof theme)}>
                                         <SelectTrigger className="w-[120px] h-8 text-xs">
                                             <SelectValue />
                                         </SelectTrigger>

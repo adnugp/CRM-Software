@@ -4,7 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
 
 export default function Index() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, activeWorkspace, loading } = useAuth();
+
+  if (loading) return <p className="p-6">Loading workspace…</p>;
+  if (isAuthenticated && !activeWorkspace) return <Navigate to="/workspaces" replace/>;
 
   // Redirect based on authentication status
   if (!isAuthenticated) {

@@ -8,11 +8,11 @@ interface PageHeaderProps {
 
 const PageHeader: React.FC<PageHeaderProps> = ({ title, description, action }) => {
   return (
-    <div className="flex items-center justify-between mb-6 animate-slide-up">
+    <div className="flex flex-wrap items-start justify-between gap-4 mb-7">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
         {description && (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-2 text-sm leading-relaxed max-w-2xl text-muted-foreground">{description}</p>
         )}
       </div>
       {action && <div>{action}</div>}

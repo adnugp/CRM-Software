@@ -67,7 +67,7 @@ const Partners: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Omit<Partner,'id'|'assignedToName'>) => {
     try {
       if (editingPartner) {
         await updatePartner(editingPartner.id, data);

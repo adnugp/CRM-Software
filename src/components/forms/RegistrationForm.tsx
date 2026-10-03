@@ -33,17 +33,17 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const registrationSchema = z.object({
   name: z.string().min(1, 'Registration name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  belongsTo: z.string().min(1,'Operating division is required'),
   type: z.string().min(1, 'Type is required'),
   registrationDate: z.string().min(1, 'Registration date is required'),
   expiryDate: z.string().min(1, 'Expiry date is required'),
   status: z.enum(['active', 'expired', 'pending']),
   assignedTo: z.string().optional(),
+  registrationNumber:z.string().max(100).optional(),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
@@ -52,7 +52,7 @@ interface RegistrationFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   registration?: Registration | null;
-  onSubmit: (data: RegistrationFormData) => void;
+  onSubmit: (data: RegistrationFormData) => void | Promise<void>;
 }
 
 const registrationTypes = [
@@ -73,7 +73,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onSubmit,
 }) => {
   const { employees } = useData();
-  const { allUsers } = useAuth();
+  const { allUsers, activeWorkspace } = useAuth();
+  const parentCompanies = React.useMemo(()=>activeWorkspace?.divisions.map(d=>typeof d==='string'?d:d.name)||[],[activeWorkspace]);
   const isEditing = !!registration;
 
   const [otherTypeSpecify, setOtherTypeSpecify] = React.useState('');
@@ -88,12 +89,13 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
     defaultValues: {
       name: registration?.name || '',
       company: registration?.company || '',
-      belongsTo: registration?.belongsTo || 'Grow Plus Technologies',
+      belongsTo: registration?.belongsTo || (parentCompanies[0]||''),
       type: registration?.type || '',
       registrationDate: registration?.registrationDate || '',
       expiryDate: registration?.expiryDate || '',
       status: registration?.status || 'pending',
       assignedTo: registration?.assignedTo || '',
+      registrationNumber:registration?.registrationNumber||'',
     },
   });
 
@@ -110,28 +112,30 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         expiryDate: registration.expiryDate,
         status: registration.status,
         assignedTo: registration.assignedTo || '',
+        registrationNumber:registration.registrationNumber||'',
       });
     } else {
       setOtherTypeSpecify('');
       form.reset({
         name: '',
         company: '',
-        belongsTo: 'Grow Plus Technologies',
+        belongsTo: (parentCompanies[0]||''),
         type: '',
         registrationDate: '',
         expiryDate: '',
         status: 'pending',
         assignedTo: '',
+        registrationNumber:'',
       });
     }
-  }, [registration, form]);
+  }, [registration, form, parentCompanies]);
 
-  const handleSubmit = (data: RegistrationFormData) => {
+  const handleSubmit = async (data: RegistrationFormData) => {
     const finalData = {
       ...data,
       type: data.type === 'Others' ? (otherTypeSpecify ? `Others: ${otherTypeSpecify}` : 'Others') : data.type,
     };
-    onSubmit(finalData);
+    try{await onSubmit(finalData);}catch(e){toast({title:'Unable to save',description:e instanceof Error?e.message:'Request failed',variant:'destructive'});return;}
     toast({
       title: isEditing ? 'Registration Updated' : 'Registration Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,
@@ -154,7 +158,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
             <ScrollArea className="flex-1 h-[50vh] px-6 pb-6 overflow-y-auto">
-              <div className="space-y-4 py-2">
+              <div className="space-y-4 py-2"><FormField control={form.control} name="registrationNumber" render={({field})=><FormItem><FormLabel>Registration / license number</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>}/>
                 <FormField
                   control={form.control}
                   name="name"
@@ -189,7 +193,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
+                      <Select onValueChange={field.onChange} value={field.value || (parentCompanies[0]||'')}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select parent company" />

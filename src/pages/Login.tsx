@@ -122,8 +122,8 @@ const Login: React.FC = () => {
     try {
       await sendPasswordResetEmail(auth, email);
       setResetEmailSent(true);
-    } catch (err: any) {
-      const code = err.code || '';
+    } catch (err: unknown) {
+      const code = (err as {code?:string}).code || '';
       if (code === 'auth/user-not-found') {
         setError('No account found with this email address.');
       } else if (code === 'auth/too-many-requests') {
@@ -148,12 +148,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-      </div>
-
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8 animate-fade-in">
           <img src={gpLogo} alt="SadeemGPT Logo" className="h-24 mx-auto mb-4" />
@@ -162,7 +157,7 @@ const Login: React.FC = () => {
           </h1>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl shadow-2xl p-8 animate-slide-up">
+        <div className="bg-card border border-border rounded-2xl shadow-card p-6 sm:p-8">
           {!showForgotPassword ? (
             <>
               <div className="flex items-center gap-3 mb-2">

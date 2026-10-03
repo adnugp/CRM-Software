@@ -1,18 +1,25 @@
-rules_version='2'
-
+rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2027, 3, 11);
-    }
+ match /databases/{database}/documents {
+  function signed() { return request.auth != null; }
+  function member(w) { return get(/databases/$(database)/documents/workspaces/$(w)/members/$(request.auth.uid)).data; }
+  function active(w) { return signed() && (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("disabled",false) != true) && member(w).active == true; }
+  function management(w) { return active(w) && member(w).role in ['admin','manager']; }
+  function readable(w,c,d) { return management(w); }
+  match /users/{uid} {
+   allow read: if signed() && request.auth.uid == uid;
+   allow create: if signed() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['name','avatar','phone','preferences']);
+   allow update: if signed() && request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','avatar','phone','preferences']);
   }
+  match /workspaces/{w} {
+   allow read: if active(w);
+   match /members/{uid} { allow read: if active(w) && (member(w).role != 'client' || request.auth.uid == uid); }
+   match /{collection}/{id} {
+    allow read: if collection in ['projects','tenders','employees','registrations','payments','subscriptions','partners','files','customers','contacts','invoices','milestones','comments','renewals','tasks'] && readable(w,collection,resource.data);
+   }
+   match /audit/{id} { allow read: if management(w); }
+   match /notificationHistory/{id} { allow read: if management(w); }
+   match /invitations/{id} { allow read: if active(w) && member(w).role == 'admin'; }
+  }
+ }
 }

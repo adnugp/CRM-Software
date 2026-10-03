@@ -9,11 +9,14 @@ import { Payment } from '@/types';
 interface PaymentFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payment: Omit<Payment, 'id'> & { id?: string }) => void;
+  onSubmit: (payment: Omit<Payment, 'id'> & { id?: string }) => Promise<void>;
+  currency?: string;
   payment?: Payment | null;
 }
 
-const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit, payment }) => {
+const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit, payment, currency = 'AED' }) => {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -23,10 +26,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
   });
 
   useEffect(() => {
+    setSaveError(null);
     if (payment) {
       setFormData({
         description: payment.description,
-        amount: payment.amount.toString(),
+        amount: (Number.isSafeInteger(payment.amountMinor) ? payment.amountMinor! / 100 : payment.amount).toString(),
         dueDate: payment.dueDate,
         status: payment.status,
         company: payment.company,
@@ -42,26 +46,36 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
     }
   }, [payment, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const paymentData = {
-      description: formData.description,
-      amount: parseFloat(formData.amount),
-      dueDate: formData.dueDate,
-      status: formData.status,
-      company: formData.company,
-    };
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const paymentData = {
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        currency,
+        dueDate: formData.dueDate,
+        status: formData.status,
+        company: formData.company,
+      };
 
-    if (payment?.id) {
-      onSubmit({ ...paymentData, id: payment.id });
-    } else {
-      onSubmit(paymentData);
+      if (payment?.id) {
+        await onSubmit({ ...paymentData, id: payment.id });
+      } else {
+        await onSubmit(paymentData);
+      }
+      onOpenChange(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!saving) onOpenChange(nextOpen); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{payment ? 'Edit Payment' : 'Add New Payment'}</DialogTitle>
@@ -70,6 +84,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Input
@@ -94,7 +109,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount ($)</Label>
+              <Label htmlFor="amount">Amount ({currency})</Label>
               <Input
                 id="amount"
                 type="number"
@@ -137,11 +152,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground">
-              {payment ? 'Update Payment' : 'Add Payment'}
+            <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground">
+              {saving ? 'Saving...' : payment ? 'Update Payment' : 'Add Payment'}
             </Button>
           </div>
         </form>

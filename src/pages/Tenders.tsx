@@ -8,6 +8,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
 import { DocumentFile } from '@/types';
+import TenderWorkflow from '@/components/tenders/TenderWorkflow';
 import TenderForm from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,12 +36,13 @@ const statusOptions = [
 
 const Tenders: React.FC = () => {
   const { tenders, employees, addTender, updateTender, deleteTender } = useData();
-  const { user, allUsers } = useAuth();
+  const { user, allUsers, activeWorkspace } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [belongsToFilter, setBelongsToFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [workflowId,setWorkflowId]=useState<string|null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTender, setEditingTender] = useState<Tender | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -114,21 +116,22 @@ const Tenders: React.FC = () => {
     if (tenderToDelete) {
       await deleteTender(tenderToDelete.id);
       toast({
-        title: 'Tender deleted',
-        description: `"${tenderToDelete.name}" has been deleted successfully.`,
+        title: 'Tender archived',
+        description: `"${tenderToDelete.name}" has been archived successfully.`,
       });
       setTenderToDelete(null);
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Omit<Tender,'id'|'assignedToName'>) => {
+    if(user?.role==='user'){data={...data,assignedTo:editingTender?.assignedTo||user.id};delete data.bidAmount;delete data.evaluationNotes;delete data.sharedWith;}
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     // Resolve client name from allUsers
     const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
     const clientUser = allUsers.find(u => u.id === clientId);
     const clientName = clientUser?.name || '';
     if (editingTender) {
-      await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '', clientId, clientName });
+      await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '', clientId, clientName,version:editingTender.version });
     } else {
       await addTender({ ...data, assignedToName: assignee?.name || '', clientId, clientName });
     }
@@ -187,7 +190,7 @@ const Tenders: React.FC = () => {
           label="Belongs To"
           value={belongsToFilter}
           onChange={setBelongsToFilter}
-          options={parentCompanyOptions}
+          options={activeWorkspace?.divisions.map(d=>({value:typeof d==='string'?d:d.name,label:typeof d==='string'?d:d.name}))||parentCompanyOptions}
           placeholder="All Parent Companies"
         />
         <FilterDropdown
@@ -233,7 +236,7 @@ const Tenders: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium text-foreground">{tender.name}</p>
+                      <button className="font-medium text-foreground underline text-left" onClick={()=>setWorkflowId(tender.id)}>{tender.name}</button>
                       <p className="text-sm text-muted-foreground">{tender.company}</p>
                     </div>
                   </TableCell>
@@ -383,6 +386,7 @@ const Tenders: React.FC = () => {
         )}
       </div>
 
+      <Dialog open={!!workflowId} onOpenChange={open=>{if(!open)setWorkflowId(null);}}><DialogContent className="max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>Tender workflow</DialogTitle><DialogDescription>Checklist, clarifications and review decisions</DialogDescription></DialogHeader>{tenders.find(t=>t.id===workflowId)&&<TenderWorkflow tender={tenders.find(t=>t.id===workflowId)!}/>}</DialogContent></Dialog>
       <TenderForm
         open={formOpen}
         onOpenChange={setFormOpen}
@@ -393,8 +397,8 @@ const Tenders: React.FC = () => {
       <DeleteConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title="Delete Tender"
-        description={`Are you sure you want to delete "${tenderToDelete?.name}"? This action cannot be undone.`}
+        title="Archive Tender"
+        description={`Are you sure you want to delete "${tenderToDelete?.name}"? You can restore it from the archive.`}
         onConfirm={confirmDelete}
       />
 
@@ -407,7 +411,7 @@ const Tenders: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[400px] overflow-y-auto">
-            <MultiDocumentUpload
+            <MultiDocumentUpload recordCollection="tenders" recordId={selectedTenderForDoc?.id}
               documents={selectedTenderForDoc?.documents || []}
               onChange={handleDocumentsChange}
             />

@@ -8,7 +8,7 @@ interface ProjectTimelineProps {
 
 const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ tasks }) => {
   // Sort tasks by date or order if available, otherwise use default
-  const sortedTasks = [...tasks].sort((a, b) => new Date(a.startDate || '').getTime() - new Date(b.startDate || '').getTime());
+  const sortedTasks = [...tasks].sort((a, b) => new Date(a.startDate || a.dueDate).getTime() - new Date(b.startDate || b.dueDate).getTime());
 
   return (
     <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-primary/20 before:to-transparent">
@@ -29,7 +29,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({ tasks }) => {
           <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-border bg-card/50 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
             <div className="flex items-center justify-between space-x-2 mb-1">
               <div className="font-bold text-foreground">{task.name}</div>
-              <time className="font-mono text-xs text-primary">{new Date(task.startDate || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</time>
+              <time className="font-mono text-xs text-primary">{new Date(task.startDate || task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</time>
             </div>
             <div className="text-xs text-muted-foreground line-clamp-2">
               Assigned to: <span className="text-foreground font-medium">{task.assignedToName}</span>

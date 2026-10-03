@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   allowedRoles = ['admin', 'user', 'manager'] 
 }) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading, activeWorkspace } = useAuth();
 
   if (loading) {
     return (
@@ -29,6 +29,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  if (!activeWorkspace) return <Navigate to="/workspaces" replace />;
 
   if (!user || !allowedRoles.includes(user.role)) {
     if (user?.role === 'client') {

@@ -16,18 +16,14 @@ import { Employee } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Employees: React.FC = () => {
-  const { user } = useAuth();
-  const { employees: employeesList, loading, addEmployee, updateEmployee, deleteEmployee } = useData();
+  const { user, activeWorkspace } = useAuth();
+  const { employees: employeesList, loading, projects, tenders, addEmployee, updateEmployee, deleteEmployee } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
-
-  if (user?.role !== 'admin' && user?.role !== 'manager') {
-    return <Navigate to="/" replace />;
-  }
 
   const filteredEmployees = useMemo(() => {
     if (!searchQuery) return employeesList;
@@ -39,6 +35,10 @@ const Employees: React.FC = () => {
       e.position.toLowerCase().includes(query)
     );
   }, [searchQuery, employeesList]);
+
+  if (user?.role !== 'admin' && user?.role !== 'manager') {
+    return <Navigate to="/" replace />;
+  }
 
   const activeCount = employeesList.filter(e => e.status === 'active').length;
   const departments = [...new Set(employeesList.map(e => e.department))];
@@ -58,21 +58,21 @@ const Employees: React.FC = () => {
       try {
         await deleteEmployee(employeeToDelete.id);
         toast({
-          title: 'Employee deleted',
+          title: 'Employee archived',
           description: `"${employeeToDelete.name}" has been removed successfully.`,
         });
         setEmployeeToDelete(null);
       } catch (error) {
         toast({
           title: 'Error',
-          description: 'Failed to delete employee.',
+          description: 'Failed to archive employee.',
           variant: 'destructive',
         });
       }
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Omit<Employee,'id'|'assignedToName'>) => {
     try {
       if (editingEmployee) {
         await updateEmployee(editingEmployee.id, data);
@@ -94,6 +94,7 @@ const Employees: React.FC = () => {
         description: 'Failed to save employee.',
         variant: 'destructive',
       });
+      throw error;
     }
   };
 
@@ -106,7 +107,7 @@ const Employees: React.FC = () => {
     <MainLayout>
       <PageHeader
         title="Employees"
-        description="Manage your team members"
+        description={`Employees in ${activeWorkspace?.name || 'this workspace'}`}
         action={
           <Button className="gradient-primary text-primary-foreground" onClick={handleOpenForm}>
             + Add Employee
@@ -183,7 +184,7 @@ const Employees: React.FC = () => {
                 <TableHead className="hidden lg:table-cell">Position</TableHead>
                 <TableHead className="hidden lg:table-cell">Contact</TableHead>
                 <TableHead className="hidden md:table-cell">Join Date</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Status</TableHead><TableHead>Open workload</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -222,7 +223,7 @@ const Employees: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={employee.status} variant="employee" />
-                  </TableCell>
+                  </TableCell><TableCell>{employee.userId ? projects.filter(p=>!['completed','handed-over'].includes(p.status)&&(p.assignedTo===employee.userId||p.assignedUserIds?.includes(employee.userId))).length+tenders.filter(t=>['running','submitted','to-be-evaluated'].includes(t.status)&&(t.assignedTo===employee.userId||t.assignedUserIds?.includes(employee.userId))).length : 'Link an account'}<span className="block text-xs text-muted-foreground">Loaded projects / tenders</span></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button variant="outline" size="sm" onClick={() => handleEdit(employee)}>

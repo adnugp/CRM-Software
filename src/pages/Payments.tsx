@@ -26,11 +26,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Payment, Subscription } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
-const CURRENCY = 'AED';
-const VAT_RATE = 0.05;
+const moneyAmount = (record: {amount?: number; amountMinor?: number}) =>
+  Number.isSafeInteger(record.amountMinor) ? record.amountMinor! / 100 : (Number.isFinite(record.amount) ? record.amount! : 0);
+const displayDate = (date?: string) => date && !Number.isNaN(Date.parse(date))
+  ? new Date(`${date.slice(0, 10)}T00:00:00`).toLocaleDateString() : '-';
 
-const formatCurrency = (amount: number) => {
-  return `${CURRENCY} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number, currency: string) => {
+  return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const Plans: Record<string, { label: string; color: string }> = {
@@ -54,15 +56,27 @@ const getPlanBadge = (subscription: Subscription) => {
 
 const Payments: React.FC = () => {
   const {
-    payments,
+    payments: rawPayments,
     subscriptions,
     addPayment,
     updatePayment,
     addSubscription,
     updateSubscription,
-    loading
+    loading, errors, refresh, cursors, loadMore
   } = useData();
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
+  const currency = activeWorkspace?.currency || 'AED';
+  const payments = rawPayments.map(payment => ({...payment, amount: moneyAmount(payment)}));
+  const currencyTotals = (records: Array<{amount?: number; amountMinor?: number; currency?: string; billingCycle?: string}>) => {
+    const totals = new Map<string, number>();
+    records.forEach(record => {
+      const code = record.currency || currency;
+      const amount = moneyAmount(record) / (record.billingCycle === 'yearly' ? 12 : 1);
+      totals.set(code, (totals.get(code) || 0) + amount);
+    });
+    if (!totals.size) totals.set(currency, 0);
+    return [...totals].map(([code, amount]) => formatCurrency(amount, code)).join(' / ');
+  };
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [paymentFormOpen, setPaymentFormOpen] = useState(false);
@@ -76,9 +90,8 @@ const Payments: React.FC = () => {
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager';
-  const isEmployee = user?.role === 'user';
-  const canEdit = isAdmin || isManager || isEmployee;
-  const canView = true;
+  const canEdit = isAdmin || isManager;
+  if (!canEdit) return <MainLayout><PageHeader title="Payments & Subscriptions" description="Ask your workspace administrator or manager for access to financial records." /></MainLayout>;
 
   if (loading.payments || loading.subscriptions) {
     return (
@@ -91,15 +104,8 @@ const Payments: React.FC = () => {
     );
   }
 
-  const totalPending = payments
-    .filter(p => p.status === 'pending' || p.status === 'overdue')
-    .reduce((sum, p) => sum + p.amount, 0);
-
-  const totalVAT = totalPending * VAT_RATE;
-
-  const totalSubscriptions = subscriptions
-    .filter(s => s.status === 'active')
-    .reduce((sum, s) => sum + (s.billingCycle === 'monthly' ? s.amount : s.amount / 12), 0);
+  const totalPending = currencyTotals(payments.filter(p => p.status === 'pending' || p.status === 'overdue'));
+  const totalSubscriptions = currencyTotals(subscriptions.filter(s => s.status === 'active'));
 
   const handleMarkPaid = (payment: Payment) => {
     setSelectedPayment(payment);
@@ -163,6 +169,7 @@ const Payments: React.FC = () => {
         description: msg,
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setIsProcessing(false);
     }
@@ -204,6 +211,7 @@ const Payments: React.FC = () => {
         description: msg,
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setIsProcessing(false);
     }
@@ -213,8 +221,10 @@ const Payments: React.FC = () => {
     <MainLayout>
       <PageHeader
         title="Payments & Subscriptions"
-        description="Manage pending payments and active subscriptions"
+        description="Track workspace payment records, invoice receipts, and service subscriptions"
       />
+
+      {(errors?.payments || errors?.subscriptions) && <Alert variant="destructive" className="mb-4"><AlertDescription>{errors.payments || errors.subscriptions}</AlertDescription><Button variant="outline" onClick={() => void refresh()}>Retry loading</Button></Alert>}
 
       {operationError && (
         <Alert variant="destructive" className="mb-4">
@@ -232,12 +242,10 @@ const Payments: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {formatCurrency(totalPending)}
+                {totalPending}
               </p>
               <p className="text-sm text-muted-foreground">Pending Payments</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                +{formatCurrency(totalVAT)} VAT (5%)
-              </p>
+
             </div>
           </div>
         </div>
@@ -248,7 +256,7 @@ const Payments: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">
-                {formatCurrency(totalSubscriptions)}/mo
+                {totalSubscriptions}/mo
               </p>
               <p className="text-sm text-muted-foreground">Monthly Subscriptions</p>
             </div>
@@ -299,33 +307,34 @@ const Payments: React.FC = () => {
                   <TableHead>Description</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Due Date</TableHead>
+                  <TableHead>Due / Receipt Date</TableHead>
                   <TableHead>Status</TableHead>
                   {canEdit && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {!payments.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No payment records in this workspace.</TableCell></TableRow>}
                 {payments.map((payment) => (
                   <TableRow key={payment.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell className="font-medium text-foreground">
-                      {payment.description}
+                      {payment.description || `Invoice receipt / ${payment.invoiceId || payment.id}`}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Building className="h-4 w-4 text-muted-foreground" />
-                        {payment.company}
+                        {payment.company || '-'}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 font-semibold">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        {formatCurrency(payment.amount)}
+                        {formatCurrency(payment.amount, payment.currency || currency)}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {new Date(payment.dueDate).toLocaleDateString()}
+                        {displayDate(payment.date || payment.paidDate || payment.dueDate)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -333,7 +342,7 @@ const Payments: React.FC = () => {
                     </TableCell>
                     {canEdit && (
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        {payment.invoiceId ? <span className="text-sm text-muted-foreground">Invoice receipt</span> : <div className="flex items-center gap-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -350,7 +359,7 @@ const Payments: React.FC = () => {
                               Mark Paid
                             </Button>
                           )}
-                        </div>
+                        </div>}
                       </TableCell>
                     )}
                   </TableRow>
@@ -358,6 +367,7 @@ const Payments: React.FC = () => {
               </TableBody>
             </Table>
           </div>
+          {cursors?.payments && <Button variant="outline" onClick={() => void loadMore('payments')}>Load more payments</Button>}
         </TabsContent>
 
         <TabsContent value="subscriptions">
@@ -377,7 +387,7 @@ const Payments: React.FC = () => {
                   <TableHead>Plan</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>VAT (5%)</TableHead>
+
                   <TableHead>Billing Cycle</TableHead>
                   <TableHead>Next Billing</TableHead>
                   <TableHead>Status</TableHead>
@@ -385,6 +395,7 @@ const Payments: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {!subscriptions.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No subscriptions in this workspace.</TableCell></TableRow>}
                 {subscriptions.map((subscription) => (
                   <TableRow key={subscription.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell className="font-medium text-foreground">
@@ -399,19 +410,17 @@ const Payments: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center gap-1 font-semibold">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        {formatCurrency(subscription.amount)}
+                        {formatCurrency(moneyAmount(subscription), subscription.currency || currency)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatCurrency(subscription.amount * VAT_RATE)}
-                    </TableCell>
+
                     <TableCell className="capitalize text-muted-foreground">
                       {subscription.billingCycle}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {new Date(subscription.nextBillingDate).toLocaleDateString()}
+                        {displayDate(subscription.nextBillingDate)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -447,6 +456,7 @@ const Payments: React.FC = () => {
               </TableBody>
             </Table>
           </div>
+          {cursors?.subscriptions && <Button variant="outline" onClick={() => void loadMore('subscriptions')}>Load more subscriptions</Button>}
         </TabsContent>
       </Tabs>
 
@@ -455,7 +465,7 @@ const Payments: React.FC = () => {
         onOpenChange={setConfirmDialogOpen}
         paymentDescription={selectedPayment?.description || ''}
         paymentAmount={selectedPayment?.amount || 0}
-        currency={CURRENCY}
+        currency={selectedPayment?.currency || currency}
         onConfirm={confirmMarkPaid}
       />
 
@@ -473,7 +483,7 @@ const Payments: React.FC = () => {
               <div className="mt-3 p-3 rounded-lg bg-muted">
                 <p className="font-medium text-foreground">{subToCancel?.name}</p>
                 <p className="text-lg font-bold text-destructive">
-                  {formatCurrency(subToCancel?.amount || 0)}/{subToCancel?.billingCycle}
+                  {formatCurrency(subToCancel ? moneyAmount(subToCancel) : 0, subToCancel?.currency || currency)}/{subToCancel?.billingCycle}
                 </p>
               </div>
             </AlertDialogDescription>
@@ -515,6 +525,7 @@ const Payments: React.FC = () => {
         onOpenChange={setPaymentFormOpen}
         onSubmit={handlePaymentSubmit}
         payment={editingPayment}
+        currency={editingPayment?.currency || currency}
       />
 
       <SubscriptionForm
@@ -522,6 +533,7 @@ const Payments: React.FC = () => {
         onOpenChange={setSubscriptionFormOpen}
         onSubmit={handleSubscriptionSubmit}
         subscription={editingSubscription}
+        currency={editingSubscription?.currency || currency}
       />
     </MainLayout>
   );

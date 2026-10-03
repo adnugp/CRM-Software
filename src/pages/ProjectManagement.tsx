@@ -1,3 +1,7 @@
+import {canViewProject} from '@/lib/project-visibility';
+import {uploadDocument,downloadDocument} from '@/services/documents';
+import ProjectLifecycle from '@/components/projects/ProjectLifecycle';
+import type {ProjectTask,ProjectCost} from '@/types';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
@@ -55,8 +59,6 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import ProjectTaskForm from '@/components/forms/ProjectTaskForm';
 import ProjectCostForm from '@/components/forms/ProjectCostForm';
 import { toast } from '@/hooks/use-toast';
-import { storage } from '@/services/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
     Dialog,
     DialogContent,
@@ -79,12 +81,13 @@ import ProjectTimeline from '@/components/projects/ProjectTimeline';
 const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { projects, employees, updateProject } = useData();
-    const { user: currentUser, allUsers } = useAuth();
+    const { user: currentUser, allUsers, activeWorkspace } = useAuth();
     const [activeTab, setActiveTab] = useState('overview');
     const [taskFormOpen, setTaskFormOpen] = useState(false);
+    const [editingTask,setEditingTask]=useState<ProjectTask|null>(null);
     const [costFormOpen, setCostFormOpen] = useState(false);
     const [showAssigneeCount, setShowAssigneeCount] = useState(false);
-    const [editingCost, setEditingCost] = useState<any>(null);
+    const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
     const [memberFormOpen, setMemberFormOpen] = useState(false);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
@@ -100,34 +103,10 @@ const ProjectManagement: React.FC = () => {
     const totalProjectsForAssignee = useMemo(() => {
         if (!project) return 0;
         return projects.filter(p => p.assignedTo === project.assignedTo).length;
-    }, [projects, project?.assignedTo]);
+    }, [projects, project]);
 
-    // Security check for clients
-    const canAccess = useMemo(() => {
-        if (!project) return false;
-        if (!isClient) return true;
-
-        // Match by organizationId if available, fallback to company name
-        const userOrgId = currentUser?.organizationId;
-        const projectOrgId = project.organizationId;
-
-        if (userOrgId && projectOrgId) {
-            return userOrgId === projectOrgId;
-        }
-
-        const userCompany = currentUser?.company?.toLowerCase().trim() || "";
-        const projectCompany = project.company?.toLowerCase()?.trim() || "";
-
-        if (!userCompany || !projectCompany) return false;
-
-        return projectCompany.includes(userCompany) || userCompany.includes(projectCompany);
-    }, [project, isClient, currentUser]);
-
-    if (!project || !canAccess) {
-        return <Navigate to="/projects" replace />;
-    }
-
-    const handleAddTask = async (data: any) => {
+    const canAccess = project ? canViewProject(currentUser, project as import('@/types').Project) : false;
+    const handleAddTask = async (data: Omit<ProjectTask,'id'|'projectId'|'assignedToName'>) => {
         const dueDate = new Date(data.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -152,12 +131,13 @@ const ProjectManagement: React.FC = () => {
         const assignee = employees.find(e => e.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
         const newTask = {
             ...data,
-            id: `task-${Date.now()}`,
+            id: editingTask?.id || crypto.randomUUID(),
             projectId: project.id,
             assignedToName: assignee?.name || 'Unknown'
         };
 
-        const updatedTasks = [...(project.tasks || []), newTask];
+        const updatedTasks = editingTask ? (project?.tasks||[]).map(task=>task.id===editingTask.id?newTask:task) : [...(project?.tasks || []), newTask];
+        setEditingTask(null);
         await updateProject(project.id, { tasks: updatedTasks });
         toast({
             title: "Task Added",
@@ -165,9 +145,9 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleAddCost = async (data: any) => {
+    const handleAddCost = async (data: Omit<ProjectCost,'id'|'projectId'>) => {
         if (editingCost) {
-            const updatedCosts = (project.costs || []).map(c =>
+            const updatedCosts = (project?.costs || []).map(c =>
                 c.id === editingCost.id ? { ...c, ...data } : c
             );
             await updateProject(project.id, { costs: updatedCosts });
@@ -205,7 +185,7 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleEditCost = (cost: any) => {
+    const handleEditCost = (cost: ProjectCost) => {
         setEditingCost(cost);
         setCostFormOpen(true);
     };
@@ -219,18 +199,11 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleEditTask = (task: any) => {
-        // Open task form pre-filled with task data
-        // For now use a callback approach
-        toast({
-            title: "Edit Task",
-            description: `Editing "${task.name}"`
-        });
-    };
+    const handleEditTask = (task:ProjectTask) => {setEditingTask(task);setTaskFormOpen(true);};
 
-    const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
+    const handleUpdateTaskStatus = async (taskId: string, newStatus: ProjectTask['status']) => {
         const updatedTasks = (project.tasks || []).map(t =>
-            t.id === taskId ? { ...t, status: newStatus as any } : t
+            t.id === taskId ? { ...t, status: newStatus } : t
         );
         await updateProject(project.id, { tasks: updatedTasks });
         toast({
@@ -264,8 +237,8 @@ const ProjectManagement: React.FC = () => {
         const blockedExtensions = ['.exe', '.bat', '.sh'];
         const ext = '.' + file.name.split('.').pop()?.toLowerCase();
 
-        if (file.size > 50 * 1024 * 1024) {
-            toast({ title: 'File too large', description: 'Please select a file smaller than 50MB.', variant: 'destructive' });
+        if (file.size > 20 * 1024 * 1024) {
+            toast({ title: 'File too large', description: 'Please select a file 20 MB or smaller.', variant: 'destructive' });
             setPendingTaskId(null);
             return;
         }
@@ -275,39 +248,18 @@ const ProjectManagement: React.FC = () => {
             return;
         }
         if (!allowedExtensions.includes(ext)) {
-            toast({ title: 'File type not supported', description: 'Allowed: PDF, DOCX, XLSX, JPG, PNG, MP4.', variant: 'destructive' });
+            toast({ title: 'File type not supported', description: 'Allowed: PDF, DOCX, XLSX, JPG, PNG, TXT, CSV.', variant: 'destructive' });
             setPendingTaskId(null);
             return;
         }
 
         setUploadingTaskId(pendingTaskId);
-        const uniqueFileName = `${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `task-attachments/${uniqueFileName}`);
-
         try {
-            const uploadTask = uploadBytesResumable(storageRef, file);
-            await new Promise<void>((resolve, reject) => {
-                uploadTask.on(
-                    'state_changed',
-                    () => {},
-                    (error) => { reject(error); },
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        const fileAttachment = {
-                            name: file.name,
-                            size: file.size,
-                            type: file.type,
-                            data: downloadURL,
-                        };
-                        const updatedTasks = (project?.tasks || []).map(t =>
-                            t.id === pendingTaskId ? { ...t, fileAttachment } : t
-                        );
-                        await updateProject(project.id, { tasks: updatedTasks });
-                        toast({ title: 'File attached', description: `"${file.name}" attached to task.` });
-                        resolve();
-                    }
-                );
-            });
+            if(!project)return;
+            const fileAttachment=await uploadDocument(file,undefined,{recordCollection:'projects',recordId:project.id});
+            const updatedTasks=(project.tasks||[]).map(t=>t.id===pendingTaskId?{...t,fileAttachment}:t);
+            await updateProject(project.id,{tasks:updatedTasks});
+            toast({title:'File attached',description:'The attachment is awaiting a security scan.'});
         } catch (error) {
             toast({ title: 'Upload failed', description: 'Could not upload the file.', variant: 'destructive' });
         } finally {
@@ -325,63 +277,40 @@ const ProjectManagement: React.FC = () => {
         toast({ title: 'File removed', description: 'Attachment has been removed from the task.' });
     };
 
-    const handleTaskAttachmentDownload = (task: any) => {
-        const fileData = task.fileAttachment;
-        if (fileData?.data) {
-            try {
-                const link = document.createElement('a');
-                link.href = fileData.data;
-                link.download = fileData.name || 'attachment';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } catch {
-                window.open(fileData.data, '_blank');
-            }
-        }
+    const handleTaskAttachmentDownload = async (task:ProjectTask) => {
+        if(!task.fileAttachment)return;
+        try{await downloadDocument(task.fileAttachment);}catch(e){toast({title:'Document unavailable',description:e instanceof Error?e.message:'Unable to download',variant:'destructive'});}
     };
-
-    const handleAddMember = (employeeId: string) => {
+    const handleAddMember = async (employeeId: string) => {
+        if(!project)return;
+        await updateProject(project.id,{assignedUserIds:[...(project.assignedUserIds||[]),employeeId]});
         if (!teamMembers.includes(employeeId)) {
             setTeamMembers(prev => [...prev, employeeId]);
         }
     };
 
-    const handleRemoveMember = (employeeId: string) => {
+    const handleRemoveMember = async (employeeId: string) => {
+        if(!project)return;
+        await updateProject(project.id,{assignedUserIds:(project.assignedUserIds||[]).filter(id=>id!==employeeId)});
         setTeamMembers(prev => prev.filter(id => id !== employeeId));
     };
 
-    // GPT-0032: Profile sync - refresh task assignee names when profile data changes
-    useEffect(() => {
-        const syncAssigneeNames = async () => {
-            const updatedTasks = (project?.tasks || []).map(task => {
-                const assignee = employees.find(e => e.id === task.assignedTo) || allUsers.find(u => u.id === task.assignedTo);
-                if (assignee && assignee.name !== task.assignedToName) {
-                    return { ...task, assignedToName: assignee.name };
-                }
-                return task;
-            });
-            const hasChanges = updatedTasks.some((t, i) => t.assignedToName !== (project?.tasks || [])[i]?.assignedToName);
-            if (hasChanges && project) {
-                await updateProject(project.id, { tasks: updatedTasks });
-            }
-        };
-        syncAssigneeNames();
-    }, [employees, allUsers, project?.id]);
-
-    const tasks = project.tasks || [];
-    const costs = project.costs || [];
-    const budget = project.budget || 0;
+    useEffect(()=>{setTeamMembers(project?.assignedUserIds||[]);},[project?.assignedUserIds]);
+    const tasks = project?.tasks || [];
+    const costs = useMemo(()=>project?.costs||[],[project?.costs]);
+    const budget = project?.budget || 0;
     const totalCosts = costs.reduce((sum, c) => {
         const costType = c.type || 'debit';
         return costType === 'credit' ? sum - c.amount : sum + c.amount;
     }, 0);
     const profit = budget - totalCosts;
     const profitMargin = budget > 0 ? (profit / budget) * 100 : 0;
+    const reportingCurrency = project?.currency || activeWorkspace?.currency || 'UNSPECIFIED';
+    const formatMoney = (value: number) => `${reportingCurrency} ${Number.isFinite(value) ? value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'Unavailable'}`;
 
     // Calculate burn rate based on actual project duration
-    const projectStartDate = project.createdAt ? new Date(project.createdAt) : new Date();
-    const projectEndDate = project.deadline ? new Date(project.deadline) : new Date();
+    const projectStartDate = project?.createdAt ? new Date(project.createdAt) : new Date();
+    const projectEndDate = project?.deadline ? new Date(project.deadline) : new Date();
     const elapsedDays = Math.max(1, Math.ceil((Date.now() - projectStartDate.getTime()) / (1000 * 60 * 60 * 24)));
     const totalProjectDays = Math.max(1, Math.ceil((projectEndDate.getTime() - projectStartDate.getTime()) / (1000 * 60 * 60 * 24)));
     const burnRate = totalCosts / elapsedDays;
@@ -418,10 +347,10 @@ const ProjectManagement: React.FC = () => {
         // Header
         doc.setFontSize(20);
         doc.setTextColor(0, 122, 255);
-        doc.text('CEO Executive Financial Briefing', pageWidth / 2, 20, { align: 'center' });
+        doc.text('Project Financial Summary', pageWidth / 2, 20, { align: 'center' });
         doc.setFontSize(12);
         doc.setTextColor(100);
-        doc.text(`Strategic Financial Audit for ${project.name}`, pageWidth / 2, 28, { align: 'center' });
+        doc.text(`Recorded budget and costs for ${project.name}`, pageWidth / 2, 28, { align: 'center' });
         doc.setFontSize(10);
         doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageWidth / 2, 35, { align: 'center' });
 
@@ -447,19 +376,19 @@ const ProjectManagement: React.FC = () => {
 
         doc.setFontSize(11);
         doc.setTextColor(60);
-        const formatCurrency = (val: number) => `$${val.toLocaleString()}`;
+        const formatCurrency = formatMoney;
 
-        doc.text(`Gross Revenue:  ${formatCurrency(budget)}`, 14, y);
+        doc.text(`Project Budget:  ${formatCurrency(budget)}`, 14, y);
         y += 7;
         doc.text(`Operating Costs:  ${formatCurrency(totalCosts)}`, 14, y);
         y += 7;
         doc.setFontSize(12);
         doc.setTextColor(profit >= 0 ? '0,150,0' : '200,0,0');
-        doc.text(`Net Earnings:  ${formatCurrency(profit)}`, 14, y);
+        doc.text(`Budget Remaining:  ${formatCurrency(profit)}`, 14, y);
         y += 7;
         doc.setFontSize(11);
         doc.setTextColor(60);
-        doc.text(`Yield Margin:  ${profitMargin.toFixed(1)}%`, 14, y);
+        doc.text(`Budget Remaining:  ${budget > 0 ? profitMargin.toFixed(1)+'%' : 'No budget baseline'}`, 14, y);
         y += 10;
 
         // Performance Metrics
@@ -469,9 +398,9 @@ const ProjectManagement: React.FC = () => {
         y += 10;
         doc.setFontSize(11);
         doc.setTextColor(60);
-        doc.text(`Capital Efficiency Ratio:  ${(budget / (totalCosts || 1)).toFixed(2)}`, 14, y);
+        doc.text(`Budget / Recorded Cost:  ${totalCosts > 0 ? (budget / totalCosts).toFixed(2) : 'No cost baseline'}`, 14, y);
         y += 7;
-        doc.text(`Daily Burn Rate:  $${burnRate.toFixed(0)}/day`, 14, y);
+        doc.text(`Average Recorded Cost:  ${formatMoney(burnRate)}/day`, 14, y);
         y += 7;
         doc.text(`Elapsed Days:  ${elapsedDays}`, 14, y);
         y += 7;
@@ -497,11 +426,11 @@ const ProjectManagement: React.FC = () => {
         // Risk Commentary
         doc.setFontSize(14);
         doc.setTextColor(0, 122, 255);
-        doc.text('Executive Risk Commentary', 14, y);
+        doc.text('Scope and limitations', 14, y);
         y += 10;
         doc.setFontSize(10);
         doc.setTextColor(80);
-        const riskText = 'The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately 1.8%. We anticipate no additional funding requirements from high-level capital reserves. Recommended action: Proceed with secondary phase scaling as project remains self-fundable.';
+        const riskText = `This summary uses the project budget and recorded costs in ${reportingCurrency}. Budget remaining is not revenue or profit. Unrecorded costs, cash receipts, overhead and future funding needs are not assessed. No financial forecast or certified audit has been performed.`;
         const splitRisk = doc.splitTextToSize(riskText, pageWidth - 28);
         doc.text(splitRisk, 14, y);
         y += splitRisk.length * 5 + 10;
@@ -509,7 +438,7 @@ const ProjectManagement: React.FC = () => {
         // Footer
         doc.setFontSize(9);
         doc.setTextColor(150);
-        doc.text('System Auditor - Certified Financial Appraisal', 14, y);
+        doc.text('Generated from recorded CRM data', 14, y);
         doc.text('Grow Plus Technologies | SadeemGPT CRM', pageWidth - 14, y, { align: 'right' });
 
         // Save
@@ -519,6 +448,8 @@ const ProjectManagement: React.FC = () => {
             description: 'Executive Financial Briefing has been downloaded.',
         });
     };
+
+    if(!project || !canAccess) return <Navigate to="/projects" replace/>;
 
     return (
         <MainLayout>
@@ -563,18 +494,18 @@ const ProjectManagement: React.FC = () => {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <Card className="glass-card border-none shadow-sm">
+                {isManagerOrAdmin && <Card className="glass-card border-none shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                         <CardTitle className="text-sm font-medium text-muted-foreground">Total Budget</CardTitle>
                         <DollarSign className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${budget.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">{formatMoney(budget)}</div>
                         <p className="text-xs text-muted-foreground mt-1">Allocated project funds</p>
                     </CardContent>
-                </Card>
+                </Card>}
 
-                {!isEmployee && (
+                {isManagerOrAdmin && (
                     <>
                         <Card className="glass-card border-none shadow-sm">
                             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -582,23 +513,23 @@ const ProjectManagement: React.FC = () => {
                                 <TrendingUp className="h-4 w-4 text-warning" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">${totalCosts.toLocaleString()}</div>
+                                <div className="text-2xl font-bold">{formatMoney(totalCosts)}</div>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    {((totalCosts / budget) * 100).toFixed(1)}% of budget used
+                                    {budget > 0 ? ((totalCosts / budget) * 100).toFixed(1)+'% of budget used' : 'No budget baseline'}
                                 </p>
                             </CardContent>
                         </Card>
                         <Card className="glass-card border-none shadow-sm">
                             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">Project Profit</CardTitle>
+                                <CardTitle className="text-sm font-medium text-muted-foreground">Budget Remaining</CardTitle>
                                 <Target className="h-4 w-4 text-success" />
                             </CardHeader>
                             <CardContent>
                                 <div className={`text-2xl font-bold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                    ${profit.toLocaleString()}
+                                    {formatMoney(profit)}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    {profitMargin.toFixed(1)}% current margin
+                                    {budget > 0 ? profitMargin.toFixed(1)+'% of recorded budget' : 'No budget baseline'}
                                 </p>
                             </CardContent>
                         </Card>
@@ -617,6 +548,7 @@ const ProjectManagement: React.FC = () => {
                 </Card>
             </div>
 
+            <ProjectLifecycle project={project}/>
             <Tabs defaultValue="overview" className="space-y-4" onValueChange={setActiveTab}>
                 <TabsList className="bg-muted/50 p-1">
                     <TabsTrigger value="overview" className="data-[state=active]:bg-background">Overview</TabsTrigger>
@@ -720,7 +652,7 @@ const ProjectManagement: React.FC = () => {
                                                             <p className="text-xs text-muted-foreground">{new Date(cost.date).toLocaleDateString()}</p>
                                                         </div>
                                                         <p className={`font-semibold text-sm ${isCredit ? 'text-success' : ''}`}>
-                                                            {isCredit ? '+' : '-'}${cost.amount.toLocaleString()}
+                                                            {isCredit ? '+' : '-'}{formatMoney(cost.amount)}
                                                         </p>
                                                     </div>
                                                 );
@@ -802,35 +734,7 @@ const ProjectManagement: React.FC = () => {
                                             size="sm"
                                             className="opacity-0 group-hover:opacity-100 transition-opacity"
                                             onClick={() => {
-                                                const fileData = project.documentFile;
-                                                if (fileData?.data) {
-                                                    try {
-                                                        const link = document.createElement('a');
-                                                        link.href = fileData.data;
-                                                        link.download = fileData.name || 'document';
-                                                        document.body.appendChild(link);
-                                                        link.click();
-                                                        document.body.removeChild(link);
-                                                        toast({
-                                                            title: 'Download started',
-                                                            description: `"${fileData.name}" is being downloaded.`,
-                                                        });
-                                                    } catch {
-                                                        toast({
-                                                            title: 'Download failed',
-                                                            description: 'Could not download the file. Try again.',
-                                                            variant: 'destructive',
-                                                        });
-                                                    }
-                                                } else if (project.document) {
-                                                    window.open(project.document, '_blank');
-                                                } else {
-                                                    toast({
-                                                        title: 'No file',
-                                                        description: 'No document is attached to this project.',
-                                                        variant: 'destructive',
-                                                    });
-                                                }
+                                                if(project.documentFile)downloadDocument(project.documentFile).catch(e=>toast({title:'Document unavailable',description:e.message,variant:'destructive'}));
                                             }}
                                         >
                                             Download
@@ -1008,7 +912,7 @@ const ProjectManagement: React.FC = () => {
 
                             <Card className="shadow-sm border-none bg-card/50">
                                 <CardHeader>
-                                    <CardTitle>Profitability Analysis</CardTitle>
+                                    <CardTitle>Recorded Budget Analysis</CardTitle>
                                     <CardDescription>Budget vs Actual spending</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
@@ -1022,12 +926,12 @@ const ProjectManagement: React.FC = () => {
 
                                     <div className="grid grid-cols-2 gap-8">
                                         <div className="space-y-1">
-                                            <p className="text-sm text-muted-foreground">Expected Profit</p>
-                                            <p className="text-2xl font-bold text-success">${profit.toLocaleString()}</p>
+                                            <p className="text-sm text-muted-foreground">Budget Remaining</p>
+                                            <p className="text-2xl font-bold text-success">{formatMoney(profit)}</p>
                                         </div>
                                         <div className="space-y-1">
                                             <p className="text-sm text-muted-foreground">Burn Rate</p>
-                                            <p className="text-2xl font-bold text-warning">${burnRate.toFixed(0)} /day</p>
+                                            <p className="text-2xl font-bold text-warning">{formatMoney(burnRate)} /day</p>
                                             <p className="text-[10px] text-muted-foreground">{totalProjectDays} day project duration</p>
                                         </div>
                                     </div>
@@ -1035,9 +939,9 @@ const ProjectManagement: React.FC = () => {
                                     <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 flex items-start gap-3">
                                         <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
                                         <div className="text-sm">
-                                            <p className="font-semibold text-primary">Profitability Alert</p>
+                                            <p className="font-semibold text-primary">Report scope</p>
                                             <p className="text-muted-foreground mt-0.5">
-                                                The project is currently tracking at a {profitMargin.toFixed(1)}% margin. Financial leakage is minimal.
+                                                Recorded costs are {formatMoney(totalCosts)} against a budget of {formatMoney(budget)}. Revenue, overhead and future costs are not assessed.
                                             </p>
                                         </div>
                                     </div>
@@ -1083,7 +987,7 @@ const ProjectManagement: React.FC = () => {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className={`text-right font-semibold ${isCredit ? 'text-success' : 'text-destructive'}`}>
-                                                        {isCredit ? '+' : '-'}${cost.amount.toLocaleString()}
+                                                        {isCredit ? '+' : '-'}{formatMoney(cost.amount)}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1">
@@ -1119,14 +1023,14 @@ const ProjectManagement: React.FC = () => {
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <Activity className="h-3 w-3 text-primary" />
-                                        Project Health
+                                        Task Completion
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-primary">
-                                        {profitMargin > 15 ? 'Excellent' : 'Stable'}
+                                        {progressPercentage.toFixed(0)}%
                                     </div>
-                                    <Progress value={profitMargin > 15 ? 95 : 75} className="h-1.5 mt-3 bg-primary/20" />
+                                    <Progress value={progressPercentage} className="h-1.5 mt-3 bg-primary/20" />
                                 </CardContent>
                             </Card>
 
@@ -1134,12 +1038,12 @@ const ProjectManagement: React.FC = () => {
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <Coins className="h-3 w-3 text-success" />
-                                        Estimated ROI
+                                        Budget Remaining
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{(profitMargin * 1.2).toFixed(1)}%</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1 text-success font-medium">↑ 2.4% vs forecast</p>
+                                    <div className="text-2xl font-bold">{budget > 0 ? profitMargin.toFixed(1)+'%' : 'No budget baseline'}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1 font-medium">Budget less recorded costs</p>
                                 </CardContent>
                             </Card>
 
@@ -1147,12 +1051,12 @@ const ProjectManagement: React.FC = () => {
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <TrendingUp className="h-3 w-3 text-info" />
-                                        Efficiency
+                                        Budget / Recorded Cost
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">Cost-Benefit Index</p>
+                                    <div className="text-2xl font-bold">{totalCosts > 0 ? (budget / totalCosts).toFixed(2) : 'No cost baseline'}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">Recorded amounts only</p>
                                 </CardContent>
                             </Card>
 
@@ -1160,12 +1064,12 @@ const ProjectManagement: React.FC = () => {
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <ShieldCheck className="h-3 w-3 text-orange-500" />
-                                        Financial Risk
+                                        Budget Variance
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{totalCosts > budget * 0.8 ? 'Moderate' : 'Low'}</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">Zero anomalies</p>
+                                    <div className="text-2xl font-bold">{formatMoney(profit)}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">Budget less recorded costs; no risk assessment</p>
                                 </CardContent>
                             </Card>
                         </div>
@@ -1176,23 +1080,14 @@ const ProjectManagement: React.FC = () => {
                                 <div>
                                     <CardTitle className="flex items-center gap-3 text-2xl font-extrabold tracking-tight">
                                         <FilePieChart className="h-7 w-7 text-primary" />
-                                        CEO Executive Financial Briefing
+                                        Project Financial Summary
                                     </CardTitle>
-                                    <CardDescription className="text-base">Strategic financial audit for {project.name}</CardDescription>
+                                    <CardDescription className="text-base">Recorded budget and costs for {project.name}</CardDescription>
                                 </div>
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" className="hidden sm:flex" onClick={generateExecutiveReportPDF}>
                                         <FileText className="h-4 w-4 mr-2" />
-                                        Preview PDF
-                                    </Button>
-                                    <Button size="sm" className="gradient-primary px-6 font-bold shadow-lg shadow-primary/20" onClick={() => {
-                                        toast({
-                                            title: "Report Submitted",
-                                            description: "Executive report has been submitted for review."
-                                        });
-                                    }}>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Submit Report
+                                        Download PDF
                                     </Button>
                                 </div>
                             </CardHeader>
@@ -1200,28 +1095,28 @@ const ProjectManagement: React.FC = () => {
                                 {/* Summary Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Gross Revenue</p>
-                                        <p className="text-3xl font-black text-foreground">${budget.toLocaleString()}</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Project Budget</p>
+                                        <p className="text-3xl font-black text-foreground">{formatMoney(budget)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-primary" style={{ width: '100%' }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
                                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Operating Costs</p>
-                                        <p className="text-3xl font-black text-orange-500">${totalCosts.toLocaleString()}</p>
+                                        <p className="text-3xl font-black text-orange-500">{formatMoney(totalCosts)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-orange-500" style={{ width: `${budget > 0 ? (totalCosts / budget) * 100 : 0}%` }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Net Earnings</p>
-                                        <p className="text-3xl font-black text-success">${profit.toLocaleString()}</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Budget Remaining</p>
+                                        <p className="text-3xl font-black text-success">{formatMoney(profit)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                                            <div className="h-full bg-success" style={{ width: `${Math.max(0, Math.min(100, (profit / budget) * 100))}%` }} />
+                                            <div className="h-full bg-success" style={{ width: `${budget > 0 ? Math.max(0, Math.min(100, (profit / budget) * 100)) : 0}%` }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Yield Margin</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Budget Remaining (%)</p>
                                         <p className="text-3xl font-black text-primary">{profitMargin.toFixed(1)}%</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, profitMargin))}%` }} />
@@ -1244,8 +1139,7 @@ const ProjectManagement: React.FC = () => {
                                                 <div className="space-y-1">
                                                     <p className="font-bold text-foreground">Capital Efficiency</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        With an efficiency ratio of <span className="text-foreground font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</span>, the project is delivering
-                                                        maximum value per dollar spent. Resource optimization has resulted in a <span className="text-success font-bold">12% reduction</span> in projected overhead.
+                                                        Budget divided by recorded costs: <span className="text-foreground font-bold">{totalCosts > 0 ? (budget / totalCosts).toFixed(2) : "No cost baseline"}</span>. This ratio does not measure realized revenue or overhead savings.
                                                     </p>
                                                 </div>
                                             </div>
@@ -1256,8 +1150,7 @@ const ProjectManagement: React.FC = () => {
                                                 <div className="space-y-1">
                                                     <p className="font-bold text-foreground">Revenue Trajectory</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        The project is tracking <span className="text-primary font-bold">8% ahead of the financial roadmap</span>. Current burn rate of
-                                                        <span className="text-foreground font-bold">${burnRate.toFixed(0)}/day</span> is sustainable throughout the project lifecycle.
+                                                        Average recorded cost is <span className="text-foreground font-bold">{formatMoney(burnRate)}/day</span> over the elapsed project duration. Future spending and funding requirements have not been forecast.
                                                     </p>
                                                 </div>
                                             </div>
@@ -1267,19 +1160,17 @@ const ProjectManagement: React.FC = () => {
                                     <div className="space-y-6">
                                         <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                                             <ShieldCheck className="h-4 w-4" />
-                                            Executive Risk Commentary
+                                            Scope and limitations
                                         </h3>
                                         <div className="p-6 rounded-2xl bg-card border border-border shadow-inner space-y-4">
                                             <p className="text-sm text-muted-foreground leading-relaxed italic">
-                                                "The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately
-                                                <span className="text-foreground font-bold font-mono">1.8%</span>. We anticipate no additional funding requirements from high-level capital reserves.
-                                                Recommended action: Proceed with secondary phase scaling as project remains self-fundable."
+                                                This summary uses the project budget and recorded costs in {reportingCurrency}. Budget remaining is not revenue or profit. Unrecorded costs, cash receipts, overhead and future funding needs are not assessed. No certified financial audit has been performed.
                                             </p>
                                             <div className="pt-4 border-t flex items-center gap-3">
                                                 <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-white">SA</div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-foreground">System Auditor</p>
-                                                    <p className="text-[10px] text-muted-foreground">Certified Financial Appraisal</p>
+                                                    <p className="text-xs font-bold text-foreground">Generated report</p>
+                                                    <p className="text-[10px] text-muted-foreground">Recorded CRM data</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1311,7 +1202,7 @@ const ProjectManagement: React.FC = () => {
                                     project.assignedTo === e.id ||
                                     teamMembers.includes(e.id)
                                 ), ...teamMembers.map(id => employees.find(e => e.id === id)).filter(Boolean)])]
-                                    .map((employee: any) => (
+                                    .map((employee) => (
                                         <div key={employee.id} className="p-4 rounded-xl border border-muted/20 bg-muted/10 flex items-center gap-4">
                                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                                                 {employee.name.charAt(0)}
@@ -1347,9 +1238,9 @@ const ProjectManagement: React.FC = () => {
                 </TabsContent>
             </Tabs>
 
-            <ProjectTaskForm
+            <ProjectTaskForm task={editingTask}
                 open={taskFormOpen}
-                onOpenChange={setTaskFormOpen}
+                onOpenChange={open=>{setTaskFormOpen(open);if(!open)setEditingTask(null);}}
                 onSubmit={handleAddTask}
             />
 
@@ -1420,7 +1311,7 @@ const ProjectManagement: React.FC = () => {
                 type="file"
                 className="hidden"
                 onChange={handleTaskAttachmentUpload}
-                accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.mp4"
+                accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.txt,.csv"
             />
         </MainLayout>
     );

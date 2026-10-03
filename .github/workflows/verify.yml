@@ -1,0 +1,48 @@
+name: Verify CRM
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - run: npm --prefix functions ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm --prefix functions run lint
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm --prefix functions audit --omit=dev --audit-level=high
+      - run: npm --prefix functions run build
+      - run: npm --prefix functions test
+        env:
+          NODE_ENV: test
+      - run: npm run test:rules
+        env:
+          GCLOUD_PROJECT: demo-crm-test
+          GOOGLE_CLOUD_PROJECT: demo-crm-test
+          NODE_ENV: test
+      - run: npm run test:integration
+        env:
+          GCLOUD_PROJECT: demo-crm-test
+          GOOGLE_CLOUD_PROJECT: demo-crm-test
+          NODE_ENV: test
+      - run: npm run test:onboarding
+        env:
+          GCLOUD_PROJECT: demo-crm-test
+          GOOGLE_CLOUD_PROJECT: demo-crm-test
+          AI_PROVIDER: ollama
+          NODE_ENV: test

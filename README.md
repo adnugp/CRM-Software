@@ -1,88 +1,16 @@
-IT GROW PLUS TECHNOLOGIES – CRM System
-Project Overview
+# Workspace CRM
 
-IT GROW PLUS TECHNOLOGIES CRM is an internal Customer Relationship Management system designed to manage projects, tenders, assignments, and related documents efficiently.
-The system is built with a modern frontend stack to ensure scalability, performance, and a clean user experience.
+React/TypeScript CRM with Firebase authentication, workspace memberships, server-authorized mutations and quarantined file storage. Records live under workspaces/{workspaceId}. Roles are admin, manager, user and client; personal profiles do not grant authority.
 
-How to Edit This Project
+Use Node 24 and Java 21. Run `npm ci` and `npm --prefix functions ci`, then `npm run dev:local` to run the frontend and Auth/Firestore/Storage/Functions emulators together. Open http://localhost:8080 and create a local account/workspace. Emulator snapshots are saved under `.ops-private` every minute, with a Windows copy fallback and a pointer to the last complete snapshot. Local accounts are separate from production accounts.
 
-You can work on this project using any of the following methods.
+For an already-running frontend: copy `.env.example` to `.env.local`, start `npm run dev:backend` in a second terminal, and reload the app. Frontend-only `npm run dev` does not start the workspace backend. For hosted use, configure a real project and region with `VITE_USE_EMULATORS=false`, and deploy functions/rules/indexes explicitly after release approval.
 
-Use Your Preferred IDE (Local Development)
+Verify with npm run lint, npm run typecheck, npm test, npm run build, functions build/tests and npm run test:rules. Java 21 is required for emulator tests.
 
-To work locally on your system, follow these steps:
+Read [operations and release gates](docs/operations.md) and [migration, backup and restore](docs/migration.md). Credentials, manual billing, scanner/OCR/model services, mail, monitoring and a staging restore drill require operator setup and evidence. A build does not prove those integrations.
 
-# Step 1: Clone the repository
-git clone <YOUR_GIT_URL>
+Historical WebSocket chatbot documentation and root seed/fix/test launchers describe the previous architecture and are not production setup instructions.
 
-# Step 2: Navigate to the project directory
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install dependencies
-npm install
-
-# Step 4: Start the development server
-npm run dev
-
-
-Requirements
-
-Node.js
-
-npm (recommended via nvm)
-
-Edit Files Directly in GitHub
-
-Open your repository on GitHub
-
-Navigate to the file you want to edit
-
-Click the Edit (✏️) icon
-
-Make changes and commit them directly to the repository
-
-Use GitHub Codespaces
-
-Go to your repository home page
-
-Click the Code button
-
-Open the Codespaces tab
-
-Click New codespace
-
-Edit, commit, and push changes from the browser-based environment
-
-Technologies Used
-
-This CRM system is built using the following technologies:
-
-Vite
-
-TypeScript
-
-React
-
-shadcn/ui
-
-Tailwind CSS
-
-Project Purpose
-
-Internal CRM usage for IT GROW PLUS TECHNOLOGIES
-
-Manage projects and tenders
-
-Assign tasks to team members
-
-Track status, deadlines, and documents
-
-Scalable structure for future backend and role-based access integration
-
-Notes
-
-This repository is intended for internal/private use
-
-Backend integration and role-based access can be added in later phases
-
-UI and components follow a clean, reusable architecture
+## Demo data and assistant
+`node scripts/seed-local-demo.mjs <local-admin-email> <workspace-id>` inserts synthetic records through the authorized local API and skips existing demo IDs. It never connects to production. The assistant uses clearly labelled CRM quick answers in the emulator when no AI_MODEL is configured; hosted/Ollama model chat remains available when configured. Try a workspace overview, unpaid invoices, upcoming deadlines, or a draft checklist for a named tender. Task proposals require exact project/employee names and explicit confirmation. Document content requires scanning and indexing; seeded files remain quarantined.

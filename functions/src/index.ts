@@ -1,32 +1,31 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-import { setGlobalOptions } from "firebase-functions";
-import { onRequest } from "firebase-functions/https";
-import * as logger from "firebase-functions/logger";
-
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
-
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+import { setGlobalOptions } from "firebase-functions/v2";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { authorizeContext, listRecords, mutateRecord } from "./domain";
+setGlobalOptions({ maxInstances: 10, region: "us-central1" });
+export * from "./workspaces";
+export const crmList = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError("unauthenticated", "Sign in required");
+  const ctx = await authorizeContext(req.auth.uid, req.data.workspaceId);
+  return listRecords(ctx, req.data.collection, req.data);
+});
+export const crmMutate = onCall(async (req) => {
+  if (!req.auth) throw new HttpsError("unauthenticated", "Sign in required");
+  const ctx = await authorizeContext(req.auth.uid, req.data.workspaceId);
+  return mutateRecord(ctx, req.data);
+});
+export { aiChat, aiConfirm, aiStatus, aiHistory, aiSuggestions } from "./ai";
+export { recordPayment } from "./billing";
+export { scheduledAlerts } from "./notifications";
+export { aiIndexDocument } from "./ai";
+export { fileDownload, documentUploadStart } from "./documents";
+export { documentScan } from "./ai";
+export {
+  workspaceExport,
+  workspaceDelete,
+  purgeDeletedWorkspaces,
+} from "./lifecycle";
+export { workspaceExportStatus, processWorkspaceExports } from "./lifecycle";
+export { deriveRecordStatuses } from "./notifications";
+export { retainAuditHistory } from "./lifecycle";
+export { cleanupAiRetention } from "./ai";
+export {purgeDeletedDocuments} from "./documents";

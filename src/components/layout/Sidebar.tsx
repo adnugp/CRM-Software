@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
+  Building2,
   LayoutDashboard,
   FolderKanban,
   FileText,
@@ -25,7 +26,7 @@ import { useDragScroll } from '@/hooks/use-drag-scroll';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, workspaces, activeWorkspace, selectWorkspace } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const scrollRef = useDragScroll();
 
@@ -43,6 +44,8 @@ const Sidebar: React.FC = () => {
     { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['admin', 'user', 'manager'] },
     { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user', 'manager'] },
     { path: '/employees', icon: Users, label: 'Employees', roles: ['admin', 'manager'] },
+    { path: '/operations', icon: ClipboardList, label: 'Business operations', roles: ['admin', 'manager', 'user'] },
+    { path: '/workspace', icon: Building2, label: 'Workspace administration', roles: ['admin'] },
     { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'manager'] },
   ];
 
@@ -53,14 +56,15 @@ const Sidebar: React.FC = () => {
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
+      <div className="flex h-20 items-center gap-3 px-6 border-b border-sidebar-border">
         <img src={gpLogo} alt="SadeemGPT Logo" className="h-10" />
-        <span className="text-xl font-bold text-sidebar-foreground">SadeemGPT</span>
+        <div><span className="text-xl font-semibold tracking-tight text-sidebar-foreground">SadeemGPT</span><p className="text-xs text-sidebar-foreground/70 mt-1">Your operations workspace</p></div>
       </div>
 
+      <div className="px-4 pt-4"><label className="text-xs text-sidebar-foreground" htmlFor="workspace-switch">Workspace</label><select id="workspace-switch" className="w-full mt-1 p-2 rounded bg-sidebar-accent text-sidebar-foreground" value={activeWorkspace?.id || ''} onChange={e=>selectWorkspace(e.target.value)}>{workspaces.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select><Link className="text-xs text-sidebar-foreground underline" to="/workspaces">Manage workspaces</Link></div>
       {/* Navigation */}
       <nav 
-        ref={scrollRef as any}
+        ref={scrollRef as React.RefObject<HTMLDivElement>}
         className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
       >
         {filteredMenuItems.map((item) => {
@@ -70,10 +74,11 @@ const Sidebar: React.FC = () => {
               key={item.path}
               to={item.path}
               onClick={() => setMobileOpen(false)}
+              aria-current={isActive(item.path) ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                'crm-nav-link flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
                 isActive(item.path)
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               )}
             >
@@ -101,7 +106,7 @@ const Sidebar: React.FC = () => {
         </div>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          className="crm-nav-link flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <LogOut className="h-4 w-4" />
           Logout

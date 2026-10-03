@@ -75,6 +75,8 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+.env.demo-crm-test
+.secret.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -145,3 +147,8 @@ dist-ssr
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Private operator backups/manifests and emulator runtime logs
+.ops-private/
+firebase-export-*/
+*-debug.log

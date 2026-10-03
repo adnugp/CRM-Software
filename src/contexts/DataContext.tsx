@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import {requireWorkspace} from '@/services/api';
+import { listPage } from '@/services/firestore';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   getProjects, addProject, updateProject, deleteProject,
   getTenders, addTender, updateTender, deleteTender,
@@ -12,6 +15,10 @@ import {
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
 
 interface DataContextType {
+  errors: Record<string, string>;
+  refresh: () => Promise<void>;
+  loadMore: (collection: string) => Promise<void>;
+  cursors: Record<string, string | undefined>;
   // Data
   projects: Project[];
   tenders: Tender[];
@@ -81,6 +88,11 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const normalizeOptionalId = (value?: string) => value && value !== 'none' ? value : '';
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { activeWorkspace, user } = useAuth();
+  const [errors,setErrors] = useState<Record<string,string>>({});
+  const [cursors,setCursors] = useState<Record<string,string | undefined>>({});
+  const [revision,setRevision] = useState(0);
+  const refresh = async () => { setRevision(value => value + 1); };
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -101,180 +113,67 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     files: true,
   });
 
-  // Fetch data on mount
+  const scope = `${activeWorkspace?.id}/${user?.id}/${user?.role}`;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const ensureScope=()=>{if(!activeWorkspace||requireWorkspace()!==activeWorkspace.id)throw new Error('Workspace changed. Reopen the record before saving.');};
+  const loaders = {
+    projects: {get:getProjects,set:setProjects}, tenders: {get:getTenders,set:setTenders},
+    employees: {get:getEmployees,set:setEmployees}, registrations: {get:getRegistrations,set:setRegistrations},
+    payments: {get:getPayments,set:setPayments}, subscriptions: {get:getSubscriptions,set:setSubscriptions},
+    partners: {get:getPartners,set:setPartners}, files: {get:getFiles,set:setFiles},
+  };
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-          getProjects().catch(() => []),
-          getTenders().catch(() => []),
-          getEmployees().catch(() => []),
-          getRegistrations().catch(() => []),
-          getPayments().catch(() => []),
-          getSubscriptions().catch(() => []),
-          getPartners().catch(() => []),
-          getFiles().catch(() => []),
-        ]);
-
-        setProjects(projectsData);
-        setTenders(tendersData);
-        setEmployees(employeesData);
-        setRegistrations(registrationsData);
-        setPayments(paymentsData);
-        setSubscriptions(subscriptionsData);
-        setPartners(partnersData);
-        setFiles(filesData);
-
-        setLoading({
-          projects: false,
-          tenders: false,
-          employees: false,
-          registrations: false,
-          payments: false,
-          subscriptions: false,
-          partners: false,
-          files: false,
-        });
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading({
-          projects: false,
-          tenders: false,
-          employees: false,
-          registrations: false,
-          payments: false,
-          subscriptions: false,
-          partners: false,
-          files: false,
-        });
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Helper to generate a human-readable Project ID
-  const generateProjectId = (belongsTo: string) => {
-    const prefix = belongsTo === 'Grow Plus Technologies' ? 'GPT' : 'SDE';
-    const existingCount = projects.filter(p => p.projectId?.startsWith(`PRJ-${prefix}`)).length;
-    const num = String(existingCount + 1).padStart(3, '0');
-    return `PRJ-${prefix}-${num}`;
-  };
-
-  // CRUD functions
-  const handleAddProject = async (project: Omit<Project, 'id'>) => {
-    // Auto-generate projectId if not already set
-    const projectId = project.projectId || generateProjectId(project.belongsTo);
-    // Sanitize clientId: treat 'none' as empty
-    const clientId = normalizeOptionalId(project.clientId);
-    const projectWithIds = { ...project, projectId, clientId };
-    const id = await addProject(projectWithIds);
-    const newProject = { ...projectWithIds, id };
-    setProjects(prev => [newProject, ...prev]);
-    return id;
-  };
-
-  const handleUpdateProject = async (id: string, project: Partial<Project>) => {
-    await updateProject(id, project);
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
-  };
-
-  const handleDeleteProject = async (id: string) => {
-    await deleteProject(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
-  };
-
-  const handleAddTender = async (tender: Omit<Tender, 'id'>) => {
-    const id = await addTender(tender);
-    const newTender = { ...tender, id };
-    setTenders(prev => [newTender, ...prev]);
-
-    // Auto-create Project if Tender is Awarded on creation
-    if (tender.status === 'awarded') {
-      const projectExists = projects.some(p => 
-        p.name.toLowerCase() === tender.name.toLowerCase() && 
-        p.company.toLowerCase() === tender.company.toLowerCase()
-      );
-
-      if (!projectExists) {
-        // Find assigned person's name if missing
-        let assignedName = tender.assignedToName;
-        if (!assignedName && tender.assignedTo) {
-          const emp = employees.find(e => e.id === tender.assignedTo);
-          if (emp) assignedName = emp.name;
-        }
-
-        const newProject: Omit<Project, 'id'> = {
-          name: tender.name,
-          company: tender.company,
-          belongsTo: tender.belongsTo,
-          status: 'running',
-          assignedTo: tender.assignedTo,
-          assignedToName: assignedName || '',
-          deadline: tender.deadline,
-          budget: 0,
-          clientId: normalizeOptionalId(tender.clientId),
-          clientName: tender.clientName || '',
-          description: `Automatically created from Awarded Tender (Direct Add): ${tender.name}`,
-          createdAt: new Date()
-        };
-
-        await handleAddProject(newProject);
-      }
+    let cancelled = false;
+    Object.values(loaders).forEach(item => item.set([]));
+    setErrors({}); setCursors({});
+    const allowed = user?.role === 'client' ? ['projects'] : user?.role === 'user' ? ['projects','tenders','registrations','files','partners'] : Object.keys(loaders);
+    setLoading(Object.fromEntries(Object.keys(loaders).map(name => [name,!!activeWorkspace && allowed.includes(name)])) as typeof loading);
+    if (!activeWorkspace) return;
+    for (const name of allowed) {
+      const item = loaders[name as keyof typeof loaders];
+      listPage(name).then(page => {
+        if (!cancelled) { (item.set as (data:unknown[])=>void)(page.records); setCursors(prev => ({...prev,[name]:page.cursor})); }
+      }).catch(error => {
+        if (!cancelled) setErrors(prev => ({...prev,[name]:error instanceof Error ? error.message : 'Unable to load records'}));
+      }).finally(() => { if (!cancelled) setLoading(prev => ({...prev,[name]:false})); });
     }
-
-    return id;
+    return () => { cancelled = true; };
+  // loaders are wrappers around stable state setters; reload only for identity/workspace changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWorkspace?.id,user?.id,user?.role,revision]);
+  const loadMore = async (name:string) => {
+    const item = loaders[name as keyof typeof loaders];
+    if (!item || !cursors[name]) return;
+    const capturedScope = scope;
+    ensureScope();
+    try {
+      const page = await listPage(name,cursors[name]);
+      if (scopeRef.current !== capturedScope || requireWorkspace() !== activeWorkspace?.id) return;
+      (item.set as (fn:(previous:unknown[])=>unknown[])=>void)(previous => [...previous,...page.records]);
+      setCursors(prev => ({...prev,[name]:page.cursor}));
+    } catch (error) { if (scopeRef.current !== capturedScope) return; setErrors(prev => ({...prev,[name]:error instanceof Error ? error.message : 'Unable to load records'})); }
   };
-
-  const handleUpdateTender = async (id: string, tender: Partial<Tender>) => {
-    const existingTender = tenders.find(t => t.id === id);
-    if (!existingTender) {
-      await updateTender(id, tender);
-      setTenders(prev => prev.map(t => t.id === id ? { ...t, ...tender } : t));
-      return;
-    }
-
-    const updatedTenderData = { ...existingTender, ...tender };
-
-    await updateTender(id, tender);
-    setTenders(prev => prev.map(t => t.id === id ? updatedTenderData : t));
-
-    // Auto-create Project if Tender is Awarded
-    if (tender.status === 'awarded') {
-      const projectExists = projects.some(p => 
-        p.name.toLowerCase() === updatedTenderData.name.toLowerCase() && 
-        p.company.toLowerCase() === updatedTenderData.company.toLowerCase()
-      );
-
-      if (!projectExists) {
-        // Find assigned person's name if missing
-        let assignedName = updatedTenderData.assignedToName;
-        if (!assignedName && updatedTenderData.assignedTo) {
-          const emp = employees.find(e => e.id === updatedTenderData.assignedTo);
-          if (emp) assignedName = emp.name;
-        }
-
-        const newProject: Omit<Project, 'id'> = {
-          name: updatedTenderData.name,
-          company: updatedTenderData.company,
-          belongsTo: updatedTenderData.belongsTo,
-          status: 'running',
-          assignedTo: updatedTenderData.assignedTo,
-          assignedToName: assignedName || '',
-          deadline: updatedTenderData.deadline,
-          budget: 0,
-          clientId: normalizeOptionalId(updatedTenderData.clientId),
-          clientName: updatedTenderData.clientName || '',
-          description: `Automatically created from Awarded Tender: ${updatedTenderData.name}`,
-          createdAt: new Date()
-        };
-
-        await handleAddProject(newProject);
-      }
-    }
+  const handleAddProject = async (project:Omit<Project,'id'>) => {
+    ensureScope();
+    const id = await addProject(project); await refresh(); return id;
+  };
+  const handleUpdateProject = async (id:string, project:Partial<Project>) => {
+    ensureScope();
+    await updateProject(id,project); await refresh();
+  };
+  const handleDeleteProject = async (id:string) => {
+    ensureScope(); await deleteProject(id); await refresh(); };
+  const handleAddTender = async (tender:Omit<Tender,'id'>) => {
+    ensureScope();
+    const id = await addTender(tender); await refresh(); return id;
+  };
+  const handleUpdateTender = async (id:string,tender:Partial<Tender>) => {
+    ensureScope();
+    await updateTender(id,tender); await refresh();
   };
 
   const handleDeleteTender = async (id: string) => {
+    ensureScope();
     await deleteTender(id);
     setTenders(prev => prev.filter(t => t.id !== id));
   };
@@ -283,103 +182,121 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // All employee data (name, email, department, position, phone, joinDate, status)
   // must be managed through the Employees page. Avoid syncing from external auth providers.
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
+    ensureScope();
     const id = await addEmployee(employee);
     const newEmployee = { ...employee, id };
-    setEmployees(prev => [newEmployee, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdateEmployee = async (id: string, employee: Partial<Employee>) => {
+    ensureScope();
     await updateEmployee(id, employee);
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...employee } : e));
+    await refresh();
   };
 
   const handleDeleteEmployee = async (id: string) => {
+    ensureScope();
     await deleteEmployee(id);
     setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
   const handleAddRegistration = async (registration: Omit<Registration, 'id'>) => {
+    ensureScope();
     const id = await addRegistration(registration);
     const newRegistration = { ...registration, id };
-    setRegistrations(prev => [newRegistration, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdateRegistration = async (id: string, registration: Partial<Registration>) => {
+    ensureScope();
     await updateRegistration(id, registration);
-    setRegistrations(prev => prev.map(r => r.id === id ? { ...r, ...registration } : r));
+    await refresh();
   };
 
   const handleDeleteRegistration = async (id: string) => {
+    ensureScope();
     await deleteRegistration(id);
     setRegistrations(prev => prev.filter(r => r.id !== id));
   };
 
   const handleAddPayment = async (payment: Omit<Payment, 'id'>) => {
+    ensureScope();
     const id = await addPayment(payment);
     const newPayment = { ...payment, id };
-    setPayments(prev => [newPayment, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdatePayment = async (id: string, payment: Partial<Payment>) => {
+    ensureScope();
     await updatePayment(id, payment);
-    setPayments(prev => prev.map(p => p.id === id ? { ...p, ...payment } : p));
+    await refresh();
   };
 
   const handleDeletePayment = async (id: string) => {
+    ensureScope();
     await deletePayment(id);
     setPayments(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddSubscription = async (subscription: Omit<Subscription, 'id'>) => {
+    ensureScope();
     const id = await addSubscription(subscription);
     const newSubscription = { ...subscription, id };
-    setSubscriptions(prev => [newSubscription, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdateSubscription = async (id: string, subscription: Partial<Subscription>) => {
+    ensureScope();
     await updateSubscription(id, subscription);
-    setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, ...subscription } : s));
+    await refresh();
   };
 
   const handleDeleteSubscription = async (id: string) => {
+    ensureScope();
     await deleteSubscription(id);
     setSubscriptions(prev => prev.filter(s => s.id !== id));
   };
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
+    ensureScope();
     const id = await addPartner(partner);
     const newPartner = { ...partner, id };
-    setPartners(prev => [newPartner, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdatePartner = async (id: string, partner: Partial<Partner>) => {
+    ensureScope();
     await updatePartner(id, partner);
-    setPartners(prev => prev.map(p => p.id === id ? { ...p, ...partner } : p));
+    await refresh();
   };
 
   const handleDeletePartner = async (id: string) => {
+    ensureScope();
     await deletePartner(id);
     setPartners(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddFile = async (file: Omit<FileRecord, 'id'>) => {
+    ensureScope();
     const id = await addFile(file);
     const newFile = { ...file, id };
-    setFiles(prev => [newFile, ...prev]);
+    await refresh();
     return id;
   };
 
   const handleUpdateFile = async (id: string, file: Partial<FileRecord>) => {
+    ensureScope();
     await updateFile(id, file);
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, ...file } : f));
+    await refresh();
   };
 
   const handleDeleteFile = async (id: string) => {
+    ensureScope();
     await deleteFile(id);
     setFiles(prev => prev.filter(f => f.id !== id));
   };
@@ -393,6 +310,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <DataContext.Provider value={{
+      errors, refresh, loadMore, cursors,
       projects,
       tenders,
       employees,

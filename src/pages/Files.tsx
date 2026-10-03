@@ -1,3 +1,5 @@
+import {getFiles} from '@/services/firestore';
+import {downloadDocument} from '@/services/documents';
 import React, { useState } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -29,8 +31,8 @@ interface FileRecord {
 }
 
 const Files: React.FC = () => {
-  const { user } = useAuth();
-  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext } = useData();
+  const { user, activeWorkspace } = useAuth();
+  const { files: filesList, loading, refresh, updateFile, deleteFile: deleteFileFromContext } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -49,7 +51,7 @@ const Files: React.FC = () => {
   const isManager = user?.role === 'manager';
 
   const categories = ['Projects', 'Tenders', 'Registrations', 'Contracts', 'Reports', 'Other'];
-  const companies = ['Grow Plus Technologies', 'Sadeem Energy'];
+  const companies = activeWorkspace?.divisions.map(d=>typeof d==='string'?d:d.name)||[];
 
   const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
   const companyOptions = companies.map(comp => ({ value: comp, label: comp }));
@@ -57,7 +59,7 @@ const Files: React.FC = () => {
   const filteredFiles = React.useMemo(() => {
     return filesList.filter(file => {
       const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.category.toLowerCase().includes(searchQuery.toLowerCase());
+        (file.category||'Other').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = !categoryFilter || categoryFilter === 'all' || file.category === categoryFilter;
       const matchesCompany = !companyFilter || companyFilter === 'all' || file.company === companyFilter;
       return matchesSearch && matchesCategory && matchesCompany;
@@ -88,7 +90,8 @@ const Files: React.FC = () => {
         documents: uploadDocuments,
       };
 
-      await addFile(fileData);
+      await getFiles();
+      for(const doc of uploadDocuments){if(!doc.fileId)throw new Error('Document reservation is missing.');await updateFile(doc.fileId,{name:uploadName,category:uploadCategory,company:uploadCompany,uploadedAt:fileData.uploadedAt,uploadedBy:fileData.uploadedBy});}
       toast({
         title: 'File uploaded',
         description: `"${uploadName}" has been uploaded successfully.`,
@@ -111,27 +114,13 @@ const Files: React.FC = () => {
     setUploadDocuments([]);
   };
 
-  const handleDownload = (file: FileRecord, doc?: DocumentFile) => {
-    const target = doc || file.documents?.[0] || file.document;
-    if (!target) return;
-    const link = document.createElement('a');
-    link.href = target.data;
-    link.download = target.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (file:FileRecord, doc?:DocumentFile) => {
+    const target=doc||file.documents?.[0]||file.document;
+    if(!target)return;
+    try{await downloadDocument(target);}catch(e){toast({title:'Document unavailable',description:e instanceof Error?e.message:'Unable to download',variant:'destructive'});}
   };
-
-  const handleDownloadAll = (file: FileRecord) => {
-    const docs = file.documents?.length ? file.documents : file.document ? [file.document] : [];
-    docs.forEach((doc) => {
-      const link = document.createElement('a');
-      link.href = doc.data;
-      link.download = doc.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
+  const handleDownloadAll = async (file:FileRecord) => {
+    for(const doc of file.documents||[])await handleDownload(file,doc);
   };
 
   const handleOpenDocumentDialog = (file: FileRecord) => {
@@ -140,13 +129,8 @@ const Files: React.FC = () => {
   };
 
   const handleDocumentsChange = async (docs: DocumentFile[]) => {
-    if (selectedFileForDoc) {
-      await updateFile(selectedFileForDoc.id, {
-        documents: docs,
-        document: docs.length > 0 ? docs[0] : undefined,
-      });
-      setSelectedFileForDoc(prev => prev ? { ...prev, documents: docs } : null);
-    }
+    await refresh();
+    setSelectedFileForDoc(prev => prev ? { ...prev, documents: docs } : null);
   };
 
   const confirmDelete = async () => {
@@ -154,8 +138,8 @@ const Files: React.FC = () => {
       try {
         await deleteFileFromContext(deleteFile.id);
         toast({
-          title: 'File deleted',
-          description: `"${deleteFile.name}" has been deleted.`,
+          title: 'File archived',
+          description: `"${deleteFile.name}" has been archived.`,
         });
         setDeleteFile(null);
       } catch (error) {
@@ -401,7 +385,7 @@ const Files: React.FC = () => {
         open={!!deleteFile}
         onOpenChange={(open) => !open && setDeleteFile(null)}
         onConfirm={confirmDelete}
-        title="Delete File"
+        title="Archive File"
         description={`Are you sure you want to delete "${deleteFile?.name}"? This action cannot be undone.`}
       />
     </MainLayout>

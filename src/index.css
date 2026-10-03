@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Mint workspace: system typography also works without external font requests. */
 
 @tailwind base;
 @tailwind components;
@@ -111,7 +111,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Segoe UI', system-ui, sans-serif;
   }
 }
 
@@ -242,4 +242,99 @@
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+
+@layer base {
+  :root {
+    --background: 143 36% 96%;
+    --foreground: 160 45% 16%;
+    --card: 140 100% 99%;
+    --card-foreground: 160 45% 16%;
+    --popover: 140 100% 99%;
+    --popover-foreground: 160 45% 16%;
+    --primary: 157 56% 31%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 141 42% 92%;
+    --secondary-foreground: 160 45% 20%;
+    --muted: 143 30% 93%;
+    --muted-foreground: 154 17% 36%;
+    --accent: 138 42% 91%;
+    --accent-foreground: 160 45% 16%;
+    --border: 140 27% 86%;
+    --input: 140 27% 80%;
+    --ring: 157 56% 31%;
+    --radius: .875rem;
+    --sidebar-background: 160 46% 20%;
+    --sidebar-foreground: 140 37% 91%;
+    --sidebar-primary: 138 42% 91%;
+    --sidebar-primary-foreground: 160 45% 16%;
+    --sidebar-accent: 160 35% 27%;
+    --sidebar-accent-foreground: 140 100% 97%;
+    --sidebar-border: 160 27% 30%;
+    --sidebar-ring: 143 40% 75%;
+    --gradient-primary: linear-gradient(135deg, #237c59, #1c6549);
+    --gradient-card: linear-gradient(180deg, #fcfffd, #f5fbf7);
+    --gradient-sidebar: linear-gradient(#1c4b3c, #1c4b3c);
+    --shadow-card: 0 2px 8px rgb(23 61 49 / .035);
+  }
+  .dark {
+    --background: 160 22% 9%;
+    --foreground: 140 30% 94%;
+    --card: 160 19% 13%;
+    --card-foreground: 140 30% 94%;
+    --popover: 160 19% 13%;
+    --popover-foreground: 140 30% 94%;
+    --primary: 149 43% 67%;
+    --primary-foreground: 160 45% 12%;
+    --secondary: 160 19% 19%;
+    --secondary-foreground: 140 30% 94%;
+    --muted: 160 16% 18%;
+    --muted-foreground: 147 17% 70%;
+    --accent: 160 22% 23%;
+    --accent-foreground: 140 37% 91%;
+    --border: 160 16% 25%;
+    --input: 160 16% 32%;
+    --ring: 149 43% 67%;
+    --sidebar-background: 160 29% 12%;
+    --sidebar-primary: 149 43% 67%;
+    --sidebar-primary-foreground: 160 45% 12%;
+    --sidebar-accent: 160 25% 20%;
+    --sidebar-border: 160 20% 25%;
+    --gradient-sidebar: linear-gradient(#16382e, #16382e);
+    --gradient-card: linear-gradient(hsl(var(--card)), hsl(var(--card)));
+  }
+  input, select, textarea { transition: border-color 140ms ease, box-shadow 140ms ease; }
+  ::selection { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+}
+
+/* Hide scrollbar chrome without changing overflow or scrolling behavior. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+.route-scene { min-height: 100vh; animation: routeEnter 180ms ease-out; }
+.page-content { animation: contentEnter 220ms ease-out; }
+.crm-button {
+  position: relative;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  transition: transform 140ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.crm-button:not(:disabled):not([aria-disabled="true"]):active { transform: scale(.97); }
+.crm-button:disabled { transform: none; }
+.crm-nav-link { transition: background-color 180ms ease, color 180ms ease, transform 140ms ease; }
+.crm-nav-link:active { transform: translateX(2px); }
+.crm-nav-link:focus-visible { outline: 2px solid hsl(var(--sidebar-ring)); outline-offset: 2px; }
+.workspace-toolbar { min-height: 80px; }
+@keyframes routeEnter { from { opacity: .35; } to { opacity: 1; } }
+@keyframes contentEnter { from { transform: translateY(6px); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .crm-button:active, .crm-nav-link:active { transform: none !important; }
 }

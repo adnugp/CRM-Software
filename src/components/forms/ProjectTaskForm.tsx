@@ -1,3 +1,4 @@
+import {toast} from '@/hooks/use-toast';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +39,8 @@ const taskSchema = z.object({
     description: z.string().optional(),
     assignedTo: z.string().min(1, 'Assignee is required'),
     dueDate: z.string().min(1, 'Due date is required'),
+    startDate:z.string().optional(),
+    dependencies:z.array(z.string()).optional(),
     priority: z.enum(['low', 'medium', 'high']),
     status: z.enum(['pending', 'in-progress', 'completed']),
 });
@@ -47,7 +50,7 @@ type TaskFormData = z.infer<typeof taskSchema>;
 interface ProjectTaskFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (data: TaskFormData) => void;
+    onSubmit: (data: TaskFormData) => void | Promise<void>;
     task?: ProjectTask | null;
 }
 
@@ -73,6 +76,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
             dueDate: task?.dueDate || '',
+            startDate:task?.startDate||'',dependencies:task?.dependencies||[],
             priority: task?.priority || 'medium',
             status: task?.status || 'pending',
         },
@@ -85,6 +89,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                 description: task.description,
                 assignedTo: task.assignedTo,
                 dueDate: task.dueDate,
+                startDate:task.startDate||'',dependencies:task.dependencies||[],
                 priority: task.priority,
                 status: task.status,
             });
@@ -94,14 +99,15 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                 description: '',
                 assignedTo: '',
                 dueDate: '',
+                startDate:'',dependencies:[],
                 priority: 'medium',
                 status: 'pending',
             });
         }
     }, [task, form]);
 
-    const handleSubmit = (data: TaskFormData) => {
-        onSubmit(data);
+    const handleSubmit = async (data: TaskFormData) => {
+        try{await onSubmit(data);}catch(e){toast({title:'Unable to save task',description:e instanceof Error?e.message:'Request failed',variant:'destructive'});return;}
         onOpenChange(false);
         form.reset();
     };
@@ -119,7 +125,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
                         <ScrollArea className="flex-1 px-6 pb-6 max-h-[60vh]">
-                            <div className="space-y-4 py-2">
+                            <div className="space-y-4 py-2"><FormField control={form.control} name="startDate" render={({field})=><FormItem><FormLabel>Start date</FormLabel><FormControl><Input type="date" {...field}/></FormControl><FormMessage/></FormItem>}/><FormField control={form.control} name="dependencies" render={({field})=><FormItem><FormLabel>Dependency task IDs (comma separated)</FormLabel><FormControl><Input value={(field.value||[]).join(',')} onChange={e=>field.onChange(e.target.value.split(',').map(v=>v.trim()).filter(Boolean))}/></FormControl><FormMessage/></FormItem>}/>
                                 <FormField
                                     control={form.control}
                                     name="name"

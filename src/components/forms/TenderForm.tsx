@@ -35,18 +35,20 @@ import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const tenderSchema = z.object({
   name: z.string().min(1, 'Tender name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   clientId: z.string().optional(),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  belongsTo: z.string().min(1,'Operating division is required'),
   status: z.enum(['running', 'submitted', 'cancelled', 'to-be-evaluated', 'winner', 'awarded']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
   rfqCode: z.string().optional(),
   portal: z.string().optional(),
+  bidAmount: z.coerce.number().min(0).optional(),
+  currency: z.string().length(3).optional(),
+  evaluationNotes: z.string().max(4000).optional(),
 });
 
 type TenderFormData = z.infer<typeof tenderSchema>;
@@ -55,7 +57,7 @@ interface TenderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tender?: Tender | null;
-  onSubmit: (data: TenderFormData) => void;
+  onSubmit: (data: TenderFormData) => void | Promise<void>;
 }
 
 const TenderForm: React.FC<TenderFormProps> = ({
@@ -65,7 +67,8 @@ const TenderForm: React.FC<TenderFormProps> = ({
   onSubmit,
 }) => {
   const { employees, tenders } = useData();
-  const { allUsers } = useAuth();
+  const { allUsers, activeWorkspace, user } = useAuth();
+  const parentCompanies = React.useMemo(()=>activeWorkspace?.divisions.map(d=>typeof d==='string'?d:d.name)||[],[activeWorkspace]);
   const isEditing = !!tender;
 
   // Remove duplicate employees based on ID and name
@@ -116,12 +119,13 @@ const TenderForm: React.FC<TenderFormProps> = ({
       name: tender?.name || '',
       company: tender?.company || '',
       clientId: tender?.clientId || '',
-      belongsTo: tender?.belongsTo || 'Grow Plus Technologies',
+      belongsTo: tender?.belongsTo || (parentCompanies[0]||''),
       status: tender?.status || 'running',
       assignedTo: tender?.assignedTo || '',
       deadline: tender?.deadline || '',
       rfqCode: tender?.rfqCode || '',
       portal: tender?.portal || '',
+      bidAmount:tender?.bidAmount||0, currency:tender?.currency||activeWorkspace?.currency||'AED',evaluationNotes:tender?.evaluationNotes||'',
     },
   });
 
@@ -137,24 +141,26 @@ const TenderForm: React.FC<TenderFormProps> = ({
         deadline: tender.deadline,
         rfqCode: tender.rfqCode || '',
         portal: tender.portal || '',
+        bidAmount:tender.bidAmount||0,currency:tender.currency||activeWorkspace?.currency||'AED',evaluationNotes:tender.evaluationNotes||'',
       });
     } else {
       form.reset({
         name: '',
         company: '',
         clientId: '',
-        belongsTo: 'Grow Plus Technologies',
+        belongsTo: (parentCompanies[0]||''),
         status: 'running',
         assignedTo: '',
         deadline: '',
         rfqCode: '',
         portal: '',
+        bidAmount:0,currency:activeWorkspace?.currency||'AED',evaluationNotes:'',
       });
     }
-  }, [tender, form]);
+  }, [tender, form, parentCompanies, activeWorkspace]);
 
-  const handleSubmit = (data: TenderFormData) => {
-    onSubmit(data);
+  const handleSubmit = async (data: TenderFormData) => {
+    try { await onSubmit(data); } catch(e) { toast({title:'Unable to save',description:e instanceof Error?e.message:'Request failed',variant:'destructive'}); return; }
     toast({
       title: isEditing ? 'Tender Updated' : 'Tender Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,
@@ -177,6 +183,9 @@ const TenderForm: React.FC<TenderFormProps> = ({
           <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
             <ScrollArea className="flex-1 h-[50vh] px-6 pb-6 overflow-y-auto">
               <div className="space-y-4 py-2">
+                {(user?.role==='admin'||user?.role==='manager')&&<>                <FormField control={form.control} name="bidAmount" render={({field})=><FormItem><FormLabel>Bid amount</FormLabel><FormControl><Input type="number" min="0" step="0.01" {...field}/></FormControl><FormMessage/></FormItem>}/>
+                <FormField control={form.control} name="currency" render={({field})=><FormItem><FormLabel>Currency</FormLabel><FormControl><Input maxLength={3} {...field}/></FormControl><FormMessage/></FormItem>}/>
+                <FormField control={form.control} name="evaluationNotes" render={({field})=><FormItem><FormLabel>Evaluation notes</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>}/></>}
                 <FormField
                   control={form.control}
                   name="name"
@@ -285,7 +294,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
+                      <Select onValueChange={field.onChange} value={field.value || (parentCompanies[0]||'')}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select parent company" />

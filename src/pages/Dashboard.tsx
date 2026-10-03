@@ -10,6 +10,7 @@ import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { canViewProject } from '@/lib/project-visibility';
+import { creationWindows, recordTime } from '@/lib/reporting';
 
 const LoadingSkeleton = () => (
   <div className="h-28 rounded-xl border bg-card p-6 shadow-card animate-pulse">
@@ -46,52 +47,16 @@ const Dashboard: React.FC = () => {
     return stats;
   }, [displayProjects, isClient, stats]);
 
-  const prevMonthProjects = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    return projects.filter(p => p.createdAt && new Date(p.createdAt) < oneMonthAgo).length;
-  }, [projects]);
+  const windows = [
+    {name: 'Projects', ...creationWindows(displayProjects)},
+    ...(!isClient ? [{name: 'Tenders', ...creationWindows(tenders)}] : []),
+    ...(isAdmin || isManager ? [{name: 'Payment records', ...creationWindows(payments)}] : []),
+  ];
 
-  const projectTrend = React.useMemo(() => {
-    if (prevMonthProjects === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.activeProjects - prevMonthProjects) / prevMonthProjects) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.activeProjects, prevMonthProjects]);
-
-  const tenderTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = tenders.filter(t => t.createdAt && new Date(t.createdAt) < oneMonthAgo).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.openTenders - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.openTenders, tenders]);
-
-  const paymentTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = payments.filter(p => p.createdAt && new Date(p.createdAt) < oneMonthAgo).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true, label: 'from last month' };
-    const change = ((displayStats.pendingPayments - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change <= 0, label: 'from last month' };
-  }, [displayStats.pendingPayments, payments]);
-
-  const totalTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = [...projects, ...tenders].filter(p => {
-      const created = (p as any).createdAt;
-      return created && new Date(created) < oneMonthAgo;
-    }).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.totalProjectsAndTenders - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.totalProjectsAndTenders, projects, tenders]);
-
-  const showFinancial = isAdmin || isManager || isUser;
+  const showFinancial = isAdmin || isManager;
   const showGeneral = true;
 
-  const recentProjects = displayProjects.slice(0, 5);
+  const recentProjects = [...displayProjects].sort((a,b)=>(recordTime(b.createdAt)||0)-(recordTime(a.createdAt)||0)).slice(0, 5);
   const isLoading = loading.projects;
 
   return (
@@ -99,7 +64,7 @@ const Dashboard: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title={isClient ? `Welcome, ${user?.company} Team` : `Welcome back, ${user?.name?.split(' ')[0] || 'User'}!`}
-          description={isClient ? "Real-time overview of your active projects and strategic milestones." : "Here's what's happening with your business today."}
+          description="Overview of the records currently loaded for your workspace. Load additional pages for a wider view."
         />
         <div className="flex items-center gap-2">
           <NotificationCenter />
@@ -121,7 +86,6 @@ const Dashboard: React.FC = () => {
                 title="Running Projects"
                 value={displayStats.activeProjects}
                 icon={FolderKanban}
-                trend={projectTrend}
               />
             )}
             {showGeneral && !isClient && (
@@ -129,19 +93,17 @@ const Dashboard: React.FC = () => {
                 title="Running Tenders"
                 value={displayStats.openTenders}
                 icon={FileText}
-                trend={tenderTrend}
               />
             )}
             {isClient && (
               <>
                 <StatCard
-                  title="Execution Speed"
-                  value="On Track"
+                  title="Active Projects"
+                  value={displayStats.activeProjects}
                   icon={Timer}
-                  trend={{ value: 4, isPositive: true }}
                 />
                 <StatCard
-                  title="Milestones Met"
+                  title="Completed Tasks"
                   value={displayProjects.reduce((acc, p) => acc + (p.tasks?.filter(t => t.status === 'completed').length || 0), 0)}
                   icon={CheckCircle2}
                 />
@@ -157,7 +119,6 @@ const Dashboard: React.FC = () => {
                 title="Pending Payments"
                 value={displayStats.pendingPayments}
                 icon={CreditCard}
-                trend={paymentTrend}
               />
             )}
             {showGeneral && !isClient && (
@@ -165,12 +126,13 @@ const Dashboard: React.FC = () => {
                 title="Total Projects & Tenders"
                 value={isClient ? displayProjects.length : displayStats.totalProjectsAndTenders}
                 icon={Layers}
-                trend={totalTrend}
               />
             )}
           </>
         )}
       </div>
+
+      {!isLoading && <section className="border rounded-xl p-5 mb-8" aria-label="Record creation comparison"><h2 className="font-semibold mb-2">New records in equal 30-day windows</h2><p className="text-sm text-muted-foreground mb-3">Loaded records only. Current: last 30 days; previous: the 30 days before that. Status counts above describe their current state.</p>{windows.map(window=><p key={window.name} className="text-sm py-1">{window.name}: {window.current} current · {window.previous} previous · {window.change === undefined ? 'No previous baseline' : `${window.change > 0 ? '+' : ''}${window.change}% change`}{window.undated > 0 ? ` · ${window.undated} without a valid creation date excluded` : ''}</p>)}</section>}
 
       {isLoading ? (
         <div className="rounded-xl border bg-card p-6 shadow-card animate-pulse mb-8">
@@ -189,7 +151,7 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-xl border bg-card p-6 shadow-card animate-slide-up">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Recent Projects</h2>
+              <h2 className="text-lg font-semibold text-foreground">Latest Loaded Projects</h2>
               <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div className="space-y-4">
@@ -211,7 +173,7 @@ const Dashboard: React.FC = () => {
 
           <div className="rounded-xl border bg-card p-6 shadow-card animate-slide-up">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">{isClient ? "Recently Achieved Milestones" : "Recent Activity"}</h2>
+              <h2 className="text-lg font-semibold text-foreground">{isClient ? "Completed Tasks" : "Loaded Project Status"}</h2>
               {isClient && <CheckCircle2 className="h-5 w-5 text-success" />}
             </div>
             <div className="space-y-4">
