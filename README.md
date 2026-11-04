@@ -1,9 +1,12 @@
-# Grow Plus CRM
+# ProjectDesk
 
-Internal CRM for IT Grow Plus Technologies and Sadeem Energy. It tracks projects
-(with tasks, costs and a timeline), tenders, company registrations, payments and
-subscriptions, partners, employees and documents, and includes an in-browser
-assistant that answers questions from the live data.
+A multi-company CRM for project and contracting firms. Each customer company gets its
+own isolated **workspace** and tracks projects (with tasks, costs and a timeline),
+tenders, company registrations, payments and subscriptions, partners, employees and
+documents. An in-browser assistant answers questions from the live data.
+
+"ProjectDesk" is a working name, set in `src/config/product.ts` (and the `<title>`
+in `index.html`).
 
 ## Stack
 
@@ -25,8 +28,14 @@ npm run seed        # terminal 2, first time only: load sample data and test log
 npm run dev         # terminal 2: app at http://localhost:8080
 ```
 
-`npm run seed` creates one login per role (admin, manager, two employees, two clients),
-all sharing the test password defined as `TEST_PASSWORD` in `scripts/seed-emulator.mjs`.
+`npm run seed` creates two demo companies, all logins sharing the test password defined
+as `TEST_PASSWORD` in `scripts/seed-emulator.mjs`:
+
+| Company | Divisions | Logins |
+|---|---|---|
+| Acme Contracting | Building Systems (BLD), Energy (ENG) | admin@ / manager@ / employee@ / employee2@acme.test, clients client@gulf.test and client@desert.test |
+| Noor Engineering | none | admin@ / employee@noor.test, client client@harbor.test |
+
 Run it again any time to reset to clean sample data. Local data is saved to
 `.emulator-data/` when you stop the emulators with Ctrl+C.
 
@@ -41,11 +50,24 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:rules` | Test the Firestore and Storage security rules against the emulators |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme) |
+| `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
+
+## Workspaces and divisions
+
+Every customer company is a workspace. `workspaces/{wsId}` holds its name, logo, brand
+colour and **divisions**, and all of its records live underneath it
+(`workspaces/{wsId}/projects`, `…/tenders`, …). A login belongs to exactly one workspace
+through `users/{uid}.workspaceId`, and the security rules never let it reach another.
+
+Divisions are optional business units (e.g. "Energy", code `ENG`). Records can be tagged
+with one, and project numbers use its code (`PRJ-ENG-001`, or `PRJ-001` without a
+division). Admins manage the name, logo, colour and divisions in **Settings → Company**.
 
 ## Roles
 
-Each signed-in person has a profile at `users/{uid}` with one of these roles:
+Each signed-in person has a profile at `users/{uid}` with a `workspaceId` and one of
+these roles, which apply inside their own workspace:
 
 | Role | Access |
 |---|---|
@@ -54,8 +76,9 @@ Each signed-in person has a profile at `users/{uid}` with one of these roles:
 | `user` (employee) | All business data; read-only employee directory |
 | `client` | Only the projects linked to them (by `clientId` or `organizationId`) |
 
-Accounts are created by an admin from **Settings → Registration portal**. A Firebase
-Auth account without a `users/{uid}` profile gets no data access.
+Accounts are created by an admin from **Settings → Registration portal** and always join
+that admin's workspace. A Firebase Auth account without a `users/{uid}` profile (or
+without a workspace) gets no data access.
 
 The UI hides pages by role (`ProtectedRoute` in `src/App.tsx`), but the real enforcement
 lives in `firestore.rules` and `storage.rules`, so keep both in sync when you change

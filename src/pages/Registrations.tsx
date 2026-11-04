@@ -11,20 +11,19 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { Registration } from '@/types';
 import { toast } from '@/hooks/use-toast';
-
-const parentCompanyOptions = [
-  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
-  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
-];
 
 const Registrations: React.FC = () => {
   const { user, allUsers } = useAuth();
   const { registrations, employees, addRegistration, updateRegistration, deleteRegistration } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
-  const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [divisionFilter, setDivisionFilter] = useState('all');
+  const { divisions, divisionById } = useWorkspace();
+  const divisionOptions = divisions.map(d => ({ value: d.id, label: d.name }));
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
   const [editingRegistration, setEditingRegistration] = useState<Registration | null>(null);
@@ -47,8 +46,8 @@ const Registrations: React.FC = () => {
       result = result.filter(r => r.company === companyFilter);
     }
 
-    if (belongsToFilter !== 'all') {
-      result = result.filter(r => r.belongsTo === belongsToFilter);
+    if (divisionFilter !== 'all') {
+      result = result.filter(r => r.divisionId === divisionFilter);
     }
 
     if (assigneeFilter !== 'all') {
@@ -66,7 +65,7 @@ const Registrations: React.FC = () => {
     }
 
     return result;
-  }, [searchQuery, companyFilter, belongsToFilter, assigneeFilter, registrations]);
+  }, [searchQuery, companyFilter, divisionFilter, assigneeFilter, registrations]);
 
   const handleEdit = (registration: Registration) => {
     setEditingRegistration(registration);
@@ -181,13 +180,15 @@ const Registrations: React.FC = () => {
           options={companyOptions}
           placeholder="All Companies"
         />
-        <FilterDropdown
-          label="Belongs To"
-          value={belongsToFilter}
-          onChange={setBelongsToFilter}
-          options={parentCompanyOptions}
-          placeholder="All Parent Companies"
-        />
+        {divisions.length > 0 && (
+          <FilterDropdown
+            label="Division"
+            value={divisionFilter}
+            onChange={setDivisionFilter}
+            options={divisionOptions}
+            placeholder="All Divisions"
+          />
+        )}
         <FilterDropdown
           label="Assignee"
           value={assigneeFilter}
@@ -205,7 +206,7 @@ const Registrations: React.FC = () => {
               <TableRow className="bg-muted/50">
                 <TableHead>Registration Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
-                <TableHead className="hidden md:table-cell">Belongs To</TableHead>
+                {divisions.length > 0 && <TableHead className="hidden md:table-cell">Division</TableHead>}
                 <TableHead className="hidden lg:table-cell">Type</TableHead>
                 <TableHead className="hidden lg:table-cell">Registration Date</TableHead>
                 <TableHead className="hidden md:table-cell">Expiry Date</TableHead>
@@ -230,14 +231,11 @@ const Registrations: React.FC = () => {
                       {registration.company}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${registration.belongsTo === 'Grow Plus Technologies'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                      }`}>
-                      {registration.belongsTo}
-                    </span>
-                  </TableCell>
+                  {divisions.length > 0 && (
+                    <TableCell className="hidden md:table-cell">
+                      <DivisionBadge divisionId={registration.divisionId} />
+                    </TableCell>
+                  )}
                   <TableCell className="hidden lg:table-cell text-muted-foreground">{registration.type}</TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <div className="flex items-center gap-2">

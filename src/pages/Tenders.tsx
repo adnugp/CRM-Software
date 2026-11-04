@@ -13,14 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useData } from '@/contexts/DataContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { useAuth } from '@/contexts/AuthContext';
-import { Tender, ParentCompany } from '@/types';
+import { Tender } from '@/types';
 import { toast } from '@/hooks/use-toast';
-
-const parentCompanyOptions = [
-  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
-  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
-];
 
 
 
@@ -37,7 +34,9 @@ const Tenders: React.FC = () => {
   const { tenders, employees, addTender, updateTender, deleteTender } = useData();
   const { user, allUsers } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
-  const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [divisionFilter, setDivisionFilter] = useState('all');
+  const { divisions, divisionById } = useWorkspace();
+  const divisionOptions = divisions.map(d => ({ value: d.id, label: d.name }));
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,7 +54,7 @@ const Tenders: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery]);
+  }, [companyFilter, divisionFilter, statusFilter, assigneeFilter, searchQuery]);
 
   const tenderCompanies = [...new Set(tenders.map(t => t.company))];
 
@@ -64,8 +63,8 @@ const Tenders: React.FC = () => {
     if (companyFilter !== 'all') {
       result = result.filter(t => t.company === companyFilter);
     }
-    if (belongsToFilter !== 'all') {
-      result = result.filter(t => t.belongsTo === belongsToFilter);
+    if (divisionFilter !== 'all') {
+      result = result.filter(t => t.divisionId === divisionFilter);
     }
     if (statusFilter !== 'all') {
       result = result.filter(t => t.status === statusFilter);
@@ -79,13 +78,13 @@ const Tenders: React.FC = () => {
         (t.name || '').toLowerCase().includes(query) ||
         (t.company || '').toLowerCase().includes(query) ||
         (t.assignedToName || '').toLowerCase().includes(query) ||
-        (t.belongsTo || '').toLowerCase().includes(query) ||
+        (divisionById(t.divisionId)?.name || '').toLowerCase().includes(query) ||
         (t.rfqCode || '').toLowerCase().includes(query) ||
         (t.portal || '').toLowerCase().includes(query)
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, tenders]);
+  }, [companyFilter, divisionFilter, statusFilter, assigneeFilter, searchQuery, tenders, divisionById]);
 
   const totalPages = Math.ceil(filteredTenders.length / itemsPerPage);
   const safeCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
@@ -183,13 +182,15 @@ const Tenders: React.FC = () => {
           options={companyOptions}
           placeholder="All Companies"
         />
-        <FilterDropdown
-          label="Belongs To"
-          value={belongsToFilter}
-          onChange={setBelongsToFilter}
-          options={parentCompanyOptions}
-          placeholder="All Parent Companies"
-        />
+        {divisions.length > 0 && (
+          <FilterDropdown
+            label="Division"
+            value={divisionFilter}
+            onChange={setDivisionFilter}
+            options={divisionOptions}
+            placeholder="All Divisions"
+          />
+        )}
         <FilterDropdown
           label="Status"
           value={statusFilter}
@@ -216,7 +217,7 @@ const Tenders: React.FC = () => {
                 <TableHead>Tender Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
                 <TableHead className="hidden lg:table-cell">Client</TableHead>
-                <TableHead className="hidden md:table-cell">Belongs To</TableHead>
+                {divisions.length > 0 && <TableHead className="hidden md:table-cell">Division</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead className="hidden md:table-cell">Deadline</TableHead>
@@ -250,14 +251,11 @@ const Tenders: React.FC = () => {
                       <span className="text-muted-foreground text-sm">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tender.belongsTo === 'Grow Plus Technologies'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                      }`}>
-                      {tender.belongsTo}
-                    </span>
-                  </TableCell>
+                  {divisions.length > 0 && (
+                    <TableCell className="hidden md:table-cell">
+                      <DivisionBadge divisionId={tender.divisionId} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <StatusBadge status={tender.status} variant="tender" />
                   </TableCell>

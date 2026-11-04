@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
-import gpLogo from '@/assets/gp-logo.png';
+import { nextOrganizationId } from '@/lib/workspace';
 import { useToast } from '@/hooks/use-toast';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -29,10 +29,18 @@ const Register: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [clientCompany, setClientCompany] = useState('');
-  const [parentCompany, setParentCompany] = useState<'Sadeem' | 'Grow Plus'>('Sadeem');
-  const [entityId, setEntityId] = useState('');
   const { addUser, allUsers } = useAuth();
   const navigate = useNavigate();
+
+  // Everyone from the same client company shares one organisation id, so they
+  // all see that client's projects. A new client company gets the next
+  // ORG-{initials}-NNN in this workspace.
+  const organizationIdFor = (clientName: string) => {
+    const name = clientName.trim().toLowerCase();
+    const existing = allUsers.find(u =>
+      u.role === 'client' && u.organizationId && (u.company || '').trim().toLowerCase() === name);
+    return existing?.organizationId || nextOrganizationId(clientName, allUsers.map(u => u.organizationId));
+  };
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,19 +69,7 @@ const Register: React.FC = () => {
 
     setIsLoading(true);
 
-    // Generate accurate organizationId for clients
-    let finalOrgId = undefined;
-    if (role === 'client') {
-      const parentPrefix = parentCompany === 'Sadeem' ? 'SAD' : 'GP';
-      const clientPrefix = clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3);
-
-      // Count existing for this combo
-      const existingCount = allUsers.filter(u =>
-        u.organizationId?.startsWith(`${parentPrefix}-${clientPrefix}`)
-      ).length;
-
-      finalOrgId = `${parentPrefix}-${clientPrefix}-${(existingCount + 1).toString().padStart(3, '0')}`;
-    }
+    const finalOrgId = role === 'client' ? organizationIdFor(clientCompany) : undefined;
 
     const result = await addUser(name, email, password, role, role === 'client' ? clientCompany : undefined, finalOrgId);
 
@@ -179,26 +175,14 @@ const Register: React.FC = () => {
                           Client Entity Binding
                         </h3>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="parent-company">Parent Organization</Label>
-                          <Select value={parentCompany} onValueChange={(v) => setParentCompany(v as typeof parentCompany)}>
-                            <SelectTrigger id="parent-company">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Sadeem">Sadeem Energy (SAD)</SelectItem>
-                              <SelectItem value="Grow Plus">Grow Plus Technology (GP)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="client-entity">Client Entity Name (e.g. Dubai Police)</Label>
+                          <Label htmlFor="client-entity">Client Company Name</Label>
                           <Input
                             id="client-entity"
                             value={clientCompany}
                             onChange={(e) => setClientCompany(e.target.value)}
-                            placeholder="Dubai Police / DEWA"
+                            placeholder="e.g. Acme Facilities LLC"
                             required
                           />
                         </div>
@@ -206,8 +190,7 @@ const Register: React.FC = () => {
                         <div className="pt-2">
                           <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Preview Entity ID</p>
                           <p className="text-lg font-mono font-bold text-primary">
-                            {parentCompany === 'Sadeem' ? 'SAD' : 'GP'}-
-                            {clientCompany ? clientCompany.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 3) : '???'}-001
+                            {clientCompany.trim() ? organizationIdFor(clientCompany) : 'ORG-???-001'}
                           </p>
                         </div>
                       </div>

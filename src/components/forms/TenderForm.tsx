@@ -30,18 +30,18 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tender, ParentCompany } from '@/types';
+import { Tender } from '@/types';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionField } from '@/components/divisions/DivisionField';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
-
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const tenderSchema = z.object({
   name: z.string().min(1, 'Tender name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   clientId: z.string().optional(),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  divisionId: z.string().optional(),
   status: z.enum(['running', 'submitted', 'cancelled', 'to-be-evaluated', 'winner', 'awarded']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
@@ -66,6 +66,8 @@ const TenderForm: React.FC<TenderFormProps> = ({
 }) => {
   const { employees, tenders } = useData();
   const { allUsers } = useAuth();
+  const { divisions } = useWorkspace();
+  const defaultDivisionId = divisions[0]?.id ?? '';
   const isEditing = !!tender;
 
   // Remove duplicate employees based on ID and name
@@ -116,7 +118,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
       name: tender?.name || '',
       company: tender?.company || '',
       clientId: tender?.clientId || '',
-      belongsTo: tender?.belongsTo || 'Grow Plus Technologies',
+      divisionId: tender?.divisionId || defaultDivisionId,
       status: tender?.status || 'running',
       assignedTo: tender?.assignedTo || '',
       deadline: tender?.deadline || '',
@@ -131,7 +133,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
         name: tender.name,
         company: tender.company,
         clientId: tender.clientId || '',
-        belongsTo: tender.belongsTo,
+        divisionId: tender.divisionId || '',
         status: tender.status,
         assignedTo: tender.assignedTo,
         deadline: tender.deadline,
@@ -143,7 +145,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
         name: '',
         company: '',
         clientId: '',
-        belongsTo: 'Grow Plus Technologies',
+        divisionId: defaultDivisionId,
         status: 'running',
         assignedTo: '',
         deadline: '',
@@ -151,7 +153,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
         portal: '',
       });
     }
-  }, [tender, form]);
+  }, [tender, form, defaultDivisionId]);
 
   const handleSubmit = (data: TenderFormData) => {
     onSubmit(data);
@@ -279,30 +281,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="belongsTo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select parent company" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {parentCompanies.map((company) => (
-                            <SelectItem key={company} value={company}>
-                              {company}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <DivisionField control={form.control} name="divisionId" />
 
                 <FormField
                   control={form.control}

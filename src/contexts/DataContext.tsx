@@ -11,6 +11,8 @@ import {
 } from '@/services/firestore';
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { nextProjectNumber } from '@/lib/workspace';
 
 interface DataContextType {
   // Data
@@ -87,6 +89,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const userId = user?.id;
   const userRole = user?.role;
   const userOrganizationId = user?.organizationId;
+  const { workspaceId, divisionById } = useWorkspace();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -125,7 +128,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (authLoading) return;
 
-    if (!userId) {
+    if (!userId || !workspaceId) {
       setProjects([]);
       setTenders([]);
       setEmployees([]);
@@ -150,14 +153,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Clients can only read their own projects; every other collection is staff-only.
       const isClient = userRole === 'client';
       const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-        (isClient ? getProjectsForClient(userId, userOrganizationId) : getProjects()).catch(logAndEmpty('projects')),
-        isClient ? [] : getTenders().catch(logAndEmpty('tenders')),
-        isClient ? [] : getEmployees().catch(logAndEmpty('employees')),
-        isClient ? [] : getRegistrations().catch(logAndEmpty('registrations')),
-        isClient ? [] : getPayments().catch(logAndEmpty('payments')),
-        isClient ? [] : getSubscriptions().catch(logAndEmpty('subscriptions')),
-        isClient ? [] : getPartners().catch(logAndEmpty('partners')),
-        isClient ? [] : getFiles().catch(logAndEmpty('files')),
+        (isClient ? getProjectsForClient(workspaceId, userId, userOrganizationId) : getProjects(workspaceId)).catch(logAndEmpty('projects')),
+        isClient ? [] : getTenders(workspaceId).catch(logAndEmpty('tenders')),
+        isClient ? [] : getEmployees(workspaceId).catch(logAndEmpty('employees')),
+        isClient ? [] : getRegistrations(workspaceId).catch(logAndEmpty('registrations')),
+        isClient ? [] : getPayments(workspaceId).catch(logAndEmpty('payments')),
+        isClient ? [] : getSubscriptions(workspaceId).catch(logAndEmpty('subscriptions')),
+        isClient ? [] : getPartners(workspaceId).catch(logAndEmpty('partners')),
+        isClient ? [] : getFiles(workspaceId).catch(logAndEmpty('files')),
       ]);
       if (cancelled) return;
 
@@ -176,48 +179,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       cancelled = true;
     };
-  }, [authLoading, userId, userRole, userOrganizationId]);
+  }, [authLoading, userId, userRole, userOrganizationId, workspaceId]);
 
   const organizationIdFor = (clientId?: string) =>
     allUsers.find(u => u.id === normalizeOptionalId(clientId))?.organizationId || '';
 
-  // Helper to generate a human-readable Project ID
-  const generateProjectId = (belongsTo: string) => {
-    const prefix = belongsTo === 'Grow Plus Technologies' ? 'GPT' : 'SDE';
-    const pattern = new RegExp(`^PRJ-${prefix}-(\\d+)$`);
-    const highest = projects.reduce((max, p) => {
-      const match = p.projectId?.match(pattern);
-      return match ? Math.max(max, Number(match[1])) : max;
-    }, 0);
-    const num = String(highest + 1).padStart(3, '0');
-    return `PRJ-${prefix}-${num}`;
-  };
+  // Human-readable project number: PRJ-{division code}-NNN, or PRJ-NNN when
+  // the project has no division (see src/lib/workspace.ts).
+  const generateProjectId = (divisionId?: string) =>
+    nextProjectNumber(projects.map(p => p.projectId), divisionById(divisionId)?.code);
 
   // CRUD functions
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
     // Auto-generate projectId if not already set
-    const projectId = project.projectId || generateProjectId(project.belongsTo);
+    const projectId = project.projectId || generateProjectId(project.divisionId);
     // Sanitize clientId: treat 'none' as empty
     const clientId = normalizeOptionalId(project.clientId);
     const projectWithIds = { ...project, projectId, clientId };
-    const id = await addProject(projectWithIds);
+    const id = await addProject(workspaceId, projectWithIds);
     const newProject = { createdAt: new Date(), ...projectWithIds, id };
     setProjects(prev => [newProject, ...prev]);
     return id;
   };
 
   const handleUpdateProject = async (id: string, project: Partial<Project>) => {
-    await updateProject(id, project);
+    await updateProject(workspaceId, id, project);
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
   };
 
   const handleDeleteProject = async (id: string) => {
-    await deleteProject(id);
+    await deleteProject(workspaceId, id);
     setProjects(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddTender = async (tender: Omit<Tender, 'id'>) => {
-    const id = await addTender(tender);
+    const id = await addTender(workspaceId, tender);
     const newTender = { createdAt: new Date(), ...tender, id };
     setTenders(prev => [newTender, ...prev]);
 
@@ -238,7 +234,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newProject: Omit<Project, 'id'> = {
           name: tender.name,
           company: tender.company,
-          belongsTo: tender.belongsTo,
+          divisionId: tender.divisionId,
           status: 'running',
           assignedTo: tender.assignedTo,
           assignedToName: assignedName || '',
@@ -261,14 +257,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleUpdateTender = async (id: string, tender: Partial<Tender>) => {
     const existingTender = tenders.find(t => t.id === id);
     if (!existingTender) {
-      await updateTender(id, tender);
+      await updateTender(workspaceId, id, tender);
       setTenders(prev => prev.map(t => t.id === id ? { ...t, ...tender } : t));
       return;
     }
 
     const updatedTenderData = { ...existingTender, ...tender };
 
-    await updateTender(id, tender);
+    await updateTender(workspaceId, id, tender);
     setTenders(prev => prev.map(t => t.id === id ? updatedTenderData : t));
 
     // Auto-create Project if Tender is Awarded
@@ -288,7 +284,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newProject: Omit<Project, 'id'> = {
           name: updatedTenderData.name,
           company: updatedTenderData.company,
-          belongsTo: updatedTenderData.belongsTo,
+          divisionId: updatedTenderData.divisionId,
           status: 'running',
           assignedTo: updatedTenderData.assignedTo,
           assignedToName: assignedName || '',
@@ -307,7 +303,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const handleDeleteTender = async (id: string) => {
-    await deleteTender(id);
+    await deleteTender(workspaceId, id);
     setTenders(prev => prev.filter(t => t.id !== id));
   };
 
@@ -315,104 +311,104 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // All employee data (name, email, department, position, phone, joinDate, status)
   // must be managed through the Employees page. Avoid syncing from external auth providers.
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
-    const id = await addEmployee(employee);
+    const id = await addEmployee(workspaceId, employee);
     const newEmployee = { createdAt: new Date(), ...employee, id };
     setEmployees(prev => [newEmployee, ...prev]);
     return id;
   };
 
   const handleUpdateEmployee = async (id: string, employee: Partial<Employee>) => {
-    await updateEmployee(id, employee);
+    await updateEmployee(workspaceId, id, employee);
     setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...employee } : e));
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    await deleteEmployee(id);
+    await deleteEmployee(workspaceId, id);
     setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
   const handleAddRegistration = async (registration: Omit<Registration, 'id'>) => {
-    const id = await addRegistration(registration);
+    const id = await addRegistration(workspaceId, registration);
     const newRegistration = { createdAt: new Date(), ...registration, id };
     setRegistrations(prev => [newRegistration, ...prev]);
     return id;
   };
 
   const handleUpdateRegistration = async (id: string, registration: Partial<Registration>) => {
-    await updateRegistration(id, registration);
+    await updateRegistration(workspaceId, id, registration);
     setRegistrations(prev => prev.map(r => r.id === id ? { ...r, ...registration } : r));
   };
 
   const handleDeleteRegistration = async (id: string) => {
-    await deleteRegistration(id);
+    await deleteRegistration(workspaceId, id);
     setRegistrations(prev => prev.filter(r => r.id !== id));
   };
 
   const handleAddPayment = async (payment: Omit<Payment, 'id'>) => {
-    const id = await addPayment(payment);
+    const id = await addPayment(workspaceId, payment);
     const newPayment = { createdAt: new Date(), ...payment, id };
     setPayments(prev => [newPayment, ...prev]);
     return id;
   };
 
   const handleUpdatePayment = async (id: string, payment: Partial<Payment>) => {
-    await updatePayment(id, payment);
+    await updatePayment(workspaceId, id, payment);
     setPayments(prev => prev.map(p => p.id === id ? { ...p, ...payment } : p));
   };
 
   const handleDeletePayment = async (id: string) => {
-    await deletePayment(id);
+    await deletePayment(workspaceId, id);
     setPayments(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddSubscription = async (subscription: Omit<Subscription, 'id'>) => {
-    const id = await addSubscription(subscription);
+    const id = await addSubscription(workspaceId, subscription);
     const newSubscription = { createdAt: new Date(), ...subscription, id };
     setSubscriptions(prev => [newSubscription, ...prev]);
     return id;
   };
 
   const handleUpdateSubscription = async (id: string, subscription: Partial<Subscription>) => {
-    await updateSubscription(id, subscription);
+    await updateSubscription(workspaceId, id, subscription);
     setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, ...subscription } : s));
   };
 
   const handleDeleteSubscription = async (id: string) => {
-    await deleteSubscription(id);
+    await deleteSubscription(workspaceId, id);
     setSubscriptions(prev => prev.filter(s => s.id !== id));
   };
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
-    const id = await addPartner(partner);
+    const id = await addPartner(workspaceId, partner);
     const newPartner = { createdAt: new Date(), ...partner, id };
     setPartners(prev => [newPartner, ...prev]);
     return id;
   };
 
   const handleUpdatePartner = async (id: string, partner: Partial<Partner>) => {
-    await updatePartner(id, partner);
+    await updatePartner(workspaceId, id, partner);
     setPartners(prev => prev.map(p => p.id === id ? { ...p, ...partner } : p));
   };
 
   const handleDeletePartner = async (id: string) => {
-    await deletePartner(id);
+    await deletePartner(workspaceId, id);
     setPartners(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddFile = async (file: Omit<FileRecord, 'id'>) => {
-    const id = await addFile(file);
+    const id = await addFile(workspaceId, file);
     const newFile = { createdAt: new Date(), ...file, id };
     setFiles(prev => [newFile, ...prev]);
     return id;
   };
 
   const handleUpdateFile = async (id: string, file: Partial<FileRecord>) => {
-    await updateFile(id, file);
+    await updateFile(workspaceId, id, file);
     setFiles(prev => prev.map(f => f.id === id ? { ...f, ...file } : f));
   };
 
   const handleDeleteFile = async (id: string) => {
-    await deleteFile(id);
+    await deleteFile(workspaceId, id);
     setFiles(prev => prev.filter(f => f.id !== id));
   };
 

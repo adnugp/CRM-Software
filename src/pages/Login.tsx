@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/services/auth';
-import gpLogo from '@/assets/gp-logo.png';
+import { ProductLogo } from '@/components/brand/BrandMark';
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@/config/product';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -156,10 +157,11 @@ const Login: React.FC = () => {
 
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8 animate-fade-in">
-          <img src={gpLogo} alt="SadeemGPT Logo" className="h-24 mx-auto mb-4" />
+          <ProductLogo className="h-16 w-16 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-foreground tracking-tight">
-            SadeemGPT
+            {PRODUCT_NAME}
           </h1>
+          <p className="mt-2 text-sm text-muted-foreground">{PRODUCT_TAGLINE}</p>
         </div>
 
         <div className="bg-card border border-border rounded-2xl shadow-2xl p-8 animate-slide-up">

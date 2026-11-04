@@ -85,7 +85,7 @@ const EmailAlertSettings: React.FC = () => {
                         <Input
                             id="alert-email"
                             type="email"
-                            placeholder="admin@gptechnologies.ae"
+                            placeholder="alerts@yourcompany.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             disabled={!enabled}

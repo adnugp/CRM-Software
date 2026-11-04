@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
-import gpLogo from '@/assets/gp-logo.png';
+import { BrandMark } from '@/components/brand/BrandMark';
 import { useDragScroll } from '@/hooks/use-drag-scroll';
 
 const Sidebar: React.FC = () => {
@@ -54,8 +54,7 @@ const Sidebar: React.FC = () => {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-        <img src={gpLogo} alt="SadeemGPT Logo" className="h-10" />
-        <span className="text-xl font-bold text-sidebar-foreground">SadeemGPT</span>
+        <BrandMark size="lg" />
       </div>
 
       {/* Navigation */}
@@ -125,8 +124,7 @@ const Sidebar: React.FC = () => {
               <SidebarContent />
             </SheetContent>
           </Sheet>
-          <img src={gpLogo} alt="SadeemGPT Logo" className="h-8" />
-          <span className="text-lg font-bold text-sidebar-foreground">SadeemGPT</span>
+          <BrandMark />
         </div>
         <NotificationCenter />
       </header>

@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   DIVISION_CODE,
+  brandThemeCss,
   divisionColor,
+  hexToHsl,
   newDivisionId,
   nextOrganizationId,
   nextProjectNumber,
@@ -51,6 +53,47 @@ describe('nextOrganizationId', () => {
 
   it('falls back to CL when the name has no letters', () => {
     assert.equal(nextOrganizationId('123', []), 'ORG-CL-001');
+  });
+});
+
+describe('hexToHsl', () => {
+  it('converts a hex colour to the "H S% L%" form the theme variables use', () => {
+    assert.equal(hexToHsl('#16a34a'), '142 76% 36%');
+    assert.equal(hexToHsl('#2563EB'), '221 83% 53%');
+    assert.equal(hexToHsl('#000000'), '0 0% 0%');
+    assert.equal(hexToHsl('#fff'), '0 0% 100%');
+  });
+
+  it('returns null for anything that is not a hex colour', () => {
+    assert.equal(hexToHsl(''), null);
+    assert.equal(hexToHsl('green'), null);
+    assert.equal(hexToHsl('#12345'), null);
+    assert.equal(hexToHsl(undefined), null);
+  });
+});
+
+describe('brandThemeCss', () => {
+  it('re-hues the light and dark themes to the brand colour', () => {
+    const css = brandThemeCss('#2563eb');
+    assert.match(css, /:root\s*\{[^}]*--primary: 221 83% 50%;/);
+    assert.match(css, /:root\s*\{[^}]*--border: 221 20% 90%;/);
+    assert.match(css, /\.dark\s*\{[^}]*--background: 221 30% 8%;/);
+    assert.match(css, /\.dark\s*\{[^}]*--primary: 221 83% 53%;/); // already in the readable 45–60% range
+  });
+
+  it('keeps buttons readable by clamping very light or dark brand colours', () => {
+    assert.match(brandThemeCss('#fde047'), /:root\s*\{[^}]*--primary: 50 98% 50%;/);
+    assert.match(brandThemeCss('#0b1d3a'), /:root\s*\{[^}]*--primary: 217 68% 25%;/);
+    assert.match(brandThemeCss('#0b1d3a'), /\.dark\s*\{[^}]*--primary: 217 68% 45%;/);
+  });
+
+  it('never touches the semantic success colour', () => {
+    assert.doesNotMatch(brandThemeCss('#2563eb'), /--success/);
+  });
+
+  it('returns empty CSS for an invalid colour (keeps the default theme)', () => {
+    assert.equal(brandThemeCss('nope'), '');
+    assert.equal(brandThemeCss(undefined), '');
   });
 });
 

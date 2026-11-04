@@ -1,3 +1,6 @@
+export type { Division } from '@/lib/workspace';
+import type { Division } from '@/lib/workspace';
+
 export type UserRole = 'admin' | 'user' | 'client' | 'manager';
 
 export interface User {
@@ -7,7 +10,20 @@ export interface User {
   role: UserRole;
   company?: string;
   organizationId?: string;
+  /** The customer company (workspace) this login belongs to. */
+  workspaceId?: string;
   avatar?: string;
+}
+
+/** A customer company using the CRM. Its records live under workspaces/{id}/. */
+export interface Workspace {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  /** Hex colour, e.g. #16a34a. Drives the primary accent colour. */
+  brandColor?: string;
+  divisions: Division[];
+  createdAt?: Date;
 }
 
 export interface DocumentFile {
@@ -16,8 +32,6 @@ export interface DocumentFile {
   type: string;
   data: string;
 }
-
-export type ParentCompany = 'Grow Plus Technologies' | 'Sadeem Energy';
 
 export interface ProjectTask {
   id: string;
@@ -50,7 +64,8 @@ export interface Project {
   name: string;
   company: string;
   organizationId?: string;
-  belongsTo: ParentCompany;
+  /** Division of the workspace this record belongs to (optional). */
+  divisionId?: string;
   status: 'running' | 'in-progress' | 'completed' | 'handed-over';
   assignedTo: string;
   assignedToName: string;
@@ -74,7 +89,8 @@ export interface Tender {
   organizationId?: string;
   rfqCode?: string;
   portal?: string;
-  belongsTo: ParentCompany;
+  /** Division of the workspace this record belongs to (optional). */
+  divisionId?: string;
   status: 'running' | 'submitted' | 'cancelled' | 'to-be-evaluated' | 'winner' | 'awarded';
   assignedTo: string;
   assignedToName: string;
@@ -103,7 +119,8 @@ export interface Registration {
   name: string;
   company: string;
   organizationId?: string;
-  belongsTo: ParentCompany;
+  /** Division of the workspace this record belongs to (optional). */
+  divisionId?: string;
   type: string;
   registrationDate: string;
   expiryDate: string;
@@ -155,7 +172,7 @@ export interface FileRecord {
   id: string;
   name: string;
   category: string;
-  company: string;
+  divisionId?: string;
   organizationId?: string;
   uploadedAt: string;
   uploadedBy: string;

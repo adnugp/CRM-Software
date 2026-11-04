@@ -3,6 +3,7 @@ import { Upload, FileDown, X, File, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { storage } from '@/services/firebase';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface DocumentUploadProps {
@@ -25,6 +26,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   onRemove,
   readOnly = false,
 }) => {
+  const { workspaceId } = useWorkspace();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -66,7 +68,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
     try {
       // Create a unique filename to prevent overwriting
       const uniqueFileName = `${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, `documents/${uniqueFileName}`);
+      const storageRef = ref(storage, `workspaces/${workspaceId}/documents/${uniqueFileName}`);
       
       const uploadTask = uploadBytesResumable(storageRef, file);
 

@@ -15,14 +15,13 @@ import {
   reauthenticateWithCredential,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface AuthContextType {
   user: AppUser | null;
   allUsers: (AppUser & { password?: string })[];
   login: (email: string, password: string) => Promise<{ success: boolean; errorCode?: string }>;
-  register: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<boolean>;
   addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<string | true>;
   removeUser: (id: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -56,9 +55,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // The signed-in user's workspace. Kept in a ref so refreshUsers/addUser,
+  // which are called from many places, always use the current one.
+  const workspaceIdRef = useRef('');
+
+  // Staff see the people in their own company only; firestore.rules reject a
+  // users query that isn't filtered by the caller's workspace.
   const refreshUsers = useCallback(async () => {
+    const workspaceId = workspaceIdRef.current;
+    if (!workspaceId) {
+      setAllUsers([]);
+      return;
+    }
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersSnapshot = await getDocs(query(collection(db, 'users'), where('workspaceId', '==', workspaceId)));
       const usersList = usersSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -83,15 +93,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
           role: 'client'
         };
+        workspaceIdRef.current = profile.workspaceId || '';
         setUser(profile);
 
-        if (profile.role === 'client') {
+        if (profile.role === 'client' || !profile.workspaceId) {
           // Clients may only read their own profile (see firestore.rules).
           setAllUsers([profile]);
         } else {
           await refreshUsers();
         }
       } else {
+        workspaceIdRef.current = '';
         setUser(null);
         setAllUsers([]);
       }
@@ -111,38 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<boolean> => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
-
-      // Update firebase profile
-      await updateFirebaseProfile(userCredential.user, { displayName: name });
-
-      const newUserData: Omit<AppUser, 'id'> = {
-        email,
-        name,
-        role,
-        company: company || (role === 'client' ? name : undefined),
-        organizationId: organizationId || (role === 'client' ? `ORG-${name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-3)}` : undefined),
-      };
-
-      // Store extra user details in Firestore
-      const cleanUserData = Object.fromEntries(
-        Object.entries(newUserData).filter(([_, v]) => v !== undefined)
-      );
-      await setDoc(doc(db, 'users', uid), cleanUserData);
-      await refreshUsers();
-
-      const completeUser = { id: uid, ...newUserData };
-      setUser(completeUser);
-      return true;
-    } catch (error) {
-      console.error('Registration error:', error);
-      return false;
-    }
-  }, [refreshUsers]);
-
   const getSecondaryApp = () => {
     const existingApp = getApps().find((appInstance) => appInstance.name === 'secondary');
     if (existingApp) {
@@ -154,6 +134,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<string | true> => {
     // Use a separate Firebase app instance for user creation so the current
     // authenticated admin session is not replaced by the newly created user.
+    // New people always join the admin's own workspace.
+    const workspaceId = workspaceIdRef.current;
+    if (!workspaceId) return 'Your account is not linked to a company.';
+
     try {
       const secondaryApp = getSecondaryApp();
       const secondaryAuth = getAuth(secondaryApp);
@@ -168,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         company,
         organizationId,
+        workspaceId,
       };
 
       const cleanUserData = Object.fromEntries(
@@ -321,7 +306,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       allUsers,
       login,
-      register,
       addUser,
       removeUser,
       logout,

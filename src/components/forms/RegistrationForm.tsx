@@ -28,17 +28,17 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Registration, ParentCompany } from '@/types';
+import { Registration } from '@/types';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionField } from '@/components/divisions/DivisionField';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
-
 const registrationSchema = z.object({
   name: z.string().min(1, 'Registration name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  divisionId: z.string().optional(),
   type: z.string().min(1, 'Type is required'),
   registrationDate: z.string().min(1, 'Registration date is required'),
   expiryDate: z.string().min(1, 'Expiry date is required'),
@@ -74,6 +74,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 }) => {
   const { employees } = useData();
   const { allUsers } = useAuth();
+  const { divisions } = useWorkspace();
+  const defaultDivisionId = divisions[0]?.id ?? '';
   const isEditing = !!registration;
 
   const [otherTypeSpecify, setOtherTypeSpecify] = React.useState('');
@@ -88,7 +90,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
     defaultValues: {
       name: registration?.name || '',
       company: registration?.company || '',
-      belongsTo: registration?.belongsTo || 'Grow Plus Technologies',
+      divisionId: registration?.divisionId || defaultDivisionId,
       type: registration?.type || '',
       registrationDate: registration?.registrationDate || '',
       expiryDate: registration?.expiryDate || '',
@@ -104,7 +106,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       form.reset({
         name: registration.name,
         company: registration.company,
-        belongsTo: registration.belongsTo,
+        divisionId: registration.divisionId || '',
         type: isOther ? 'Others' : registration.type,
         registrationDate: registration.registrationDate,
         expiryDate: registration.expiryDate,
@@ -116,7 +118,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       form.reset({
         name: '',
         company: '',
-        belongsTo: 'Grow Plus Technologies',
+        divisionId: defaultDivisionId,
         type: '',
         registrationDate: '',
         expiryDate: '',
@@ -124,7 +126,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         assignedTo: '',
       });
     }
-  }, [registration, form]);
+  }, [registration, form, defaultDivisionId]);
 
   const handleSubmit = (data: RegistrationFormData) => {
     const finalData = {
@@ -183,30 +185,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="belongsTo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select parent company" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {parentCompanies.map((company) => (
-                            <SelectItem key={company} value={company}>
-                              {company}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <DivisionField control={form.control} name="divisionId" />
 
                 <FormField
                   control={form.control}

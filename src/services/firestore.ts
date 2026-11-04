@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc, 
+  getDoc,
   getDocs, 
   addDoc, 
   updateDoc, 
@@ -14,7 +15,12 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
+import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace } from '@/types';
+
+// Every company's records live under workspaces/{wsId}/{collection}. Callers
+// pass the signed-in user's workspace id; firestore.rules reject any other.
+const wsCollection = (wsId: string, name: string) => collection(db, 'workspaces', wsId, name);
+const wsDoc = (wsId: string, name: string, id: string) => doc(db, 'workspaces', wsId, name, id);
 
 // Firestore returns server timestamps (e.g. createdAt) as Timestamp objects.
 // The app's types and date maths expect Date, and `new Date(timestamp)` is
@@ -30,14 +36,14 @@ const fromDoc = <T>(snapshot: QueryDocumentSnapshot<DocumentData>): T => {
 };
 
 // Generic helper to get a collection
-const getCollection = async <T>(collectionName: string): Promise<T[]> => {
+const getCollection = async <T>(wsId: string, collectionName: string): Promise<T[]> => {
   try {
-    const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
+    const q = query(wsCollection(wsId, collectionName), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(d => fromDoc<T>(d));
   } catch (error) {
     // Fallback if index does not exist yet or other query error
-    const snapshot = await getDocs(collection(db, collectionName));
+    const snapshot = await getDocs(wsCollection(wsId, collectionName));
     return snapshot.docs.map(d => fromDoc<T>(d));
   }
 };
@@ -62,37 +68,37 @@ const removeUndefined = (value: unknown): unknown => {
   return value;
 };
 
-const addDocument = async <T>(collectionName: string, data: Omit<T, 'id'>): Promise<string> => {
+const addDocument = async <T>(wsId: string, collectionName: string, data: Omit<T, 'id'>): Promise<string> => {
   const cleanData = removeUndefined(data);
-  const docRef = await addDoc(collection(db, collectionName), {
+  const docRef = await addDoc(wsCollection(wsId, collectionName), {
     ...(cleanData as DocumentData),
     createdAt: serverTimestamp()
   });
   return docRef.id;
 };
 
-const updateDocument = async <T>(collectionName: string, id: string, data: Partial<T>): Promise<void> => {
+const updateDocument = async <T>(wsId: string, collectionName: string, id: string, data: Partial<T>): Promise<void> => {
   const cleanData = removeUndefined(data);
-  const docRef = doc(db, collectionName, id);
+  const docRef = wsDoc(wsId, collectionName, id);
   await updateDoc(docRef, cleanData as DocumentData);
 };
 
-const deleteDocument = async (collectionName: string, id: string): Promise<void> => {
-  const docRef = doc(db, collectionName, id);
+const deleteDocument = async (wsId: string, collectionName: string, id: string): Promise<void> => {
+  const docRef = wsDoc(wsId, collectionName, id);
   await deleteDoc(docRef);
 };
 
 // Projects
-export const getProjects = async (): Promise<Project[]> => getCollection<Project>('projects');
+export const getProjects = async (wsId: string): Promise<Project[]> => getCollection<Project>(wsId, 'projects');
 
 // Clients may only read projects linked to them (see firestore.rules), and
 // Firestore rejects any query that could return documents the caller can't
 // read. So clients query by their own uid / organization instead of the whole
 // collection, and the two result sets are merged.
-export const getProjectsForClient = async (uid: string, organizationId?: string): Promise<Project[]> => {
-  const queries = [query(collection(db, 'projects'), where('clientId', '==', uid))];
+export const getProjectsForClient = async (wsId: string, uid: string, organizationId?: string): Promise<Project[]> => {
+  const queries = [query(wsCollection(wsId, 'projects'), where('clientId', '==', uid))];
   if (organizationId) {
-    queries.push(query(collection(db, 'projects'), where('organizationId', '==', organizationId)));
+    queries.push(query(wsCollection(wsId, 'projects'), where('organizationId', '==', organizationId)));
   }
   const snapshots = await Promise.all(queries.map(q => getDocs(q)));
   const byId = new Map<string, Project>();
@@ -102,48 +108,65 @@ export const getProjectsForClient = async (uid: string, organizationId?: string)
   return [...byId.values()];
 };
 
-export const addProject = async (project: Omit<Project, 'id'>): Promise<string> => addDocument<Project>('projects', project);
-export const updateProject = async (id: string, project: Partial<Project>): Promise<void> => updateDocument<Project>('projects', id, project);
-export const deleteProject = async (id: string): Promise<void> => deleteDocument('projects', id);
+export const addProject = async (wsId: string, project: Omit<Project, 'id'>): Promise<string> => addDocument<Project>(wsId, 'projects', project);
+export const updateProject = async (wsId: string, id: string, project: Partial<Project>): Promise<void> => updateDocument<Project>(wsId, 'projects', id, project);
+export const deleteProject = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'projects', id);
 
 // Tenders
-export const getTenders = async (): Promise<Tender[]> => getCollection<Tender>('tenders');
-export const addTender = async (tender: Omit<Tender, 'id'>): Promise<string> => addDocument<Tender>('tenders', tender);
-export const updateTender = async (id: string, tender: Partial<Tender>): Promise<void> => updateDocument<Tender>('tenders', id, tender);
-export const deleteTender = async (id: string): Promise<void> => deleteDocument('tenders', id);
+export const getTenders = async (wsId: string): Promise<Tender[]> => getCollection<Tender>(wsId, 'tenders');
+export const addTender = async (wsId: string, tender: Omit<Tender, 'id'>): Promise<string> => addDocument<Tender>(wsId, 'tenders', tender);
+export const updateTender = async (wsId: string, id: string, tender: Partial<Tender>): Promise<void> => updateDocument<Tender>(wsId, 'tenders', id, tender);
+export const deleteTender = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'tenders', id);
 
 // Employees
-export const getEmployees = async (): Promise<Employee[]> => getCollection<Employee>('employees');
-export const addEmployee = async (employee: Omit<Employee, 'id'>): Promise<string> => addDocument<Employee>('employees', employee);
-export const updateEmployee = async (id: string, employee: Partial<Employee>): Promise<void> => updateDocument<Employee>('employees', id, employee);
-export const deleteEmployee = async (id: string): Promise<void> => deleteDocument('employees', id);
+export const getEmployees = async (wsId: string): Promise<Employee[]> => getCollection<Employee>(wsId, 'employees');
+export const addEmployee = async (wsId: string, employee: Omit<Employee, 'id'>): Promise<string> => addDocument<Employee>(wsId, 'employees', employee);
+export const updateEmployee = async (wsId: string, id: string, employee: Partial<Employee>): Promise<void> => updateDocument<Employee>(wsId, 'employees', id, employee);
+export const deleteEmployee = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'employees', id);
 
 // Registrations
-export const getRegistrations = async (): Promise<Registration[]> => getCollection<Registration>('registrations');
-export const addRegistration = async (registration: Omit<Registration, 'id'>): Promise<string> => addDocument<Registration>('registrations', registration);
-export const updateRegistration = async (id: string, registration: Partial<Registration>): Promise<void> => updateDocument<Registration>('registrations', id, registration);
-export const deleteRegistration = async (id: string): Promise<void> => deleteDocument('registrations', id);
+export const getRegistrations = async (wsId: string): Promise<Registration[]> => getCollection<Registration>(wsId, 'registrations');
+export const addRegistration = async (wsId: string, registration: Omit<Registration, 'id'>): Promise<string> => addDocument<Registration>(wsId, 'registrations', registration);
+export const updateRegistration = async (wsId: string, id: string, registration: Partial<Registration>): Promise<void> => updateDocument<Registration>(wsId, 'registrations', id, registration);
+export const deleteRegistration = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'registrations', id);
 
 // Payments
-export const getPayments = async (): Promise<Payment[]> => getCollection<Payment>('payments');
-export const addPayment = async (payment: Omit<Payment, 'id'>): Promise<string> => addDocument<Payment>('payments', payment);
-export const updatePayment = async (id: string, payment: Partial<Payment>): Promise<void> => updateDocument<Payment>('payments', id, payment);
-export const deletePayment = async (id: string): Promise<void> => deleteDocument('payments', id);
+export const getPayments = async (wsId: string): Promise<Payment[]> => getCollection<Payment>(wsId, 'payments');
+export const addPayment = async (wsId: string, payment: Omit<Payment, 'id'>): Promise<string> => addDocument<Payment>(wsId, 'payments', payment);
+export const updatePayment = async (wsId: string, id: string, payment: Partial<Payment>): Promise<void> => updateDocument<Payment>(wsId, 'payments', id, payment);
+export const deletePayment = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'payments', id);
 
 // Subscriptions
-export const getSubscriptions = async (): Promise<Subscription[]> => getCollection<Subscription>('subscriptions');
-export const addSubscription = async (subscription: Omit<Subscription, 'id'>): Promise<string> => addDocument<Subscription>('subscriptions', subscription);
-export const updateSubscription = async (id: string, subscription: Partial<Subscription>): Promise<void> => updateDocument<Subscription>('subscriptions', id, subscription);
-export const deleteSubscription = async (id: string): Promise<void> => deleteDocument('subscriptions', id);
+export const getSubscriptions = async (wsId: string): Promise<Subscription[]> => getCollection<Subscription>(wsId, 'subscriptions');
+export const addSubscription = async (wsId: string, subscription: Omit<Subscription, 'id'>): Promise<string> => addDocument<Subscription>(wsId, 'subscriptions', subscription);
+export const updateSubscription = async (wsId: string, id: string, subscription: Partial<Subscription>): Promise<void> => updateDocument<Subscription>(wsId, 'subscriptions', id, subscription);
+export const deleteSubscription = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'subscriptions', id);
 
 // Partners
-export const getPartners = async (): Promise<Partner[]> => getCollection<Partner>('partners');
-export const addPartner = async (partner: Omit<Partner, 'id'>): Promise<string> => addDocument<Partner>('partners', partner);
-export const updatePartner = async (id: string, partner: Partial<Partner>): Promise<void> => updateDocument<Partner>('partners', id, partner);
-export const deletePartner = async (id: string): Promise<void> => deleteDocument('partners', id);
+export const getPartners = async (wsId: string): Promise<Partner[]> => getCollection<Partner>(wsId, 'partners');
+export const addPartner = async (wsId: string, partner: Omit<Partner, 'id'>): Promise<string> => addDocument<Partner>(wsId, 'partners', partner);
+export const updatePartner = async (wsId: string, id: string, partner: Partial<Partner>): Promise<void> => updateDocument<Partner>(wsId, 'partners', id, partner);
+export const deletePartner = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'partners', id);
 
 // Files
-export const getFiles = async (): Promise<FileRecord[]> => getCollection<FileRecord>('files');
-export const addFile = async (file: Omit<FileRecord, 'id'>): Promise<string> => addDocument<FileRecord>('files', file);
-export const updateFile = async (id: string, file: Partial<FileRecord>): Promise<void> => updateDocument<FileRecord>('files', id, file);
-export const deleteFile = async (id: string): Promise<void> => deleteDocument('files', id);
+export const getFiles = async (wsId: string): Promise<FileRecord[]> => getCollection<FileRecord>(wsId, 'files');
+export const addFile = async (wsId: string, file: Omit<FileRecord, 'id'>): Promise<string> => addDocument<FileRecord>(wsId, 'files', file);
+export const updateFile = async (wsId: string, id: string, file: Partial<FileRecord>): Promise<void> => updateDocument<FileRecord>(wsId, 'files', id, file);
+export const deleteFile = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'files', id);
+
+// Workspace (company) settings: name, logo, brand colour, divisions.
+export const getWorkspace = async (wsId: string): Promise<Workspace | null> => {
+  const snapshot = await getDoc(doc(db, 'workspaces', wsId));
+  if (!snapshot.exists()) return null;
+  const data = snapshot.data();
+  return {
+    id: snapshot.id,
+    ...data,
+    divisions: Array.isArray(data.divisions) ? data.divisions : [],
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
+  } as Workspace;
+};
+
+export const updateWorkspace = async (wsId: string, data: Partial<Omit<Workspace, 'id' | 'createdAt'>>): Promise<void> => {
+  await updateDoc(doc(db, 'workspaces', wsId), removeUndefined(data) as DocumentData);
+};

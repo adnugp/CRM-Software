@@ -11,29 +11,20 @@ import SearchInput from '@/components/ui/SearchInput';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
-import { DocumentFile } from '@/types';
+import { DocumentFile, FileRecord } from '@/types';
 import { Plus, FileDown, Trash2, File, FolderOpen, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
-
-interface FileRecord {
-  id: string;
-  name: string;
-  category: string;
-  company: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  document: DocumentFile;
-  documents: DocumentFile[];
-}
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 
 const Files: React.FC = () => {
   const { user } = useAuth();
   const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [companyFilter, setCompanyFilter] = useState('');
+  const [divisionFilter, setDivisionFilter] = useState('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [deleteFile, setDeleteFile] = useState<FileRecord | null>(null);
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
@@ -42,33 +33,33 @@ const Files: React.FC = () => {
   // Upload form state
   const [uploadName, setUploadName] = useState('');
   const [uploadCategory, setUploadCategory] = useState('');
-  const [uploadCompany, setUploadCompany] = useState('');
+  const [uploadDivision, setUploadDivision] = useState('');
+  const { divisions } = useWorkspace();
   const [uploadDocuments, setUploadDocuments] = useState<DocumentFile[]>([]);
 
   const canEdit = user?.role === 'admin' || user?.role === 'user' || user?.role === 'manager';
   const isManager = user?.role === 'manager';
 
   const categories = ['Projects', 'Tenders', 'Registrations', 'Contracts', 'Reports', 'Other'];
-  const companies = ['Grow Plus Technologies', 'Sadeem Energy'];
 
   const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
-  const companyOptions = companies.map(comp => ({ value: comp, label: comp }));
+  const divisionOptions = divisions.map(d => ({ value: d.id, label: d.name }));
 
   const filteredFiles = React.useMemo(() => {
     return filesList.filter(file => {
       const matchesSearch = (file.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (file.category || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = !categoryFilter || categoryFilter === 'all' || file.category === categoryFilter;
-      const matchesCompany = !companyFilter || companyFilter === 'all' || file.company === companyFilter;
-      return matchesSearch && matchesCategory && matchesCompany;
+      const matchesDivision = !divisionFilter || divisionFilter === 'all' || file.divisionId === divisionFilter;
+      return matchesSearch && matchesCategory && matchesDivision;
     });
-  }, [filesList, searchQuery, categoryFilter, companyFilter]);
+  }, [filesList, searchQuery, categoryFilter, divisionFilter]);
 
   const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.jpg', '.jpeg', '.png', '.mp4'];
   const blockedExtensions = ['.exe', '.bat', '.sh'];
 
   const handleUpload = async () => {
-    if (!uploadName || !uploadCategory || !uploadCompany || uploadDocuments.length === 0) {
+    if (!uploadName || !uploadCategory || (divisions.length > 0 && !uploadDivision) || uploadDocuments.length === 0) {
       toast({
         title: 'Missing information',
         description: 'Please fill in all fields and upload at least one file.',
@@ -81,7 +72,7 @@ const Files: React.FC = () => {
       const fileData = {
         name: uploadName,
         category: uploadCategory,
-        company: uploadCompany,
+        divisionId: uploadDivision || undefined,
         uploadedAt: new Date().toISOString().split('T')[0],
         uploadedBy: user?.name || 'Unknown',
         document: uploadDocuments[0],
@@ -107,7 +98,7 @@ const Files: React.FC = () => {
   const resetUploadForm = () => {
     setUploadName('');
     setUploadCategory('');
-    setUploadCompany('');
+    setUploadDivision('');
     setUploadDocuments([]);
   };
 
@@ -206,13 +197,15 @@ const Files: React.FC = () => {
           options={categoryOptions}
           placeholder="All Categories"
         />
-        <FilterDropdown
-          label="Company"
-          value={companyFilter}
-          onChange={setCompanyFilter}
-          options={companyOptions}
-          placeholder="All Companies"
-        />
+        {divisions.length > 0 && (
+          <FilterDropdown
+            label="Division"
+            value={divisionFilter}
+            onChange={setDivisionFilter}
+            options={divisionOptions}
+            placeholder="All Divisions"
+          />
+        )}
       </div>
 
       {/* Files Table */}
@@ -222,7 +215,7 @@ const Files: React.FC = () => {
             <TableRow>
               <TableHead>File Name</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Company</TableHead>
+              {divisions.length > 0 && <TableHead>Division</TableHead>}
               <TableHead>Size</TableHead>
               <TableHead>Uploaded</TableHead>
               <TableHead>Uploaded By</TableHead>
@@ -276,7 +269,9 @@ const Files: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>{file.category}</TableCell>
-                  <TableCell>{file.company}</TableCell>
+                  {divisions.length > 0 && (
+                    <TableCell><DivisionBadge divisionId={file.divisionId} /></TableCell>
+                  )}
                   <TableCell>
                     {(() => {
                       const docs = file.documents?.length ? file.documents : file.document ? [file.document] : [];
@@ -316,7 +311,7 @@ const Files: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Upload File</DialogTitle>
             <DialogDescription>
-              Add a file name, category, and company before saving the record.
+              Add a file name and category before saving the record.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -342,19 +337,21 @@ const Files: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Company</Label>
-              <Select value={uploadCompany} onValueChange={setUploadCompany}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map(comp => (
-                    <SelectItem key={comp} value={comp}>{comp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {divisions.length > 0 && (
+              <div className="space-y-2">
+                <Label>Division</Label>
+                <Select value={uploadDivision} onValueChange={setUploadDivision}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select division" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {divisions.map(d => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Documents</Label>
               <MultiDocumentUpload

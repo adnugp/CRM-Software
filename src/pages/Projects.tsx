@@ -18,14 +18,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { Project, ParentCompany } from '@/types';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionBadge } from '@/components/divisions/DivisionBadge';
+import { Project } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { canViewProject } from '@/lib/project-visibility';
-
-const parentCompanyOptions = [
-  { value: 'Grow Plus Technologies', label: 'Grow Plus Technologies' },
-  { value: 'Sadeem Energy', label: 'Sadeem Energy' },
-];
 
 const statusOptions = [
   { value: 'running', label: 'Running' },
@@ -38,7 +35,9 @@ const Projects: React.FC = () => {
   const { user, allUsers } = useAuth();
   const { projects, employees, addProject, updateProject, deleteProject } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
-  const [belongsToFilter, setBelongsToFilter] = useState('all');
+  const [divisionFilter, setDivisionFilter] = useState('all');
+  const { divisions, divisionById } = useWorkspace();
+  const divisionOptions = divisions.map(d => ({ value: d.id, label: d.name }));
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,8 +71,8 @@ const Projects: React.FC = () => {
     if (companyFilter !== 'all') {
       result = result.filter(p => p.company === companyFilter);
     }
-    if (belongsToFilter !== 'all') {
-      result = result.filter(p => p.belongsTo === belongsToFilter);
+    if (divisionFilter !== 'all') {
+      result = result.filter(p => p.divisionId === divisionFilter);
     }
     if (statusFilter !== 'all') {
       result = result.filter(p => p.status === statusFilter);
@@ -90,7 +89,7 @@ const Projects: React.FC = () => {
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user, projects]);
+  }, [companyFilter, divisionFilter, statusFilter, assigneeFilter, searchQuery, isClient, user, projects]);
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
@@ -193,13 +192,15 @@ const Projects: React.FC = () => {
             options={companyOptions}
             placeholder="All Companies"
           />
-          <FilterDropdown
-            label="Belongs To"
-            value={belongsToFilter}
-            onChange={setBelongsToFilter}
-            options={parentCompanyOptions}
-            placeholder="All Parent Companies"
-          />
+          {divisions.length > 0 && (
+            <FilterDropdown
+              label="Division"
+              value={divisionFilter}
+              onChange={setDivisionFilter}
+              options={divisionOptions}
+              placeholder="All Divisions"
+            />
+          )}
           <FilterDropdown
             label="Status"
             value={statusFilter}
@@ -227,7 +228,7 @@ const Projects: React.FC = () => {
                 <TableHead>Project Name</TableHead>
                 <TableHead className="hidden md:table-cell">Company</TableHead>
                 <TableHead className="hidden lg:table-cell">Client</TableHead>
-                <TableHead className="hidden md:table-cell">Belongs To</TableHead>
+                {divisions.length > 0 && <TableHead className="hidden md:table-cell">Division</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead>Completion</TableHead>
@@ -266,14 +267,11 @@ const Projects: React.FC = () => {
                       <span className="text-muted-foreground text-sm">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${project.belongsTo === 'Grow Plus Technologies'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                      }`}>
-                      {project.belongsTo}
-                    </span>
-                  </TableCell>
+                  {divisions.length > 0 && (
+                    <TableCell className="hidden md:table-cell">
+                      <DivisionBadge divisionId={project.divisionId} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <StatusBadge status={project.status} variant="project" />
                   </TableCell>

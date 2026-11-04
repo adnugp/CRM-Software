@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import { DataProvider } from "@/contexts/DataContext";
 import ProtectedRoute, { FullPageLoader } from "@/components/ProtectedRoute";
 import Index from "./Index";
@@ -75,6 +76,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <WorkspaceProvider>
         <DataProvider>
           <BrowserRouter>
             <ThemeInitializer />
@@ -158,6 +160,7 @@ const App = () => {
             <ChatbotWrapper />
           </BrowserRouter>
         </DataProvider>
+        </WorkspaceProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

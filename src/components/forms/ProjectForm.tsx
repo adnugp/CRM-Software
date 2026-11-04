@@ -28,18 +28,18 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Project, ParentCompany } from '@/types';
+import { Project } from '@/types';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionField } from '@/components/divisions/DivisionField';
 import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
-
-const parentCompanies: ParentCompany[] = ['Grow Plus Technologies', 'Sadeem Energy'];
 
 const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100, 'Name must be less than 100 characters'),
   company: z.string().min(1, 'Company is required').max(100, 'Company must be less than 100 characters'),
   clientId: z.string().optional(),
-  belongsTo: z.enum(['Grow Plus Technologies', 'Sadeem Energy'], { required_error: 'Parent company is required' }),
+  divisionId: z.string().optional(),
   status: z.enum(['running', 'in-progress', 'completed', 'handed-over']),
   assignedTo: z.string().min(1, 'Assignee is required'),
   deadline: z.string().min(1, 'Deadline is required'),
@@ -63,6 +63,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
 }) => {
   const { employees } = useData();
   const { allUsers } = useAuth();
+  const { divisions } = useWorkspace();
+  const defaultDivisionId = divisions[0]?.id ?? '';
   const isEditing = !!project;
 
   // Get client users from allUsers
@@ -84,7 +86,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       name: project?.name || '',
       company: project?.company || '',
       clientId: project?.clientId || '',
-      belongsTo: project?.belongsTo || 'Grow Plus Technologies',
+      divisionId: project?.divisionId || defaultDivisionId,
       status: project?.status || 'running',
       assignedTo: project?.assignedTo || '',
       deadline: project?.deadline || '',
@@ -98,7 +100,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         name: project.name,
         company: project.company,
         clientId: project.clientId || '',
-        belongsTo: project.belongsTo,
+        divisionId: project.divisionId || '',
         status: project.status,
         assignedTo: project.assignedTo,
         deadline: project.deadline,
@@ -109,14 +111,14 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         name: '',
         company: '',
         clientId: '',
-        belongsTo: 'Grow Plus Technologies',
+        divisionId: defaultDivisionId,
         status: 'running',
         assignedTo: '',
         deadline: '',
         budget: 0,
       });
     }
-  }, [project, form]);
+  }, [project, form, defaultDivisionId]);
 
   const handleSubmit = (data: ProjectFormData) => {
     onSubmit(data);
@@ -210,30 +212,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="belongsTo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Belongs To</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || 'Grow Plus Technologies'}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select parent company" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {parentCompanies.map((company) => (
-                            <SelectItem key={company} value={company}>
-                              {company}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <DivisionField control={form.control} name="divisionId" />
 
                 <FormField
                   control={form.control}

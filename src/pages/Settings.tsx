@@ -5,6 +5,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import EmailAlertSettings from '@/components/notifications/EmailAlertSettings';
+import CompanySettings from '@/components/settings/CompanySettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -249,6 +250,9 @@ const Settings: React.FC = () => {
                 <div className="grid gap-8 mt-4 grid-cols-1 xl:grid-cols-3">
                     {/* Main Settings Column */}
                     <div className="xl:col-span-2 space-y-8">
+
+                        {/* Company name, logo, colour, divisions (managers: read-only) */}
+                        {(isAdmin || user?.role === 'manager') && <CompanySettings />}
 
                         {/* Admin-only Panel */}
                         {isAdmin && (

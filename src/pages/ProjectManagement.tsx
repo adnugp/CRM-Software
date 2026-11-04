@@ -50,6 +50,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { DivisionBadge } from '@/components/divisions/DivisionBadge';
+import { PRODUCT_NAME } from '@/config/product';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ProjectTaskForm, { type TaskFormData } from '@/components/forms/ProjectTaskForm';
@@ -81,6 +84,7 @@ const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { projects, employees, updateProject, loading } = useData();
     const { user: currentUser, allUsers } = useAuth();
+    const { workspace, workspaceId, divisionById } = useWorkspace();
     const [activeTab, setActiveTab] = useState('overview');
     const [taskFormOpen, setTaskFormOpen] = useState(false);
     const [costFormOpen, setCostFormOpen] = useState(false);
@@ -328,7 +332,7 @@ const ProjectManagement: React.FC = () => {
 
         setUploadingTaskId(pendingTaskId);
         const uniqueFileName = `${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `task-attachments/${uniqueFileName}`);
+        const storageRef = ref(storage, `workspaces/${workspaceId}/task-attachments/${uniqueFileName}`);
 
         try {
             const uploadTask = uploadBytesResumable(storageRef, file);
@@ -526,7 +530,7 @@ const ProjectManagement: React.FC = () => {
         doc.setFontSize(9);
         doc.setTextColor(150);
         doc.text('System Auditor - Certified Financial Appraisal', 14, y);
-        doc.text('Grow Plus Technologies | SadeemGPT CRM', pageWidth - 14, y, { align: 'right' });
+        doc.text([workspace?.name, PRODUCT_NAME].filter(Boolean).join(' | '), pageWidth - 14, y, { align: 'right' });
 
         // Save
         doc.save(`${project.name.replace(/\s+/g, '_')}_Executive_Briefing.pdf`);
@@ -706,10 +710,12 @@ const ProjectManagement: React.FC = () => {
                                             <span className="text-muted-foreground text-sm">Not assigned</span>
                                         )}
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-sm font-medium text-muted-foreground">Parent Company</p>
-                                        <Badge variant="outline" className="font-normal">{project.belongsTo}</Badge>
-                                    </div>
+                                    {divisionById(project.divisionId) && (
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-medium text-muted-foreground">Division</p>
+                                            <DivisionBadge divisionId={project.divisionId} />
+                                        </div>
+                                    )}
                                     <div className="space-y-1">
                                         <p className="text-sm font-medium text-muted-foreground">Status</p>
                                         <StatusBadge status={project.status} variant="project" />

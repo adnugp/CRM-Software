@@ -17,6 +17,7 @@ import type {
   Subscription,
   Partner,
   FileRecord,
+  Division,
 } from '@/types';
 
 export interface CrmData {
@@ -28,6 +29,8 @@ export interface CrmData {
   subscriptions: Subscription[];
   partners: Partner[];
   files: FileRecord[];
+  /** The company's divisions, used to filter by division name or code. */
+  divisions?: Division[];
 }
 
 /* ----------------------------- small utilities ---------------------------- */
@@ -123,6 +126,7 @@ interface Section {
 const str = (v: unknown): string => (v == null ? '' : String(v));
 
 function buildSections(data: CrmData): Section[] {
+  const divisionName = (id: unknown): string => data.divisions?.find((d) => d.id === id)?.name ?? '';
   const p = (x: Record<string, unknown>) => x as unknown as Project;
   const t = (x: Record<string, unknown>) => x as unknown as Tender;
   const e = (x: Record<string, unknown>) => x as unknown as Employee;
@@ -151,11 +155,11 @@ function buildSections(data: CrmData): Section[] {
       amountOf: (x) => Number(p(x).budget) || 0,
       assigneeOf: (x) => str(p(x).assignedToName),
       companyOf: (x) => str(p(x).company),
-      parentOf: (x) => str(p(x).belongsTo),
-      text: (x) => [p(x).name, p(x).company, p(x).status, p(x).assignedToName, p(x).belongsTo, p(x).description].map(str).join(' '),
+      parentOf: (x) => divisionName(p(x).divisionId),
+      text: (x) => [p(x).name, p(x).company, p(x).status, p(x).assignedToName, divisionName(p(x).divisionId), p(x).description].map(str).join(' '),
       nameOf: (x) => str(p(x).name),
       format: (x) =>
-        `• ${str(p(x).name)} — ${str(p(x).company) || 'N/A'} — ${str(p(x).status)} — assigned to ${str(p(x).assignedToName) || 'N/A'} — deadline ${fmtDate(p(x).deadline)}${p(x).belongsTo ? ` — ${str(p(x).belongsTo)}` : ''}`,
+        `• ${str(p(x).name)} — ${str(p(x).company) || 'N/A'} — ${str(p(x).status)} — assigned to ${str(p(x).assignedToName) || 'N/A'} — deadline ${fmtDate(p(x).deadline)}${divisionName(p(x).divisionId) ? ` — ${divisionName(p(x).divisionId)}` : ''}`,
     },
     {
       key: 'tenders',
@@ -176,11 +180,11 @@ function buildSections(data: CrmData): Section[] {
       dateLabel: 'deadline',
       assigneeOf: (x) => str(t(x).assignedToName),
       companyOf: (x) => str(t(x).company),
-      parentOf: (x) => str(t(x).belongsTo),
-      text: (x) => [t(x).name, t(x).company, t(x).status, t(x).assignedToName, t(x).belongsTo, t(x).rfqCode, t(x).portal, t(x).description].map(str).join(' '),
+      parentOf: (x) => divisionName(t(x).divisionId),
+      text: (x) => [t(x).name, t(x).company, t(x).status, t(x).assignedToName, divisionName(t(x).divisionId), t(x).rfqCode, t(x).portal, t(x).description].map(str).join(' '),
       nameOf: (x) => str(t(x).name),
       format: (x) =>
-        `• ${str(t(x).name)} — ${str(t(x).company) || 'N/A'} — ${str(t(x).status)} — assigned to ${str(t(x).assignedToName) || 'N/A'} — deadline ${fmtDate(t(x).deadline)}${t(x).belongsTo ? ` — ${str(t(x).belongsTo)}` : ''}`,
+        `• ${str(t(x).name)} — ${str(t(x).company) || 'N/A'} — ${str(t(x).status)} — assigned to ${str(t(x).assignedToName) || 'N/A'} — deadline ${fmtDate(t(x).deadline)}${divisionName(t(x).divisionId) ? ` — ${divisionName(t(x).divisionId)}` : ''}`,
     },
     {
       key: 'registrations',
@@ -198,11 +202,11 @@ function buildSections(data: CrmData): Section[] {
       dateLabel: 'expiry',
       assigneeOf: (x) => str(r(x).assignedToName),
       companyOf: (x) => str(r(x).company),
-      parentOf: (x) => str(r(x).belongsTo),
-      text: (x) => [r(x).name, r(x).company, r(x).type, r(x).status, r(x).belongsTo].map(str).join(' '),
+      parentOf: (x) => divisionName(r(x).divisionId),
+      text: (x) => [r(x).name, r(x).company, r(x).type, r(x).status, divisionName(r(x).divisionId)].map(str).join(' '),
       nameOf: (x) => str(r(x).name),
       format: (x) =>
-        `• ${str(r(x).name)} — ${str(r(x).company) || 'N/A'} — ${str(r(x).type) || 'N/A'} — ${str(r(x).status)} — expires ${fmtDate(r(x).expiryDate)}${r(x).belongsTo ? ` — ${str(r(x).belongsTo)}` : ''}`,
+        `• ${str(r(x).name)} — ${str(r(x).company) || 'N/A'} — ${str(r(x).type) || 'N/A'} — ${str(r(x).status)} — expires ${fmtDate(r(x).expiryDate)}${divisionName(r(x).divisionId) ? ` — ${divisionName(r(x).divisionId)}` : ''}`,
     },
     {
       key: 'payments',
@@ -265,11 +269,11 @@ function buildSections(data: CrmData): Section[] {
       aliases: ['file', 'files', 'document', 'documents', 'doc', 'docs', 'report', 'reports', 'attachment', 'attachments'],
       items: data.files as unknown as Record<string, unknown>[],
       statuses: [],
-      companyOf: (x) => str(f(x).company),
-      text: (x) => [f(x).name, f(x).category, f(x).company, f(x).uploadedBy].map(str).join(' '),
+      parentOf: (x) => divisionName(f(x).divisionId),
+      text: (x) => [f(x).name, f(x).category, divisionName(f(x).divisionId), f(x).uploadedBy].map(str).join(' '),
       nameOf: (x) => str(f(x).name),
       format: (x) =>
-        `• ${str(f(x).name)} — ${str(f(x).category) || 'Uncategorized'} — ${str(f(x).company) || 'N/A'} — uploaded ${str(f(x).uploadedAt) || 'N/A'}`,
+        `• ${str(f(x).name)} — ${str(f(x).category) || 'Uncategorized'} ${divisionName(f(x).divisionId) ? ` — ${divisionName(f(x).divisionId)}` : ''} — uploaded ${str(f(x).uploadedAt) || 'N/A'}`,
     },
     {
       key: 'subscriptions',
@@ -320,15 +324,16 @@ const isMinQuery = (q: string): boolean =>
   hasAnyWord(q, ['smallest', 'lowest', 'cheapest', 'minimum']) ||
   hasAny(q, ['least expensive']);
 
-// Contact / profile questions about a person — "Ismayil's email", "who is X", "phone number"
+// Contact / profile questions about a person — "Sarah's email", "who is X", "phone number"
 const wantsProfile = (q: string): boolean =>
   hasAny(q, ['who is', 'who’s', 'whois', 'profile', 'tell me about', 'details of', 'details about', 'contact detail']) ||
   hasAnyWord(q, ['email', 'e-mail', 'phone', 'mobile', 'number', 'contact', 'contacts', 'position', 'role', 'department', 'designation']);
 
-/* Parent-company detection */
-function detectParent(q: string): string | undefined {
-  if (hasWord(q, 'sadeem')) return 'Sadeem Energy';
-  if (hasAny(q, ['grow plus', 'growplus', 'grow+']) || hasWord(q, 'gpt')) return 'Grow Plus Technologies';
+/* Division detection: "energy tenders", "BLD projects" */
+function detectParent(q: string, divisions: Division[] = []): string | undefined {
+  for (const d of divisions) {
+    if (hasWord(q, norm(d.code)) || (d.name && q.includes(norm(d.name)))) return d.name;
+  }
   return undefined;
 }
 
@@ -758,14 +763,14 @@ const HELP_TEXT = `I'm your CRM assistant. I answer using your live CRM data —
 Try asking me things like:
 • "Show all running projects"
 • "How many tenders are submitted?"
-• "What is Ismayil working on?"
+• "What is Sarah working on?"
 • "Total pending payments"
 • "Registrations expiring soon"
-• "List Grow Plus Technologies tenders"
+• "List the tenders for a division" (use its name or code)
 • "Show me the employees in engineering"
 • "Give me an overview of the CRM"
 
-You can filter by status, person, company, type or date — just say it in plain English.`;
+You can filter by status, person, company, division, type or date — just say it in plain English.`;
 
 /* ------------------------------ entry point ------------------------------- */
 
@@ -783,7 +788,7 @@ export function answerCrmQuestion(question: string, data: CrmData): string {
 
   if (isOverview(q)) return overview(data, sections);
 
-  const parent = detectParent(q);
+  const parent = detectParent(q, data.divisions);
   const people = knownPeople(data);
   const person = detectPerson(q, people, tokenFrequency(people));
 
