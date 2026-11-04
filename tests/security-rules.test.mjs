@@ -135,6 +135,21 @@ describe('storage', () => {
     await assertFails(storage(null).ref('documents/c.pdf').put(pdf, { contentType: 'application/pdf' }));
   });
 
+  it('only staff can read or list documents directly', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.storage().ref('documents/contract.pdf').put(pdf, { contentType: 'application/pdf' });
+    });
+    await assertSucceeds(storage('employee').ref('documents/contract.pdf').getMetadata());
+    await assertSucceeds(storage('employee').ref('documents').listAll());
+    await assertFails(storage('clientA').ref('documents/contract.pdf').getMetadata());
+    await assertFails(storage('clientA').ref('documents').listAll());
+    await assertFails(storage('stranger').ref('documents').listAll());
+  });
+
+  it('accounts without a profile cannot upload avatars', async () => {
+    await assertFails(storage('stranger').ref('avatars/stranger_1_me.png').put(png, { contentType: 'image/png' }));
+  });
+
   it('avatars can only be uploaded under your own uid', async () => {
     await assertSucceeds(storage('clientA').ref('avatars/clientA_1_me.png').put(png, { contentType: 'image/png' }));
     await assertFails(storage('clientA').ref('avatars/employee_1_me.png').put(png, { contentType: 'image/png' }));

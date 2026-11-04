@@ -152,3 +152,6 @@ firebase-debug.log
 firestore-debug.log
 storage-debug.log
 ui-debug.log
+
+# Local emulator data (npm run emulators)
+.emulator-data/

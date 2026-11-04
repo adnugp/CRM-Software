@@ -1,18 +1,25 @@
 rules_version = '2';
 
 // Storage access mirrors firestore.rules: the role comes from /users/{uid}.
-// Note: files are opened through download URLs, which carry their own access
-// token, so these rules mainly control who can list, upload and replace files.
+// Files are opened through download URLs, which carry their own access token,
+// so clients can still open documents shared with them via a project. Direct
+// reads and listing of the buckets are limited to staff.
 service firebase.storage {
   match /b/{bucket}/o {
 
     function role() {
-      return request.auth == null ? ''
+      return request.auth == null
+          || !firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        ? ''
         : firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
     }
 
     function isStaff() {
       return role() in ['admin', 'manager', 'user'];
+    }
+
+    function isRegistered() {
+      return role() != '';
     }
 
     function underMB(mb) {
@@ -21,22 +28,22 @@ service firebase.storage {
 
     // Project, tender, registration and file-manager documents.
     match /documents/{fileName} {
-      allow read: if request.auth != null;
+      allow read: if isStaff();
       allow create, update: if isStaff() && underMB(50);
       allow delete: if isStaff();
     }
 
     // Attachments on project tasks.
     match /task-attachments/{fileName} {
-      allow read: if request.auth != null;
+      allow read: if isStaff();
       allow create, update: if isStaff() && underMB(50);
       allow delete: if isStaff();
     }
 
     // Profile pictures are stored as avatars/{uid}_{timestamp}_{name}.
     match /avatars/{fileName} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null
+      allow read: if isRegistered();
+      allow create, update: if isRegistered()
         && fileName.matches(request.auth.uid + '_.*')
         && request.resource.contentType.matches('image/.*')
         && underMB(5);

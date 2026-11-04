@@ -1,8 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
-export const firebaseConfig = {
+/**
+ * When true (set in .env.development), the app talks to the local Firebase
+ * emulators instead of the live project, so local work never touches real data.
+ * Start them with `npm run emulators`. Use `npm run dev:live` to hit production.
+ */
+export const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
+
+const liveConfig = {
   apiKey: "AIzaSyBcCR3upbuvG1fQFUOE9qLnITa8tk41cXI",
   authDomain: "crm-gpt-2026.firebaseapp.com",
   projectId: "crm-gpt-2026",
@@ -12,8 +19,21 @@ export const firebaseConfig = {
   measurementId: "G-43ZZ93G0VT"
 };
 
+// A "demo-" project ID can never reach real Firebase services, even by mistake.
+export const firebaseConfig = useEmulators
+  ? { ...liveConfig, projectId: 'demo-crm', storageBucket: 'demo-crm.appspot.com' }
+  : liveConfig;
+
+export const EMULATOR_HOST = '127.0.0.1';
+export const EMULATOR_PORTS = { auth: 9099, firestore: 8085, storage: 9199 } as const;
+
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+if (useEmulators) {
+  connectFirestoreEmulator(db, EMULATOR_HOST, EMULATOR_PORTS.firestore);
+  connectStorageEmulator(storage, EMULATOR_HOST, EMULATOR_PORTS.storage);
+}
 
 export default app;

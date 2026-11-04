@@ -25,6 +25,15 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AIChatbotWidget = lazy(() => import("@/components/AIChatbotWidget"));
 import { useAuth } from "@/contexts/AuthContext";
+import { useEmulators } from "@/services/firebase";
+
+// Always-visible marker so it's obvious the app is using local emulator data.
+const LocalDataBadge = () =>
+  useEmulators ? (
+    <div className="pointer-events-none fixed left-1/2 top-1 z-[100] -translate-x-1/2 rounded-full bg-amber-500/90 px-2.5 py-0.5 text-[11px] font-semibold text-black shadow">
+      Local data
+    </div>
+  ) : null;
 
 const queryClient = new QueryClient();
 
@@ -69,6 +78,7 @@ const App = () => {
         <DataProvider>
           <BrowserRouter>
             <ThemeInitializer />
+            <LocalDataBadge />
             <Suspense fallback={<FullPageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />

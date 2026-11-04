@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User as AppUser, UserRole } from '@/types';
-import { auth } from '@/services/auth';
+import { auth, connectAuthIfEmulated } from '@/services/auth';
 import { db, storage, firebaseConfig } from '@/services/firebase';
 import { initializeApp, getApps } from 'firebase/app';
 import {
@@ -157,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const secondaryApp = getSecondaryApp();
       const secondaryAuth = getAuth(secondaryApp);
+      connectAuthIfEmulated(secondaryAuth);
 
       const newUserCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const newUid = newUserCredential.user.uid;

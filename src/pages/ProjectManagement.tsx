@@ -550,7 +550,7 @@ const ProjectManagement: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">{project.name}</h1>
-                    <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                    <div className="text-muted-foreground flex items-center gap-2 mt-1">
                         <Layout className="h-4 w-4" />
                         <Badge variant="outline" className="font-mono text-xs">{project.projectId || project.id}</Badge>
                         <span>•</span>
@@ -564,7 +564,7 @@ const ProjectManagement: React.FC = () => {
                                 </span>
                             </>
                         )}
-                    </p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <StatusBadge status={project.status} variant="project" />
@@ -679,7 +679,7 @@ const ProjectManagement: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="space-y-1">
-                                        <p
+                                        <div
                                             className="text-sm font-medium text-muted-foreground cursor-pointer hover:text-primary transition-colors flex items-center gap-2 group"
                                             onClick={() => setShowAssigneeCount(!showAssigneeCount)}
                                         >
@@ -689,7 +689,7 @@ const ProjectManagement: React.FC = () => {
                                                     {totalProjectsForAssignee} {totalProjectsForAssignee === 1 ? 'Project' : 'Projects'}
                                                 </Badge>
                                             )}
-                                        </p>
+                                        </div>
                                         <div className="flex items-center gap-2">
                                             <User className="h-4 w-4 text-primary" />
                                             <span className="font-medium text-foreground">{getDisplayName(project.assignedTo, project.assignedToName)}</span>
