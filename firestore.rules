@@ -1,18 +1,108 @@
-rules_version='2'
+rules_version = '2';
 
+// Role-based access for the CRM.
+//
+// Every signed-in person has a profile at /users/{uid} with a `role` of
+// 'admin' | 'manager' | 'user' (employee) | 'client'. Accounts with no
+// profile (e.g. someone who signs up directly against Firebase Auth) get no
+// access at all. Profiles are created by an admin from the Registration portal.
+//
+// - Staff (admin, manager, user) work with all business data.
+// - Clients can only read projects linked to them by clientId or organizationId.
+// - Only admins and managers can manage the employee directory.
+// - Only admins can create or remove user profiles or change roles.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2027, 3, 11);
+
+    function signedIn() {
+      return request.auth != null;
     }
+
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return hasProfile() ? profile().role : '';
+    }
+
+    function isAdmin() {
+      return role() == 'admin';
+    }
+
+    function isAdminOrManager() {
+      return role() in ['admin', 'manager'];
+    }
+
+    function isStaff() {
+      return role() in ['admin', 'manager', 'user'];
+    }
+
+    function isClient() {
+      return role() == 'client';
+    }
+
+    // ---- User profiles -------------------------------------------------
+    match /users/{uid} {
+      // Staff need the full list (assignees, settings, registration portal);
+      // clients may only read their own profile.
+      allow read: if isStaff() || (signedIn() && request.auth.uid == uid);
+
+      allow create, delete: if isAdmin();
+
+      // Admins can edit anyone. A user can edit their own name/email/avatar,
+      // but never their role, company or organization.
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['name', 'email', 'avatar']));
+    }
+
+    // ---- Projects ------------------------------------------------------
+    match /projects/{projectId} {
+      // Written as plain field comparisons so Firestore can match them against
+      // the client's where('clientId' == uid) / where('organizationId' == org)
+      // queries (see getProjectsForClient in src/services/firestore.ts).
+      allow read: if isStaff()
+        || (isClient() && (
+              resource.data.clientId == request.auth.uid
+              || (profile().get('organizationId', '') != ''
+                  && resource.data.organizationId == profile().organizationId)));
+
+      allow create, update, delete: if isStaff();
+    }
+
+    // ---- Employee directory --------------------------------------------
+    match /employees/{employeeId} {
+      // Employees can see colleagues (task assignment); clients cannot.
+      allow read: if isStaff();
+      allow create, update, delete: if isAdminOrManager();
+    }
+
+    // ---- Other business data (staff only) ------------------------------
+    match /tenders/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /registrations/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /payments/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /subscriptions/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /partners/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /files/{docId} {
+      allow read, write: if isStaff();
+    }
+
+    // Anything not listed above is denied by default.
   }
 }

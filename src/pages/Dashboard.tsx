@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
     const prevMonth = [...projects, ...tenders].filter(p => {
-      const created = (p as any).createdAt;
+      const created = p.createdAt;
       return created && new Date(created) < oneMonthAgo;
     }).length;
     if (prevMonth === 0) return { value: 100, isPositive: true };

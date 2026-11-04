@@ -6,7 +6,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import RegistrationForm from '@/components/forms/RegistrationForm';
+import RegistrationForm, { type RegistrationFormData } from '@/components/forms/RegistrationForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,9 +58,9 @@ const Registrations: React.FC = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(r =>
-        r.name.toLowerCase().includes(query) ||
-        r.company.toLowerCase().includes(query) ||
-        r.type.toLowerCase().includes(query) ||
+        (r.name || '').toLowerCase().includes(query) ||
+        (r.company || '').toLowerCase().includes(query) ||
+        (r.type || '').toLowerCase().includes(query) ||
         r.assignedToName?.toLowerCase().includes(query)
       );
     }
@@ -89,7 +89,7 @@ const Registrations: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: RegistrationFormData) => {
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     const registrationData = {
       ...data,
@@ -99,7 +99,7 @@ const Registrations: React.FC = () => {
     if (editingRegistration) {
       await updateRegistration(editingRegistration.id, registrationData);
     } else {
-      await addRegistration(registrationData);
+      await addRegistration(registrationData as Omit<Registration, 'id'>);
     }
     setEditingRegistration(null);
   };

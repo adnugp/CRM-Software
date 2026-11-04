@@ -27,7 +27,7 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const scrollRef = useDragScroll();
+  const scrollRef = useDragScroll<HTMLElement>();
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -60,7 +60,7 @@ const Sidebar: React.FC = () => {
 
       {/* Navigation */}
       <nav 
-        ref={scrollRef as any}
+        ref={scrollRef}
         className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
       >
         {filteredMenuItems.map((item) => {

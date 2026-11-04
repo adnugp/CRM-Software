@@ -9,6 +9,15 @@ interface ProtectedRouteProps {
   allowedRoles?: UserRole[];
 }
 
+export const FullPageLoader: React.FC = () => (
+  <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex flex-col items-center gap-3">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
+
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   allowedRoles = ['admin', 'user', 'manager'] 
@@ -16,14 +25,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { user, isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <FullPageLoader />;
   }
 
   if (!isAuthenticated) {
@@ -31,10 +33,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!user || !allowedRoles.includes(user.role)) {
-    if (user?.role === 'client') {
-      return <Navigate to="/" replace />;
-    }
-    return <Navigate to="/login" replace />;
+    // Signed in but not allowed here: send them home ("/" routes by role)
+    // rather than to the login page they've already passed.
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

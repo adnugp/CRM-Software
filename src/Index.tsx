@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import Dashboard from './pages/Dashboard';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+import { FullPageLoader } from '@/components/ProtectedRoute';
 
 export default function Index() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, loading } = useAuth();
+
+  // Wait for Firebase to restore the session before deciding where to go,
+  // otherwise a refresh on "/" always bounces through /login.
+  if (loading) {
+    return <FullPageLoader />;
+  }
 
   // Redirect based on authentication status
   if (!isAuthenticated) {

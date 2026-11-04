@@ -49,7 +49,7 @@ const tenderSchema = z.object({
   portal: z.string().optional(),
 });
 
-type TenderFormData = z.infer<typeof tenderSchema>;
+export type TenderFormData = z.infer<typeof tenderSchema>;
 
 interface TenderFormProps {
   open: boolean;

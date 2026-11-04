@@ -41,7 +41,7 @@ const employeeSchema = z.object({
   status: z.enum(['active', 'inactive']),
 });
 
-type EmployeeFormData = z.infer<typeof employeeSchema>;
+export type EmployeeFormData = z.infer<typeof employeeSchema>;
 
 interface EmployeeFormProps {
   open: boolean;

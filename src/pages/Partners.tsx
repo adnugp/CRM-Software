@@ -6,7 +6,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import SearchInput from '@/components/ui/SearchInput';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import PartnerForm from '@/components/forms/PartnerForm';
+import PartnerForm, { type PartnerFormData } from '@/components/forms/PartnerForm';
 import { Button } from '@/components/ui/button';
 import { Partner } from '@/types';
 import { toast } from '@/hooks/use-toast';
@@ -30,9 +30,9 @@ const Partners: React.FC = () => {
     const query = searchQuery.toLowerCase();
     return partnersList.filter(p => {
       const matchesSearch = !searchQuery ||
-        p.name.toLowerCase().includes(query) ||
-        p.company.toLowerCase().includes(query) ||
-        p.partnershipType.toLowerCase().includes(query);
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.company || '').toLowerCase().includes(query) ||
+        (p.partnershipType || '').toLowerCase().includes(query);
       const matchesType = !typeFilter || typeFilter === 'all' || p.partnershipType === typeFilter;
       return matchesSearch && matchesType;
     });
@@ -67,7 +67,7 @@ const Partners: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: PartnerFormData) => {
     try {
       if (editingPartner) {
         await updatePartner(editingPartner.id, data);
@@ -76,7 +76,7 @@ const Partners: React.FC = () => {
           description: `"${data.name}" has been updated successfully.`,
         });
       } else {
-        await addPartner(data);
+        await addPartner(data as Omit<Partner, 'id'>);
         toast({
           title: 'Partner added',
           description: `"${data.name}" has been added successfully.`,

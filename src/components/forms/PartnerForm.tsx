@@ -41,7 +41,7 @@ const partnerSchema = z.object({
   status: z.enum(['active', 'inactive']),
 });
 
-type PartnerFormData = z.infer<typeof partnerSchema>;
+export type PartnerFormData = z.infer<typeof partnerSchema>;
 
 interface PartnerFormProps {
   open: boolean;

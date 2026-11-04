@@ -7,26 +7,43 @@ import {
   deleteDoc,
   serverTimestamp,
   query,
-  orderBy
+  orderBy,
+  where,
+  DocumentData,
+  QueryDocumentSnapshot,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
+
+// Firestore returns server timestamps (e.g. createdAt) as Timestamp objects.
+// The app's types and date maths expect Date, and `new Date(timestamp)` is
+// Invalid Date, so convert top-level Timestamps when reading a document.
+const fromDoc = <T>(snapshot: QueryDocumentSnapshot<DocumentData>): T => {
+  const data = snapshot.data();
+  for (const key of Object.keys(data)) {
+    if (data[key] instanceof Timestamp) {
+      data[key] = (data[key] as Timestamp).toDate();
+    }
+  }
+  return { id: snapshot.id, ...data } as T;
+};
 
 // Generic helper to get a collection
 const getCollection = async <T>(collectionName: string): Promise<T[]> => {
   try {
     const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+    return snapshot.docs.map(d => fromDoc<T>(d));
   } catch (error) {
     // Fallback if index does not exist yet or other query error
     const snapshot = await getDocs(collection(db, collectionName));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+    return snapshot.docs.map(d => fromDoc<T>(d));
   }
 };
 
 // Firestore rejects undefined values anywhere in a document payload.
-const removeUndefined = (value: any): any => {
+const removeUndefined = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value
       .filter(item => item !== undefined)
@@ -39,7 +56,7 @@ const removeUndefined = (value: any): any => {
         result[key] = removeUndefined(entry);
       }
       return result;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, unknown>);
   }
 
   return value;
@@ -48,7 +65,7 @@ const removeUndefined = (value: any): any => {
 const addDocument = async <T>(collectionName: string, data: Omit<T, 'id'>): Promise<string> => {
   const cleanData = removeUndefined(data);
   const docRef = await addDoc(collection(db, collectionName), {
-    ...cleanData,
+    ...(cleanData as DocumentData),
     createdAt: serverTimestamp()
   });
   return docRef.id;
@@ -57,7 +74,7 @@ const addDocument = async <T>(collectionName: string, data: Omit<T, 'id'>): Prom
 const updateDocument = async <T>(collectionName: string, id: string, data: Partial<T>): Promise<void> => {
   const cleanData = removeUndefined(data);
   const docRef = doc(db, collectionName, id);
-  await updateDoc(docRef, cleanData as any);
+  await updateDoc(docRef, cleanData as DocumentData);
 };
 
 const deleteDocument = async (collectionName: string, id: string): Promise<void> => {
@@ -67,6 +84,24 @@ const deleteDocument = async (collectionName: string, id: string): Promise<void>
 
 // Projects
 export const getProjects = async (): Promise<Project[]> => getCollection<Project>('projects');
+
+// Clients may only read projects linked to them (see firestore.rules), and
+// Firestore rejects any query that could return documents the caller can't
+// read. So clients query by their own uid / organization instead of the whole
+// collection, and the two result sets are merged.
+export const getProjectsForClient = async (uid: string, organizationId?: string): Promise<Project[]> => {
+  const queries = [query(collection(db, 'projects'), where('clientId', '==', uid))];
+  if (organizationId) {
+    queries.push(query(collection(db, 'projects'), where('organizationId', '==', organizationId)));
+  }
+  const snapshots = await Promise.all(queries.map(q => getDocs(q)));
+  const byId = new Map<string, Project>();
+  snapshots.forEach(snapshot =>
+    snapshot.docs.forEach(d => byId.set(d.id, fromDoc<Project>(d)))
+  );
+  return [...byId.values()];
+};
+
 export const addProject = async (project: Omit<Project, 'id'>): Promise<string> => addDocument<Project>('projects', project);
 export const updateProject = async (id: string, project: Partial<Project>): Promise<void> => updateDocument<Project>('projects', id, project);
 export const deleteProject = async (id: string): Promise<void> => deleteDocument('projects', id);

@@ -46,7 +46,7 @@ const registrationSchema = z.object({
   assignedTo: z.string().optional(),
 });
 
-type RegistrationFormData = z.infer<typeof registrationSchema>;
+export type RegistrationFormData = z.infer<typeof registrationSchema>;
 
 interface RegistrationFormProps {
   open: boolean;

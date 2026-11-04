@@ -4,8 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
  * A hook that enables drag-to-scroll functionality for a DOM element.
  * Useful for creating a "touch-like" scrolling experience on desktop.
  */
-export const useDragScroll = () => {
-  const ref = useRef<HTMLElement>(null);
+export const useDragScroll = <T extends HTMLElement = HTMLElement>() => {
+  const ref = useRef<T>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [hasMoved, setHasMoved] = useState(false);
   const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });

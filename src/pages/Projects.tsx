@@ -9,7 +9,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
 import { DocumentFile } from '@/types';
-import ProjectForm from '@/components/forms/ProjectForm';
+import ProjectForm, { type ProjectFormData } from '@/components/forms/ProjectForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
@@ -84,13 +84,13 @@ const Projects: React.FC = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(p =>
-        p.name.toLowerCase().includes(query) ||
-        p.company.toLowerCase().includes(query) ||
-        p.assignedToName.toLowerCase().includes(query)
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.company || '').toLowerCase().includes(query) ||
+        (p.assignedToName || '').toLowerCase().includes(query)
       );
     }
     return result;
-  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user?.company, projects]);
+  }, [companyFilter, belongsToFilter, statusFilter, assigneeFilter, searchQuery, isClient, user, projects]);
 
   const projectCompanies = [...new Set(projects.map(p => p.company))];
   const companyOptions = projectCompanies.map(c => ({ value: c, label: c }));
@@ -120,7 +120,7 @@ const Projects: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: ProjectFormData) => {
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     // Resolve client name from allUsers
     const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
@@ -139,7 +139,7 @@ const Projects: React.FC = () => {
     if (editingProject) {
       await updateProject(editingProject.id, projectData);
     } else {
-      await addProject(projectData);
+      await addProject(projectData as Omit<Project, 'id'>);
     }
     setEditingProject(null);
   };

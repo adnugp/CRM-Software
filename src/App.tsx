@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,22 +6,24 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
-import AIChatbotWidget from "@/components/AIChatbotWidget";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import ProtectedRoute, { FullPageLoader } from "@/components/ProtectedRoute";
 import Index from "./Index";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import Projects from "./pages/Projects";
-import Tenders from "./pages/Tenders";
-import Registrations from "./pages/Registrations";
-import Files from "./pages/Files";
-import Payments from "./pages/Payments";
-import Partners from "./pages/Partners";
-import Employees from "./pages/Employees";
-import ProjectManagement from "./pages/ProjectManagement";
-import NotFound from "./pages/NotFound";
-import Settings from "./pages/Settings";
+
+// Pages load on demand so the initial download stays small.
+const Register = lazy(() => import("./pages/Register"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Projects = lazy(() => import("./pages/Projects"));
+const Tenders = lazy(() => import("./pages/Tenders"));
+const Registrations = lazy(() => import("./pages/Registrations"));
+const Files = lazy(() => import("./pages/Files"));
+const Payments = lazy(() => import("./pages/Payments"));
+const Partners = lazy(() => import("./pages/Partners"));
+const Employees = lazy(() => import("./pages/Employees"));
+const ProjectManagement = lazy(() => import("./pages/ProjectManagement"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AIChatbotWidget = lazy(() => import("@/components/AIChatbotWidget"));
 import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -53,17 +55,21 @@ const ChatbotWrapper = () => {
     return null;
   }
 
-  return <AIChatbotWidget />;
+  return (
+    <Suspense fallback={null}>
+      <AIChatbotWidget />
+    </Suspense>
+  );
 };
 
 const App = () => {
-  console.log('App component rendering...');
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DataProvider>
           <BrowserRouter>
             <ThemeInitializer />
+            <Suspense fallback={<FullPageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -138,6 +144,7 @@ const App = () => {
               } />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             <ChatbotWrapper />
           </BrowserRouter>
         </DataProvider>

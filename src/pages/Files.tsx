@@ -56,8 +56,8 @@ const Files: React.FC = () => {
 
   const filteredFiles = React.useMemo(() => {
     return filesList.filter(file => {
-      const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (file.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (file.category || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = !categoryFilter || categoryFilter === 'all' || file.category === categoryFilter;
       const matchesCompany = !companyFilter || companyFilter === 'all' || file.company === companyFilter;
       return matchesSearch && matchesCategory && matchesCompany;

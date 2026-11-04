@@ -181,7 +181,7 @@ const Register: React.FC = () => {
 
                         <div className="space-y-2">
                           <Label htmlFor="parent-company">Parent Organization</Label>
-                          <Select value={parentCompany} onValueChange={(v: any) => setParentCompany(v)}>
+                          <Select value={parentCompany} onValueChange={(v) => setParentCompany(v as typeof parentCompany)}>
                             <SelectTrigger id="parent-company">
                               <SelectValue />
                             </SelectTrigger>

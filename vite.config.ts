@@ -18,17 +18,21 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs'],
-          icons: ['lucide-react'],
-          firebase: ['firebase'],
+        // Split large, rarely-changing libraries into their own cacheable chunks.
+        // (The "firebase" package root has no code itself, so match by path.)
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('/firebase/') || id.includes('/@firebase/')) return 'firebase';
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'vendor';
+          if (id.includes('/recharts/') || id.includes('/d3-')) return 'charts';
+          if (id.includes('/jspdf') || id.includes('/html2canvas') || id.includes('/dompurify')) return 'pdf';
+          return undefined;
         },
       },
     },
     chunkSizeWarningLimit: 1000,
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'firebase'],
+    include: ['react', 'react-dom'],
   },
 }));

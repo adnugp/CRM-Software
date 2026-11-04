@@ -42,7 +42,7 @@ const taskSchema = z.object({
     status: z.enum(['pending', 'in-progress', 'completed']),
 });
 
-type TaskFormData = z.infer<typeof taskSchema>;
+export type TaskFormData = z.infer<typeof taskSchema>;
 
 interface ProjectTaskFormProps {
     open: boolean;

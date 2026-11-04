@@ -52,8 +52,9 @@ import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/ui/StatusBadge';
-import ProjectTaskForm from '@/components/forms/ProjectTaskForm';
-import ProjectCostForm from '@/components/forms/ProjectCostForm';
+import ProjectTaskForm, { type TaskFormData } from '@/components/forms/ProjectTaskForm';
+import ProjectCostForm, { type CostFormData } from '@/components/forms/ProjectCostForm';
+import type { Employee, ProjectCost, ProjectTask } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { storage } from '@/services/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -78,13 +79,13 @@ import ProjectTimeline from '@/components/projects/ProjectTimeline';
 
 const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { projects, employees, updateProject } = useData();
+    const { projects, employees, updateProject, loading } = useData();
     const { user: currentUser, allUsers } = useAuth();
     const [activeTab, setActiveTab] = useState('overview');
     const [taskFormOpen, setTaskFormOpen] = useState(false);
     const [costFormOpen, setCostFormOpen] = useState(false);
     const [showAssigneeCount, setShowAssigneeCount] = useState(false);
-    const [editingCost, setEditingCost] = useState<any>(null);
+    const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
     const [memberFormOpen, setMemberFormOpen] = useState(false);
     const [teamMembers, setTeamMembers] = useState<string[]>([]);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
@@ -97,10 +98,11 @@ const ProjectManagement: React.FC = () => {
 
     const project = projects.find(p => p.id === id);
 
+    const projectAssignee = project?.assignedTo;
     const totalProjectsForAssignee = useMemo(() => {
-        if (!project) return 0;
-        return projects.filter(p => p.assignedTo === project.assignedTo).length;
-    }, [projects, project?.assignedTo]);
+        if (!projectAssignee) return 0;
+        return projects.filter(p => p.assignedTo === projectAssignee).length;
+    }, [projects, projectAssignee]);
 
     // Security check for clients
     const canAccess = useMemo(() => {
@@ -123,11 +125,55 @@ const ProjectManagement: React.FC = () => {
         return projectCompany.includes(userCompany) || userCompany.includes(projectCompany);
     }, [project, isClient, currentUser]);
 
+    // GPT-0032: Profile sync - refresh task assignee names when profile data changes.
+    // Only staff may write projects, so clients never trigger this sync.
+    // All hooks must sit above the early returns below (Rules of Hooks).
+    useEffect(() => {
+        if (!project || isClient) return;
+        const tasksBefore = project.tasks || [];
+        const updatedTasks = tasksBefore.map(task => {
+            const assignee = employees.find(e => e.id === task.assignedTo) || allUsers.find(u => u.id === task.assignedTo);
+            if (assignee && assignee.name !== task.assignedToName) {
+                return { ...task, assignedToName: assignee.name };
+            }
+            return task;
+        });
+        const hasChanges = updatedTasks.some((t, i) => t.assignedToName !== tasksBefore[i]?.assignedToName);
+        if (hasChanges) {
+            updateProject(project.id, { tasks: updatedTasks }).catch(err =>
+                console.error('Failed to sync task assignee names:', err)
+            );
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when people data or the project changes
+    }, [employees, allUsers, project?.id, isClient]);
+
+    const costByCategory = useMemo(() => {
+        const categories: Record<string, number> = {};
+        (project?.costs || []).forEach(c => {
+            const costType = c.type || 'debit';
+            const amount = costType === 'credit' ? -c.amount : c.amount;
+            categories[c.category] = (categories[c.category] || 0) + amount;
+        });
+        return Object.entries(categories)
+            .filter(([, value]) => value > 0)
+            .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
+    }, [project?.costs]);
+
+    // Wait for data before deciding the project doesn't exist; otherwise a page
+    // refresh on /projects/:id would always bounce back to the list.
+    if (loading.projects) {
+        return (
+            <MainLayout>
+                <div className="flex items-center justify-center py-24 text-muted-foreground">Loading project…</div>
+            </MainLayout>
+        );
+    }
+
     if (!project || !canAccess) {
         return <Navigate to="/projects" replace />;
     }
 
-    const handleAddTask = async (data: any) => {
+    const handleAddTask = async (data: TaskFormData) => {
         const dueDate = new Date(data.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -151,7 +197,7 @@ const ProjectManagement: React.FC = () => {
 
         const assignee = employees.find(e => e.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
         const newTask = {
-            ...data,
+            ...(data as Omit<ProjectTask, 'id' | 'projectId' | 'assignedToName'>),
             id: `task-${Date.now()}`,
             projectId: project.id,
             assignedToName: assignee?.name || 'Unknown'
@@ -165,7 +211,7 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleAddCost = async (data: any) => {
+    const handleAddCost = async (data: CostFormData) => {
         if (editingCost) {
             const updatedCosts = (project.costs || []).map(c =>
                 c.id === editingCost.id ? { ...c, ...data } : c
@@ -180,7 +226,7 @@ const ProjectManagement: React.FC = () => {
         }
 
         const newCost = {
-            ...data,
+            ...(data as Omit<ProjectCost, 'id' | 'projectId'>),
             id: `cost-${Date.now()}`,
             projectId: project.id,
             type: data.type || 'debit'
@@ -205,7 +251,7 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleEditCost = (cost: any) => {
+    const handleEditCost = (cost: ProjectCost) => {
         setEditingCost(cost);
         setCostFormOpen(true);
     };
@@ -219,7 +265,7 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
-    const handleEditTask = (task: any) => {
+    const handleEditTask = (task: ProjectTask) => {
         // Open task form pre-filled with task data
         // For now use a callback approach
         toast({
@@ -230,7 +276,7 @@ const ProjectManagement: React.FC = () => {
 
     const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
         const updatedTasks = (project.tasks || []).map(t =>
-            t.id === taskId ? { ...t, status: newStatus as any } : t
+            t.id === taskId ? { ...t, status: newStatus as ProjectTask['status'] } : t
         );
         await updateProject(project.id, { tasks: updatedTasks });
         toast({
@@ -325,7 +371,7 @@ const ProjectManagement: React.FC = () => {
         toast({ title: 'File removed', description: 'Attachment has been removed from the task.' });
     };
 
-    const handleTaskAttachmentDownload = (task: any) => {
+    const handleTaskAttachmentDownload = (task: ProjectTask) => {
         const fileData = task.fileAttachment;
         if (fileData?.data) {
             try {
@@ -351,24 +397,6 @@ const ProjectManagement: React.FC = () => {
         setTeamMembers(prev => prev.filter(id => id !== employeeId));
     };
 
-    // GPT-0032: Profile sync - refresh task assignee names when profile data changes
-    useEffect(() => {
-        const syncAssigneeNames = async () => {
-            const updatedTasks = (project?.tasks || []).map(task => {
-                const assignee = employees.find(e => e.id === task.assignedTo) || allUsers.find(u => u.id === task.assignedTo);
-                if (assignee && assignee.name !== task.assignedToName) {
-                    return { ...task, assignedToName: assignee.name };
-                }
-                return task;
-            });
-            const hasChanges = updatedTasks.some((t, i) => t.assignedToName !== (project?.tasks || [])[i]?.assignedToName);
-            if (hasChanges && project) {
-                await updateProject(project.id, { tasks: updatedTasks });
-            }
-        };
-        syncAssigneeNames();
-    }, [employees, allUsers, project?.id]);
-
     const tasks = project.tasks || [];
     const costs = project.costs || [];
     const budget = project.budget || 0;
@@ -388,18 +416,6 @@ const ProjectManagement: React.FC = () => {
 
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const progressPercentage = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
-
-    const costByCategory = useMemo(() => {
-        const categories: Record<string, number> = {};
-        costs.forEach(c => {
-            const costType = c.type || 'debit';
-            const amount = costType === 'credit' ? -c.amount : c.amount;
-            categories[c.category] = (categories[c.category] || 0) + amount;
-        });
-        return Object.entries(categories)
-            .filter(([, value]) => value > 0)
-            .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
-    }, [costs]);
 
     const getDisplayName = (userId: string, defaultName: string): string => {
         if (!isManagerOrAdmin) {
@@ -1311,7 +1327,7 @@ const ProjectManagement: React.FC = () => {
                                     project.assignedTo === e.id ||
                                     teamMembers.includes(e.id)
                                 ), ...teamMembers.map(id => employees.find(e => e.id === id)).filter(Boolean)])]
-                                    .map((employee: any) => (
+                                    .map((employee: Employee) => (
                                         <div key={employee.id} className="p-4 rounded-xl border border-muted/20 bg-muted/10 flex items-center gap-4">
                                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                                                 {employee.name.charAt(0)}

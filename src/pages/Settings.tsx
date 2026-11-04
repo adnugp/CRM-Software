@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { UserRole } from '@/types';
+import { User as AppUser, UserRole } from '@/types';
 import {
     Dialog,
     DialogContent,
@@ -29,7 +29,7 @@ import { useData } from '@/contexts/DataContext';
 
 // Helper Component for User Rows
 const StaffRow: React.FC<{
-    user: any;
+    user: AppUser;
     onRemove: () => void;
 }> = ({ user, onRemove }) => (
     <TableRow className="hover:bg-muted/20 transition-colors">
@@ -657,7 +657,7 @@ const Settings: React.FC = () => {
                                         <Palette className="h-4 w-4 text-primary" />
                                         App Theme
                                     </div>
-                                    <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
+                                    <Select value={theme} onValueChange={(value) => setTheme(value as typeof theme)}>
                                         <SelectTrigger className="w-[120px] h-8 text-xs">
                                             <SelectValue />
                                         </SelectTrigger>

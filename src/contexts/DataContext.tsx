@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
-  getProjects, addProject, updateProject, deleteProject,
+  getProjects, getProjectsForClient, addProject, updateProject, deleteProject,
   getTenders, addTender, updateTender, deleteTender,
   getEmployees, addEmployee, updateEmployee, deleteEmployee,
   getRegistrations, addRegistration, updateRegistration, deleteRegistration,
@@ -10,6 +10,7 @@ import {
   getFiles, addFile, updateFile, deleteFile
 } from '@/services/firestore';
 import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DataContextType {
   // Data
@@ -79,8 +80,14 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const normalizeOptionalId = (value?: string) => value && value !== 'none' ? value : '';
+const sameText = (a?: string, b?: string) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user, allUsers, loading: authLoading } = useAuth();
+  const userId = user?.id;
+  const userRole = user?.role;
+  const userOrganizationId = user?.organizationId;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -101,63 +108,88 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     files: true,
   });
 
-  // Fetch data on mount
+  const allLoaded = (value: boolean) => ({
+    projects: value,
+    tenders: value,
+    employees: value,
+    registrations: value,
+    payments: value,
+    subscriptions: value,
+    partners: value,
+    files: value,
+  });
+
+  // Fetch data whenever the signed-in user changes. Firestore rules require a
+  // signed-in user, so fetching before login would just return nothing, and
+  // data from a previous session must not linger after logout.
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!userId) {
+      setProjects([]);
+      setTenders([]);
+      setEmployees([]);
+      setRegistrations([]);
+      setPayments([]);
+      setSubscriptions([]);
+      setPartners([]);
+      setFiles([]);
+      setLoading(allLoaded(false));
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(allLoaded(true));
+
+    const logAndEmpty = (name: string) => (error: unknown) => {
+      console.error(`Error fetching ${name}:`, error);
+      return [];
+    };
+
     const fetchData = async () => {
-      try {
-        const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-          getProjects().catch(() => []),
-          getTenders().catch(() => []),
-          getEmployees().catch(() => []),
-          getRegistrations().catch(() => []),
-          getPayments().catch(() => []),
-          getSubscriptions().catch(() => []),
-          getPartners().catch(() => []),
-          getFiles().catch(() => []),
-        ]);
+      // Clients can only read their own projects; every other collection is staff-only.
+      const isClient = userRole === 'client';
+      const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
+        (isClient ? getProjectsForClient(userId, userOrganizationId) : getProjects()).catch(logAndEmpty('projects')),
+        isClient ? [] : getTenders().catch(logAndEmpty('tenders')),
+        isClient ? [] : getEmployees().catch(logAndEmpty('employees')),
+        isClient ? [] : getRegistrations().catch(logAndEmpty('registrations')),
+        isClient ? [] : getPayments().catch(logAndEmpty('payments')),
+        isClient ? [] : getSubscriptions().catch(logAndEmpty('subscriptions')),
+        isClient ? [] : getPartners().catch(logAndEmpty('partners')),
+        isClient ? [] : getFiles().catch(logAndEmpty('files')),
+      ]);
+      if (cancelled) return;
 
-        setProjects(projectsData);
-        setTenders(tendersData);
-        setEmployees(employeesData);
-        setRegistrations(registrationsData);
-        setPayments(paymentsData);
-        setSubscriptions(subscriptionsData);
-        setPartners(partnersData);
-        setFiles(filesData);
-
-        setLoading({
-          projects: false,
-          tenders: false,
-          employees: false,
-          registrations: false,
-          payments: false,
-          subscriptions: false,
-          partners: false,
-          files: false,
-        });
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading({
-          projects: false,
-          tenders: false,
-          employees: false,
-          registrations: false,
-          payments: false,
-          subscriptions: false,
-          partners: false,
-          files: false,
-        });
-      }
+      setProjects(projectsData as Project[]);
+      setTenders(tendersData as Tender[]);
+      setEmployees(employeesData as Employee[]);
+      setRegistrations(registrationsData as Registration[]);
+      setPayments(paymentsData as Payment[]);
+      setSubscriptions(subscriptionsData as Subscription[]);
+      setPartners(partnersData as Partner[]);
+      setFiles(filesData as FileRecord[]);
+      setLoading(allLoaded(false));
     };
 
     fetchData();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, userId, userRole, userOrganizationId]);
+
+  const organizationIdFor = (clientId?: string) =>
+    allUsers.find(u => u.id === normalizeOptionalId(clientId))?.organizationId || '';
 
   // Helper to generate a human-readable Project ID
   const generateProjectId = (belongsTo: string) => {
     const prefix = belongsTo === 'Grow Plus Technologies' ? 'GPT' : 'SDE';
-    const existingCount = projects.filter(p => p.projectId?.startsWith(`PRJ-${prefix}`)).length;
-    const num = String(existingCount + 1).padStart(3, '0');
+    const pattern = new RegExp(`^PRJ-${prefix}-(\\d+)$`);
+    const highest = projects.reduce((max, p) => {
+      const match = p.projectId?.match(pattern);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    const num = String(highest + 1).padStart(3, '0');
     return `PRJ-${prefix}-${num}`;
   };
 
@@ -169,7 +201,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const clientId = normalizeOptionalId(project.clientId);
     const projectWithIds = { ...project, projectId, clientId };
     const id = await addProject(projectWithIds);
-    const newProject = { ...projectWithIds, id };
+    const newProject = { createdAt: new Date(), ...projectWithIds, id };
     setProjects(prev => [newProject, ...prev]);
     return id;
   };
@@ -186,14 +218,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddTender = async (tender: Omit<Tender, 'id'>) => {
     const id = await addTender(tender);
-    const newTender = { ...tender, id };
+    const newTender = { createdAt: new Date(), ...tender, id };
     setTenders(prev => [newTender, ...prev]);
 
     // Auto-create Project if Tender is Awarded on creation
     if (tender.status === 'awarded') {
       const projectExists = projects.some(p => 
-        p.name.toLowerCase() === tender.name.toLowerCase() && 
-        p.company.toLowerCase() === tender.company.toLowerCase()
+        sameText(p.name, tender.name) && sameText(p.company, tender.company)
       );
 
       if (!projectExists) {
@@ -215,6 +246,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           budget: 0,
           clientId: normalizeOptionalId(tender.clientId),
           clientName: tender.clientName || '',
+          organizationId: organizationIdFor(tender.clientId),
           description: `Automatically created from Awarded Tender (Direct Add): ${tender.name}`,
           createdAt: new Date()
         };
@@ -242,8 +274,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Auto-create Project if Tender is Awarded
     if (tender.status === 'awarded') {
       const projectExists = projects.some(p => 
-        p.name.toLowerCase() === updatedTenderData.name.toLowerCase() && 
-        p.company.toLowerCase() === updatedTenderData.company.toLowerCase()
+        sameText(p.name, updatedTenderData.name) && sameText(p.company, updatedTenderData.company)
       );
 
       if (!projectExists) {
@@ -265,6 +296,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           budget: 0,
           clientId: normalizeOptionalId(updatedTenderData.clientId),
           clientName: updatedTenderData.clientName || '',
+          organizationId: organizationIdFor(updatedTenderData.clientId),
           description: `Automatically created from Awarded Tender: ${updatedTenderData.name}`,
           createdAt: new Date()
         };
@@ -284,7 +316,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // must be managed through the Employees page. Avoid syncing from external auth providers.
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     const id = await addEmployee(employee);
-    const newEmployee = { ...employee, id };
+    const newEmployee = { createdAt: new Date(), ...employee, id };
     setEmployees(prev => [newEmployee, ...prev]);
     return id;
   };
@@ -301,7 +333,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddRegistration = async (registration: Omit<Registration, 'id'>) => {
     const id = await addRegistration(registration);
-    const newRegistration = { ...registration, id };
+    const newRegistration = { createdAt: new Date(), ...registration, id };
     setRegistrations(prev => [newRegistration, ...prev]);
     return id;
   };
@@ -318,7 +350,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddPayment = async (payment: Omit<Payment, 'id'>) => {
     const id = await addPayment(payment);
-    const newPayment = { ...payment, id };
+    const newPayment = { createdAt: new Date(), ...payment, id };
     setPayments(prev => [newPayment, ...prev]);
     return id;
   };
@@ -335,7 +367,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddSubscription = async (subscription: Omit<Subscription, 'id'>) => {
     const id = await addSubscription(subscription);
-    const newSubscription = { ...subscription, id };
+    const newSubscription = { createdAt: new Date(), ...subscription, id };
     setSubscriptions(prev => [newSubscription, ...prev]);
     return id;
   };
@@ -352,7 +384,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
     const id = await addPartner(partner);
-    const newPartner = { ...partner, id };
+    const newPartner = { createdAt: new Date(), ...partner, id };
     setPartners(prev => [newPartner, ...prev]);
     return id;
   };
@@ -369,7 +401,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleAddFile = async (file: Omit<FileRecord, 'id'>) => {
     const id = await addFile(file);
-    const newFile = { ...file, id };
+    const newFile = { createdAt: new Date(), ...file, id };
     setFiles(prev => [newFile, ...prev]);
     return id;
   };

@@ -1,88 +1,69 @@
-IT GROW PLUS TECHNOLOGIES – CRM System
-Project Overview
+# Grow Plus CRM
 
-IT GROW PLUS TECHNOLOGIES CRM is an internal Customer Relationship Management system designed to manage projects, tenders, assignments, and related documents efficiently.
-The system is built with a modern frontend stack to ensure scalability, performance, and a clean user experience.
+Internal CRM for IT Grow Plus Technologies and Sadeem Energy. It tracks projects
+(with tasks, costs and a timeline), tenders, company registrations, payments and
+subscriptions, partners, employees and documents, and includes an in-browser
+assistant that answers questions from the live data.
 
-How to Edit This Project
+## Stack
 
-You can work on this project using any of the following methods.
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router
+- **Backend:** Firebase: Authentication, Firestore, Storage and Hosting (project `crm-gpt-2026`)
+- **Assistant:** `src/services/crmChatEngine.ts`, a rule-based engine that runs in the browser (no server or LLM)
 
-Use Your Preferred IDE (Local Development)
+## Getting started
 
-To work locally on your system, follow these steps:
+Requires Node.js 20+.
 
-# Step 1: Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install dependencies
+```bash
 npm install
+npm run dev        # http://localhost:8080
+```
 
-# Step 4: Start the development server
-npm run dev
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build into `dist/` |
+| `npm run lint` | ESLint |
+| `npm run test:rules` | Test the Firestore and Storage security rules against the local emulators (needs the Firebase CLI and Java) |
 
+## Roles
 
-Requirements
+Each signed-in person has a profile at `users/{uid}` with one of these roles:
 
-Node.js
+| Role | Access |
+|---|---|
+| `admin` | Everything, including creating and removing users |
+| `manager` | All business data and the employee directory |
+| `user` (employee) | All business data; read-only employee directory |
+| `client` | Only the projects linked to them (by `clientId` or `organizationId`) |
 
-npm (recommended via nvm)
+Accounts are created by an admin from **Settings → Registration portal**. A Firebase
+Auth account without a `users/{uid}` profile gets no data access.
 
-Edit Files Directly in GitHub
+The UI hides pages by role (`ProtectedRoute` in `src/App.tsx`), but the real enforcement
+lives in `firestore.rules` and `storage.rules`, so keep both in sync when you change
+permissions and add a test in `tests/security-rules.test.mjs`.
 
-Open your repository on GitHub
+## Project layout
 
-Navigate to the file you want to edit
+```
+src/
+  pages/            One file per screen (Dashboard, Projects, Tenders, ...)
+  components/       Forms, layout, shared UI (shadcn/ui lives in components/ui)
+  contexts/         AuthContext (session + users), DataContext (all CRM data)
+  services/         Firebase setup, Firestore CRUD, chat engine
+  types/            Shared TypeScript types
+firestore.rules     Database security rules
+storage.rules       File storage security rules
+tests/              Security rules tests (run against emulators)
+docs/               Product analysis, improvement notes, bug sheet
+```
 
-Click the Edit (✏️) icon
+## Deploying
 
-Make changes and commit them directly to the repository
-
-Use GitHub Codespaces
-
-Go to your repository home page
-
-Click the Code button
-
-Open the Codespaces tab
-
-Click New codespace
-
-Edit, commit, and push changes from the browser-based environment
-
-Technologies Used
-
-This CRM system is built using the following technologies:
-
-Vite
-
-TypeScript
-
-React
-
-shadcn/ui
-
-Tailwind CSS
-
-Project Purpose
-
-Internal CRM usage for IT GROW PLUS TECHNOLOGIES
-
-Manage projects and tenders
-
-Assign tasks to team members
-
-Track status, deadlines, and documents
-
-Scalable structure for future backend and role-based access integration
-
-Notes
-
-This repository is intended for internal/private use
-
-Backend integration and role-based access can be added in later phases
-
-UI and components follow a clean, reusable architecture
+```bash
+npm run build
+firebase deploy --only hosting
+firebase deploy --only firestore:rules,storage
+```

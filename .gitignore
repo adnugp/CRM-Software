@@ -145,3 +145,10 @@ dist-ssr
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Firebase CLI / emulator output
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log

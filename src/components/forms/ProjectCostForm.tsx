@@ -37,7 +37,7 @@ const costSchema = z.object({
     type: z.enum(['debit', 'credit']).default('debit'),
 });
 
-type CostFormData = z.infer<typeof costSchema>;
+export type CostFormData = z.infer<typeof costSchema>;
 
 interface ProjectCostFormProps {
     open: boolean;

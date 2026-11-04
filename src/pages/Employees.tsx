@@ -6,7 +6,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
-import EmployeeForm from '@/components/forms/EmployeeForm';
+import EmployeeForm, { type EmployeeFormData } from '@/components/forms/EmployeeForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -25,20 +25,21 @@ const Employees: React.FC = () => {
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
 
-  if (user?.role !== 'admin' && user?.role !== 'manager') {
-    return <Navigate to="/" replace />;
-  }
-
+  // Hooks must run on every render, so compute before any early return.
   const filteredEmployees = useMemo(() => {
     if (!searchQuery) return employeesList;
     const query = searchQuery.toLowerCase();
     return employeesList.filter(e =>
-      e.name.toLowerCase().includes(query) ||
-      e.email.toLowerCase().includes(query) ||
-      e.department.toLowerCase().includes(query) ||
-      e.position.toLowerCase().includes(query)
+      (e.name || '').toLowerCase().includes(query) ||
+      (e.email || '').toLowerCase().includes(query) ||
+      (e.department || '').toLowerCase().includes(query) ||
+      (e.position || '').toLowerCase().includes(query)
     );
   }, [searchQuery, employeesList]);
+
+  if (user?.role !== 'admin' && user?.role !== 'manager') {
+    return <Navigate to="/" replace />;
+  }
 
   const activeCount = employeesList.filter(e => e.status === 'active').length;
   const departments = [...new Set(employeesList.map(e => e.department))];
@@ -72,7 +73,7 @@ const Employees: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: EmployeeFormData) => {
     try {
       if (editingEmployee) {
         await updateEmployee(editingEmployee.id, data);
@@ -81,7 +82,7 @@ const Employees: React.FC = () => {
           description: `"${data.name}" has been updated successfully.`,
         });
       } else {
-        await addEmployee(data);
+        await addEmployee(data as Omit<Employee, 'id'>);
         toast({
           title: 'Employee added',
           description: `"${data.name}" has been added successfully.`,

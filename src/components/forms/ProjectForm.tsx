@@ -46,7 +46,7 @@ const projectSchema = z.object({
   budget: z.coerce.number().min(0, 'Budget must be a positive number').optional(),
 });
 
-type ProjectFormData = z.infer<typeof projectSchema>;
+export type ProjectFormData = z.infer<typeof projectSchema>;
 
 interface ProjectFormProps {
   open: boolean;

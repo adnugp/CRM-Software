@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import Lottie from 'lottie-react';
 import chatbotAnimation from '@/assets/Hello Chat Bot Super Clean.json';
-import robotIcon from '/src/assets/robot.png';
+import robotIcon from '@/assets/robot.png';
 import userIcon from '@/assets/user-removebg-preview.png';
 import { cn } from '@/lib/utils';
 import { useData } from '@/contexts/DataContext';
@@ -459,9 +459,6 @@ const AIChatbotWidget: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const typingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Memoize chat state to prevent unnecessary re-renders
-  const chatStateMemoized = useMemo(() => chatState, [chatState.messages.length, chatState.isOpen, chatState.isMinimized, chatState.isTyping]);
-
   // Typing animation functions
   const startTypingAnimation = useCallback((messageId: string, fullContent: string) => {
     // Clear any existing interval for this message
@@ -863,7 +860,7 @@ const AIChatbotWidget: React.FC = () => {
                     {message.role === 'assistant' && (
                       <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg">
                         <img
-                          src="/src/assets/artificial-intelligence.png"
+                          src={robotIcon}
                           alt="AI Assistant"
                           className="w-full h-full object-cover"
                         />
@@ -944,7 +941,7 @@ const AIChatbotWidget: React.FC = () => {
                     {message.role === 'user' && (
                       <div className="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden shadow-lg">
                       <img
-                        src="/src/assets/user-removebg-preview.png"
+                        src={userIcon}
                         alt="User"
                         className="w-full h-full object-cover"
                       />
@@ -958,7 +955,7 @@ const AIChatbotWidget: React.FC = () => {
                   <div className="flex space-x-3 justify-start">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden">
                       <img
-                        src="/src/assets/artificial-intelligence.png"
+                        src={robotIcon}
                         alt="AI Assistant"
                         className="w-full h-full object-cover"
                       />

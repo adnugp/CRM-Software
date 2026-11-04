@@ -11,6 +11,8 @@ import {
   updateProfile as updateFirebaseProfile,
   updatePassword as updateFirebasePassword,
   getAuth,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
@@ -33,6 +35,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -70,21 +74,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       if (firebaseUser) {
         const userData = await fetchUserData(firebaseUser.uid);
-        if (userData) {
-          setUser(userData);
+        // No profile document means the account was never registered through the
+        // admin portal (or was removed). Firestore rules grant such accounts no
+        // access, so fall back to the least-privileged role.
+        const profile: AppUser = userData || {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          role: 'client'
+        };
+        setUser(profile);
+
+        if (profile.role === 'client') {
+          // Clients may only read their own profile (see firestore.rules).
+          setAllUsers([profile]);
         } else {
-          // If no custom user data found, set a minimal profile
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            role: 'client'
-          });
+          await refreshUsers();
         }
       } else {
         setUser(null);
+        setAllUsers([]);
       }
-      await refreshUsers();
       setLoading(false);
     });
 
@@ -95,9 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      return { success: false, errorCode: error.code || 'auth/unknown' };
+      return { success: false, errorCode: (error as { code?: string })?.code || 'auth/unknown' };
     }
   }, []);
 
@@ -166,15 +176,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOut(secondaryAuth);
       await refreshUsers();
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Add user error:', error);
-      if (error.code === 'auth/email-already-in-use') {
+      const code = (error as { code?: string })?.code;
+      if (code === 'auth/email-already-in-use') {
         return 'Email already registered';
       }
-      if (error.code === 'auth/weak-password') {
+      if (code === 'auth/weak-password') {
         return 'Password should be at least 6 characters';
       }
-      if (error.code === 'auth/invalid-email') {
+      if (code === 'auth/invalid-email') {
         return 'Invalid email address';
       }
       return 'Registration failed. Please try again.';
@@ -189,7 +200,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resetInactivityTimer = useCallback(() => {
@@ -290,10 +300,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updatePassword = useCallback(async (current: string, newP: string): Promise<boolean> => {
     try {
-      if (!auth.currentUser) return false;
-      // Note: Re-authentication is usually required before updating a password in Firebase
-      // if the user hasn't logged in recently. This is a simplified approach.
-      await updateFirebasePassword(auth.currentUser, newP);
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser?.email) return false;
+      // Verify the current password first. This stops someone at an unlocked
+      // session from changing the password, and satisfies Firebase's
+      // "requires recent login" check for sensitive operations.
+      const credential = EmailAuthProvider.credential(firebaseUser.email, current);
+      await reauthenticateWithCredential(firebaseUser, credential);
+      await updateFirebasePassword(firebaseUser, newP);
       return true;
     } catch (e) {
       console.error('Update password error:', e);

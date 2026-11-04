@@ -8,7 +8,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
 import { DocumentFile } from '@/types';
-import TenderForm from '@/components/forms/TenderForm';
+import TenderForm, { type TenderFormData } from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -76,12 +76,12 @@ const Tenders: React.FC = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(t =>
-        t.name.toLowerCase().includes(query) ||
-        t.company.toLowerCase().includes(query) ||
-        t.assignedToName.toLowerCase().includes(query) ||
-        t.belongsTo.toLowerCase().includes(query) ||
-        (t.rfqCode && t.rfqCode.toLowerCase().includes(query)) ||
-        (t.portal && t.portal.toLowerCase().includes(query))
+        (t.name || '').toLowerCase().includes(query) ||
+        (t.company || '').toLowerCase().includes(query) ||
+        (t.assignedToName || '').toLowerCase().includes(query) ||
+        (t.belongsTo || '').toLowerCase().includes(query) ||
+        (t.rfqCode || '').toLowerCase().includes(query) ||
+        (t.portal || '').toLowerCase().includes(query)
       );
     }
     return result;
@@ -121,7 +121,7 @@ const Tenders: React.FC = () => {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: TenderFormData) => {
     const assignee = employees.find(a => a.id === data.assignedTo) || allUsers.find(u => u.id === data.assignedTo);
     // Resolve client name from allUsers
     const clientId = data.clientId && data.clientId !== 'none' ? data.clientId : '';
@@ -130,7 +130,7 @@ const Tenders: React.FC = () => {
     if (editingTender) {
       await updateTender(editingTender.id, { ...data, assignedToName: assignee?.name || '', clientId, clientName });
     } else {
-      await addTender({ ...data, assignedToName: assignee?.name || '', clientId, clientName });
+      await addTender({ ...data, assignedToName: assignee?.name || '', clientId, clientName } as Omit<Tender, 'id'>);
     }
     setEditingTender(null);
   };

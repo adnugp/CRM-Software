@@ -122,8 +122,8 @@ const Login: React.FC = () => {
     try {
       await sendPasswordResetEmail(auth, email);
       setResetEmailSent(true);
-    } catch (err: any) {
-      const code = err.code || '';
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code || '';
       if (code === 'auth/user-not-found') {
         setError('No account found with this email address.');
       } else if (code === 'auth/too-many-requests') {
