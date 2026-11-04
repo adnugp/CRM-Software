@@ -1,16 +1,21 @@
 rules_version = '2';
 
-// Role-based access for the CRM.
+// Multi-company access for the CRM.
 //
-// Every signed-in person has a profile at /users/{uid} with a `role` of
-// 'admin' | 'manager' | 'user' (employee) | 'client'. Accounts with no
-// profile (e.g. someone who signs up directly against Firebase Auth) get no
-// access at all. Profiles are created by an admin from the Registration portal.
+// Each customer company is a workspace: /workspaces/{ws} holds its settings
+// (name, logo, brand colour, divisions) and every business record lives
+// underneath it, e.g. /workspaces/{ws}/projects/{id}.
 //
+// Every signed-in person has a profile at /users/{uid} with a `workspaceId`
+// and a `role` of 'admin' | 'manager' | 'user' (employee) | 'client'. A person
+// can only ever reach the workspace named on their own profile. Accounts with
+// no profile get no access at all.
+//
+// Inside a workspace:
 // - Staff (admin, manager, user) work with all business data.
 // - Clients can only read projects linked to them by clientId or organizationId.
-// - Only admins and managers can manage the employee directory.
-// - Only admins can create or remove user profiles or change roles.
+// - Only admins and managers manage the employee directory.
+// - Only admins change workspace settings or create/remove users.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -22,20 +27,25 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function profile() {
+    function me() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function myWs() {
+      return hasProfile() ? me().get('workspaceId', '') : '';
+    }
+
     function role() {
-      return hasProfile() ? profile().role : '';
+      return hasProfile() ? me().role : '';
+    }
+
+    // True when the caller belongs to workspace `ws`.
+    function inWs(ws) {
+      return myWs() != '' && myWs() == ws;
     }
 
     function isAdmin() {
       return role() == 'admin';
-    }
-
-    function isAdminOrManager() {
-      return role() in ['admin', 'manager'];
     }
 
     function isStaff() {
@@ -46,61 +56,72 @@ service cloud.firestore {
       return role() == 'client';
     }
 
+    function validRole(r) {
+      return r in ['admin', 'manager', 'user', 'client'];
+    }
+
     // ---- User profiles -------------------------------------------------
     match /users/{uid} {
-      // Staff need the full list (assignees, settings, registration portal);
-      // clients may only read their own profile.
-      allow read: if isStaff() || (signedIn() && request.auth.uid == uid);
+      // Staff list colleagues with where('workspaceId' == theirWorkspace);
+      // the comparison below is what lets Firestore accept that query.
+      allow read: if (signedIn() && request.auth.uid == uid)
+        || (isStaff() && resource.data.workspaceId == myWs());
 
-      allow create, delete: if isAdmin();
+      // Admins add people to their own workspace only.
+      allow create: if isAdmin()
+        && request.resource.data.workspaceId == myWs()
+        && validRole(request.resource.data.role);
 
-      // Admins can edit anyone. A user can edit their own name/email/avatar,
-      // but never their role, company or organization.
-      allow update: if isAdmin()
+      // Admins manage their own workspace's people but can never move anyone
+      // to another workspace. Everyone can edit their own name/email/avatar.
+      allow update: if (isAdmin()
+          && resource.data.workspaceId == myWs()
+          && request.resource.data.workspaceId == resource.data.workspaceId
+          && validRole(request.resource.data.role))
         || (signedIn() && request.auth.uid == uid
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['name', 'email', 'avatar']));
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'email', 'avatar']));
+
+      allow delete: if isAdmin() && resource.data.workspaceId == myWs();
     }
 
-    // ---- Projects ------------------------------------------------------
-    match /projects/{projectId} {
-      // Written as plain field comparisons so Firestore can match them against
-      // the client's where('clientId' == uid) / where('organizationId' == org)
-      // queries (see getProjectsForClient in src/services/firestore.ts).
-      allow read: if isStaff()
-        || (isClient() && (
-              resource.data.clientId == request.auth.uid
-              || (profile().get('organizationId', '') != ''
-                  && resource.data.organizationId == profile().organizationId)));
+    // ---- Workspaces ----------------------------------------------------
+    match /workspaces/{ws} {
+      // Every member, clients included, needs the name/logo/colour.
+      allow read: if inWs(ws);
 
-      allow create, update, delete: if isStaff();
-    }
+      allow update: if isAdmin() && inWs(ws)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'logoUrl', 'brandColor', 'divisions']);
 
-    // ---- Employee directory --------------------------------------------
-    match /employees/{employeeId} {
-      // Employees can see colleagues (task assignment); clients cannot.
-      allow read: if isStaff();
-      allow create, update, delete: if isAdminOrManager();
-    }
+      // Workspaces are created by the platform (scripts / sign-up flow), not here.
+      allow create, delete: if false;
 
-    // ---- Other business data (staff only) ------------------------------
-    match /tenders/{docId} {
-      allow read, write: if isStaff();
-    }
-    match /registrations/{docId} {
-      allow read, write: if isStaff();
-    }
-    match /payments/{docId} {
-      allow read, write: if isStaff();
-    }
-    match /subscriptions/{docId} {
-      allow read, write: if isStaff();
-    }
-    match /partners/{docId} {
-      allow read, write: if isStaff();
-    }
-    match /files/{docId} {
-      allow read, write: if isStaff();
+      // ---- Projects ----------------------------------------------------
+      match /projects/{projectId} {
+        // Plain field comparisons so Firestore can match them against the
+        // client's where('clientId' == uid) / where('organizationId' == org)
+        // queries (see getProjectsForClient in src/services/firestore.ts).
+        allow read: if inWs(ws) && (isStaff()
+          || (isClient() && (
+                resource.data.clientId == request.auth.uid
+                || (me().get('organizationId', '') != ''
+                    && resource.data.organizationId == me().organizationId))));
+
+        allow create, update, delete: if inWs(ws) && isStaff();
+      }
+
+      // ---- Employee directory ------------------------------------------
+      match /employees/{employeeId} {
+        allow read: if inWs(ws) && isStaff();
+        allow create, update, delete: if inWs(ws) && role() in ['admin', 'manager'];
+      }
+
+      // ---- Other business data (staff only) ----------------------------
+      match /{coll}/{docId} {
+        allow read, write: if inWs(ws) && isStaff()
+          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files'];
+      }
     }
 
     // Anything not listed above is denied by default.

@@ -1,51 +1,67 @@
 rules_version = '2';
 
-// Storage access mirrors firestore.rules: the role comes from /users/{uid}.
-// Files are opened through download URLs, which carry their own access token,
-// so clients can still open documents shared with them via a project. Direct
-// reads and listing of the buckets are limited to staff.
+// Storage access mirrors firestore.rules: role and workspace come from the
+// caller's /users/{uid} profile, and every company's files live under
+// workspaces/{ws}/. Files are opened through download URLs, which carry their
+// own access token, so clients can still open documents shared with them via
+// a project. Direct reads and listing are limited to the workspace's staff.
 service firebase.storage {
   match /b/{bucket}/o {
 
-    function role() {
-      return request.auth == null
-          || !firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        ? ''
-        : firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
     }
 
-    function isStaff() {
-      return role() in ['admin', 'manager', 'user'];
+    function registered() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
-    function isRegistered() {
-      return role() != '';
+    function inWs(ws) {
+      return registered() && profile().get('workspaceId', '') == ws;
+    }
+
+    function isStaffOf(ws) {
+      return inWs(ws) && profile().role in ['admin', 'manager', 'user'];
+    }
+
+    function isAdminOf(ws) {
+      return inWs(ws) && profile().role == 'admin';
     }
 
     function underMB(mb) {
       return request.resource.size < mb * 1024 * 1024;
     }
 
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
     // Project, tender, registration and file-manager documents.
-    match /documents/{fileName} {
-      allow read: if isStaff();
-      allow create, update: if isStaff() && underMB(50);
-      allow delete: if isStaff();
+    match /workspaces/{ws}/documents/{fileName} {
+      allow read, delete: if isStaffOf(ws);
+      allow create, update: if isStaffOf(ws) && underMB(50);
     }
 
     // Attachments on project tasks.
-    match /task-attachments/{fileName} {
-      allow read: if isStaff();
-      allow create, update: if isStaff() && underMB(50);
-      allow delete: if isStaff();
+    match /workspaces/{ws}/task-attachments/{fileName} {
+      allow read, delete: if isStaffOf(ws);
+      allow create, update: if isStaffOf(ws) && underMB(50);
+    }
+
+    // Company logo (Settings → Company).
+    match /workspaces/{ws}/branding/{fileName} {
+      allow read: if inWs(ws);
+      allow create, update: if isAdminOf(ws) && isImage() && underMB(2);
+      allow delete: if isAdminOf(ws);
     }
 
     // Profile pictures are stored as avatars/{uid}_{timestamp}_{name}.
     match /avatars/{fileName} {
-      allow read: if isRegistered();
-      allow create, update: if isRegistered()
+      allow read: if registered();
+      allow create, update: if registered()
         && fileName.matches(request.auth.uid + '_.*')
-        && request.resource.contentType.matches('image/.*')
+        && isImage()
         && underMB(5);
     }
 
