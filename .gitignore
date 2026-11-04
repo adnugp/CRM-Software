@@ -155,3 +155,6 @@ ui-debug.log
 
 # Local emulator data (npm run emulators)
 .emulator-data/
+
+# Personal emulator logins (hold passwords)
+scripts/local-accounts.json

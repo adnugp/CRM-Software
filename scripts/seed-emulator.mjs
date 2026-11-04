@@ -6,9 +6,8 @@
 // Only ever talks to 127.0.0.1 and the "demo-crm" project, so it cannot
 // touch live data. Safe to re-run: it wipes the emulators first.
 
-const PROJECT = 'demo-crm';
-const AUTH = 'http://127.0.0.1:9099';
-const FIRESTORE = 'http://127.0.0.1:8085';
+import { AUTH, FIRESTORE, PROJECT, assertEmulatorsRunning, put, request, signUp } from './emulator-rest.mjs';
+import { addLocalAccounts } from './local-accounts.mjs';
 
 // Test logins (local emulator only). All share one password.
 export const TEST_PASSWORD = 'Test@1234';
@@ -30,43 +29,10 @@ const day = (offset) => {
 };
 const ago = (days) => new Date(Date.now() - days * 86400000);
 
-// Encode a plain JS value as a Firestore REST "Value".
-const encode = (v) => {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (v instanceof Date) return { timestampValue: v.toISOString() };
-  if (Array.isArray(v)) return { arrayValue: { values: v.map(encode) } };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === 'object') return { mapValue: { fields: encodeFields(v) } };
-  return { stringValue: String(v) };
-};
-const encodeFields = (obj) =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined).map(([k, v]) => [k, encode(v)]));
-
-const request = async (url, init = {}) => {
-  const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`${init.method || 'GET'} ${url} -> ${res.status} ${await res.text()}`);
-  return res.status === 204 ? null : res.json().catch(() => null);
-};
-
-// "Bearer owner" lets the emulator bypass security rules for seeding.
-const put = (collection, id, data) =>
-  request(`${FIRESTORE}/v1/projects/${PROJECT}/databases/(default)/documents/${collection}/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
-    body: JSON.stringify({ fields: encodeFields(data) }),
-  });
-
 // ---------- main ----------
 
 async function main() {
-  try {
-    await fetch(`${AUTH}/`);
-    await fetch(`${FIRESTORE}/`);
-  } catch {
-    console.error('Emulators are not running. Start them first with: npm run emulators');
-    process.exit(1);
-  }
+  await assertEmulatorsRunning();
 
   console.log('Clearing local emulator data...');
   await request(`${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
@@ -75,11 +41,7 @@ async function main() {
   console.log('Creating test logins...');
   const uid = {};
   for (const p of PEOPLE) {
-    const res = await request(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: p.email, password: TEST_PASSWORD, displayName: p.name, returnSecureToken: true }),
-    });
+    const res = await signUp(p.email, TEST_PASSWORD, p.name);
     uid[p.key] = res.localId;
     await put('users', res.localId, {
       name: p.name, email: p.email, role: p.role, company: p.company, organizationId: p.organizationId,
@@ -226,6 +188,11 @@ async function main() {
 
   console.log('\nDone. Local logins (password for all: see TEST_PASSWORD in scripts/seed-emulator.mjs):');
   for (const p of PEOPLE) console.log(`  ${p.role.padEnd(8)} ${p.email}`);
+  const mine = await addLocalAccounts();
+  if (mine.length) {
+    console.log('\nYour accounts (from scripts/local-accounts.json):');
+    for (const a of mine) console.log(`  ${a.role.padEnd(8)} ${a.email}`);
+  }
   console.log('\nOpen http://localhost:8080 (npm run dev).');
 }
 

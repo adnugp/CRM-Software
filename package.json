@@ -8,6 +8,7 @@
     "dev:live": "vite --mode live",
     "emulators": "node scripts/emulators.mjs",
     "seed": "node scripts/seed-emulator.mjs",
+    "accounts": "node scripts/local-accounts.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

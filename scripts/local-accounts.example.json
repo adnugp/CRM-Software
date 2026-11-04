@@ -1,0 +1,8 @@
+{
+  "password": "choose-a-local-password",
+  "accounts": [
+    { "email": "you@example.com", "name": "Your Name", "role": "admin", "department": "Management", "position": "Director" },
+    { "email": "manager@example.com", "name": "A Manager", "role": "manager", "department": "Operations", "position": "Manager" },
+    { "email": "staff@example.com", "name": "An Employee", "role": "user", "department": "Engineering", "position": "Engineer" }
+  ]
+}

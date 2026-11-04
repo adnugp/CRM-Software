@@ -36,6 +36,7 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 |---|---|
 | `npm run emulators` | Start the local Firebase emulators |
 | `npm run seed` | Reset the emulators to sample data |
+| `npm run accounts` | Add or update your own logins from `scripts/local-accounts.json` (git-ignored; copy `local-accounts.example.json`). `seed` re-adds them too |
 | `npm run dev` | Dev server using local emulator data |
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
