@@ -5,12 +5,18 @@
     "name": "Your Company",
     "brandColor": "#16a34a",
     "divisions": [
-      { "name": "First Division", "code": "ONE" },
-      { "name": "Second Division", "code": "TWO" }
+      {
+        "name": "First Division",
+        "code": "ONE"
+      },
+      {
+        "name": "Second Division",
+        "code": "TWO"
+      }
     ]
   },
   "accounts": [
-    { "email": "you@example.com", "name": "Your Name", "role": "admin", "department": "Management", "position": "Director" },
+    { "email": "you@example.com", "name": "Your Name", "role": "admin", "department": "Management", "position": "Director", "platformOwner": true },
     { "email": "manager@example.com", "name": "A Manager", "role": "manager", "department": "Operations", "position": "Manager" },
     { "email": "staff@example.com", "name": "An Employee", "role": "user", "department": "Engineering", "position": "Engineer" }
   ]

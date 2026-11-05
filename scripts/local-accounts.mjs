@@ -8,6 +8,9 @@
 // the workspace's name and divisions, and each login's role, name and
 // password, are reset to what the file says.
 // `npm run seed` also runs this at the end, so a reset never loses your logins.
+// Your company is 'active' with no staff limit unless the "workspace" block sets
+// status / plan / staffLimit. "platformOwner": true on an account makes it the
+// super admin (Platform page).
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +33,11 @@ export async function addLocalAccounts() {
   });
   await put('workspaces', workspace.id, {
     name: workspace.name, brandColor: workspace.brandColor, divisions, createdAt: new Date(),
+    status: workspace.status ?? 'active',
+    plan: workspace.plan ?? 'custom',
+    staffLimit: workspace.staffLimit ?? 0,
+    staffCount: accounts.filter((a) => a.role !== 'client').length,
+    trialEndsAt: workspace.trialEndsAt ? new Date(workspace.trialEndsAt) : undefined,
   });
 
   const added = [];
@@ -42,6 +50,7 @@ export async function addLocalAccounts() {
       name: a.name, email: a.email, role: a.role, workspaceId: workspace.id,
       company: a.company, organizationId: a.organizationId,
     });
+    if (a.platformOwner) await put('platformOwners', uid, { email: a.email, createdAt: new Date() });
     // Staff also appear in the employee directory (doc ID = login ID, so task assignees line up).
     if (a.role !== 'client') {
       await put(`workspaces/${workspace.id}/employees`, uid, {

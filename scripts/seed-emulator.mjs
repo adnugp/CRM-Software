@@ -6,9 +6,11 @@
 // Only ever talks to 127.0.0.1 and the "demo-crm" project, so it cannot
 // touch live data. Safe to re-run: it wipes the emulators first.
 //
-// Two demo customer companies (workspaces) prove that companies are isolated:
-//   Acme Contracting  - two divisions (BLD, ENG), a full team, two clients
-//   Noor Engineering  - no divisions, a small team, one client
+// Three demo customer companies (workspaces) prove that companies are isolated:
+//   Acme Contracting  - active plan, two divisions (BLD, ENG), a full team, two clients
+//   Noor Engineering  - on a trial (9 days left), no divisions, a small team, one client
+//   Falcon Builders   - trial ended, so read-only
+// plus one pending invite into Acme (the link is printed at the end).
 
 import { AUTH, FIRESTORE, PROJECT, assertEmulatorsRunning, put, request, signUp } from './emulator-rest.mjs';
 import { addLocalAccounts } from './local-accounts.mjs';
@@ -28,8 +30,14 @@ const ago = (days) => new Date(Date.now() - days * 86400000);
 // Writes into workspaces/{ws}/{collection}/{id}.
 const putIn = (ws, collection, id, data) => put(`workspaces/${ws}/${collection}`, id, data);
 
-async function createWorkspace({ id, name, brandColor, divisions, people }) {
-  await put('workspaces', id, { name, brandColor, divisions, createdAt: ago(400) });
+async function createWorkspace({ id, name, brandColor, divisions, people, billing }) {
+  const founder = people.find((p) => p.role === 'admin');
+  await put('workspaces', id, {
+    name, brandColor, divisions, createdAt: ago(400),
+    ...billing,
+    staffCount: people.filter((p) => p.role !== 'client').length,
+    contactName: founder?.name, contactEmail: founder?.email,
+  });
 
   const person = {};
   for (const p of people) {
@@ -77,6 +85,7 @@ async function seedAcme() {
   const person = await createWorkspace({
     id: ws,
     name: 'Acme Contracting',
+    billing: { status: 'active', plan: 'business', staffLimit: 50 },
     divisions: [
       { id: BLD, name: 'Building Systems', code: 'BLD' },
       { id: ENG, name: 'Energy', code: 'ENG' },
@@ -215,6 +224,7 @@ async function seedNoor() {
     id: ws,
     name: 'Noor Engineering',
     brandColor: '#2563eb',
+    billing: { status: 'trial', plan: 'starter', staffLimit: 5, trialEndsAt: new Date(Date.now() + 9 * 86400000) },
     divisions: [],
     people: [
       { key: 'admin', email: 'admin@noor.test', name: 'Layla Saeed', role: 'admin', department: 'Management', position: 'General Manager', phone: '+971 50 777 1000' },
@@ -253,6 +263,43 @@ async function seedNoor() {
   return person;
 }
 
+// ---------- Falcon Builders (trial ended: read-only) ----------
+
+async function seedFalcon() {
+  const ws = 'ws-falcon';
+  const person = await createWorkspace({
+    id: ws,
+    name: 'Falcon Builders',
+    brandColor: '#ea580c',
+    divisions: [],
+    billing: { status: 'trial', plan: 'starter', staffLimit: 5, trialEndsAt: ago(2) },
+    people: [
+      { key: 'admin', email: 'admin@falcon.test', name: 'Khalid Mansour', role: 'admin', department: 'Management', position: 'Owner', phone: '+971 50 888 1000' },
+      { key: 'employee', email: 'employee@falcon.test', name: 'Rana Aziz', role: 'user', department: 'Projects', position: 'Site Supervisor', phone: '+971 55 888 2000' },
+    ],
+  });
+  await putProjects(ws, person, [
+    {
+      id: 'prj-1', projectId: 'PRJ-001', name: 'Villa Renovation', company: 'Private Client',
+      status: 'in-progress', who: 'employee', deadline: day(20), budget: 85000, createdAt: ago(20),
+      description: 'Full interior renovation of a four-bedroom villa.', tasks: [], costs: [],
+    },
+  ]);
+  return person;
+}
+
+// ---------- A pending invite (open the link printed at the end) ----------
+
+const SEED_INVITE = 'seed-invite-acme';
+
+async function seedInvite(acme) {
+  await put('invites', SEED_INVITE, {
+    workspaceId: 'ws-acme', workspaceName: 'Acme Contracting', email: 'newhire@acme.test',
+    name: 'Nadia Karim', role: 'user', status: 'pending', invitedBy: acme.admin.id,
+    createdAt: new Date(), expiresAt: new Date(Date.now() + 7 * 86400000),
+  });
+}
+
 // ---------- main ----------
 
 async function main() {
@@ -265,12 +312,19 @@ async function main() {
   console.log('Creating demo companies...');
   const acme = await seedAcme();
   const noor = await seedNoor();
+  const falcon = await seedFalcon();
+  await seedInvite(acme);
 
   console.log(`\nDone. Local logins (password for all: see TEST_PASSWORD in scripts/seed-emulator.mjs):`);
-  for (const [label, people] of [['Acme Contracting', acme], ['Noor Engineering', noor]]) {
+  for (const [label, people] of [
+    ['Acme Contracting (active)', acme],
+    ['Noor Engineering (trial, 9 days left)', noor],
+    ['Falcon Builders (trial ended: read-only)', falcon],
+  ]) {
     console.log(`  ${label}`);
     for (const p of Object.values(people)) console.log(`    ${p.role.padEnd(8)} ${p.email}`);
   }
+  console.log(`\nPending invite (Acme, employee newhire@acme.test): http://localhost:8080/join/${SEED_INVITE}`);
 
   const mine = await addLocalAccounts();
   if (mine.length) {
