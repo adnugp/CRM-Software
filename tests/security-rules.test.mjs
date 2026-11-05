@@ -406,6 +406,16 @@ describe('invites', () => {
     await assertFails(accept('newbie', 'inv-mgr', { staffCount: 6 }));
   });
 
+  it('only a brand-new profile can use up an invite', async () => {
+    // An existing member pointing their own profile at someone else's invite.
+    const fs = as('admin', 'admin@a.dev');
+    const batch = fs.batch();
+    batch.update(fs.collection('users').doc('admin'), { inviteId: 'inv-mgr' });
+    batch.update(fs.collection('invites').doc('inv-mgr'), { status: 'accepted', acceptedBy: 'admin', acceptedAt: new Date() });
+    await assertFails(batch.commit());
+    await assertFails(db('admin').collection('users').doc('employee').update({ inviteId: 'inv-mgr' }));
+  });
+
   it('a read-only company cannot take new people', async () => {
     await assertFails(accept('tnew', 'inv-t', { staffCount: 2 }));
   });

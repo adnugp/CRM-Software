@@ -192,6 +192,7 @@ service cloud.firestore {
       allow update: if (isAdmin()
           && resource.data.workspaceId == myWs()
           && request.resource.data.workspaceId == resource.data.workspaceId
+          && !changed().hasAny(['inviteId'])
           && validRole(request.resource.data.role)
           && isStaffRole(request.resource.data.role) == isStaffRole(resource.data.role)
           && writable(myWs()))
@@ -232,8 +233,11 @@ service cloud.firestore {
           && resource.data.status == 'pending'
           && request.resource.data.status == 'revoked'
           && changed().hasOnly(['status']))
-        // The invitee accepts it (see validInviteProfile).
-        || (signedIn() && resource.data.status == 'pending'
+        // The invitee accepts it, only while creating their profile from it
+        // (see validInviteProfile).
+        || (signedIn() && !hasProfile()
+          && existsAfter(userPath(request.auth.uid))
+          && resource.data.status == 'pending'
           && request.resource.data.status == 'accepted'
           && changed().hasOnly(['status', 'acceptedBy', 'acceptedAt'])
           && request.resource.data.acceptedBy == request.auth.uid
