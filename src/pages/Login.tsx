@@ -249,6 +249,10 @@ const Login: React.FC = () => {
                   {isLoading ? 'Signing in...' : isLockedOut ? `Locked (${getLockoutRemaining()})` : 'Sign in'}
                 </Button>
               </form>
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                New company?{' '}
+                <Link to="/signup" className="font-medium text-primary hover:underline">Start a free trial</Link>
+              </p>
             </>
           ) : (
             <>

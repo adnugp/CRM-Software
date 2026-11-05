@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 
 // Pages load on demand so the initial download stays small.
 const Register = lazy(() => import("./pages/Register"));
+const Signup = lazy(() => import("./pages/Signup"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Projects = lazy(() => import("./pages/Projects"));
 const Tenders = lazy(() => import("./pages/Tenders"));
@@ -86,6 +87,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
               <Route path="/register" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Register />
