@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
-import { PLANS, SALES_EMAIL, TRIAL_DAYS, type PlanId } from '@/config/plans';
+import { PLANS, SALES_EMAIL, TRIAL_DAYS, formatPrice, type PlanId } from '@/config/plans';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
@@ -87,7 +87,7 @@ const Signup: React.FC = () => {
               {plan === p.id && <Check className="h-4 w-4 text-primary" />}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">Up to {p.staffLimit} staff</p>
-            <p className="mt-3 text-lg font-bold text-foreground">{p.priceLabel}</p>
+            <p className="mt-3 text-lg font-bold text-foreground">{formatPrice(p, 'monthly')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{p.blurb}</p>
           </button>
         ))}

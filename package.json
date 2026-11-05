@@ -13,7 +13,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:unit": "node --test tests/unit/workspace.test.mjs tests/unit/subscription.test.mjs",
+    "test:unit": "node --test tests/unit/workspace.test.mjs tests/unit/subscription.test.mjs tests/unit/payment.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-crm \"node --test tests/security-rules.test.mjs\""
   },
   "dependencies": {
