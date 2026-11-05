@@ -28,15 +28,16 @@ npm run seed        # terminal 2, first time only: load sample data and test log
 npm run dev         # terminal 2: app at http://localhost:8080
 ```
 
-`npm run seed` creates two demo companies, all logins sharing the test password defined
+`npm run seed` creates three demo companies, all logins sharing the test password defined
 as `TEST_PASSWORD` in `scripts/seed-emulator.mjs`:
 
-| Company | Divisions | Logins |
-|---|---|---|
-| Acme Contracting | Building Systems (BLD), Energy (ENG) | admin@ / manager@ / employee@ / employee2@acme.test, clients client@gulf.test and client@desert.test |
-| Noor Engineering | none | admin@ / employee@noor.test, client client@harbor.test |
+| Company | Plan | Divisions | Logins |
+|---|---|---|---|
+| Acme Contracting | Business, active | Building Systems (BLD), Energy (ENG) | admin@ / manager@ / employee@ / employee2@acme.test, clients client@gulf.test and client@desert.test |
+| Noor Engineering | Starter, trial (9 days left) | none | admin@ / employee@noor.test, client client@harbor.test |
+| Falcon Builders | Starter, trial ended (read-only) | none | admin@ / employee@falcon.test |
 
-Run it again any time to reset to clean sample data. Local data is saved to
+It also prints a pending invite link into Acme (`/join/seed-invite-acme`). Run it again any time to reset to clean sample data. Local data is saved to
 `.emulator-data/` when you stop the emulators with Ctrl+C.
 
 While the app uses local data, a **Local data** badge shows at the top of the screen.
@@ -45,12 +46,12 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 |---|---|
 | `npm run emulators` | Start the local Firebase emulators |
 | `npm run seed` | Reset the emulators to sample data |
-| `npm run accounts` | Add or update your own logins from `scripts/local-accounts.json` (git-ignored; copy `local-accounts.example.json`). `seed` re-adds them too |
+| `npm run accounts` | Add or update your own company and logins from `scripts/local-accounts.json` (git-ignored; copy `local-accounts.example.json`). `"platformOwner": true` on an account makes it the super admin. `seed` re-adds them too |
 | `npm run dev` | Dev server using local emulator data |
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme) |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials) |
 | `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
 
 ## Workspaces and divisions
@@ -64,6 +65,24 @@ Divisions are optional business units (e.g. "Energy", code `ENG`). Records can b
 with one, and project numbers use its code (`PRJ-ENG-001`, or `PRJ-001` without a
 division). Admins manage the name, logo, colour and divisions in **Settings → Company**.
 
+## Sign-up, plans and invites
+
+- **Sign-up.** A new company signs up at `/signup` (linked from the login page): it picks a
+  plan and gets a 14-day trial, and the person signing up becomes its admin. Plans, prices
+  and trial length are in `src/config/plans.ts`; the staff limits are mirrored in
+  `firestore.rules` (`planLimits`), and a rules test fails if they differ.
+- **Staff limit.** Admins, managers and employees count against the plan's staff limit
+  (`staffCount` / `staffLimit` on the workspace). Clients are free.
+- **Read-only.** When a trial ends, or the company is suspended, it becomes read-only: people
+  can still see everything, but nothing can be changed until it's activated.
+- **Invites.** Admins add people from **Settings → Team**: enter email, name and role, then
+  copy the one-time link (valid 7 days) and send it. The person opens it, picks a password
+  and joins. The app doesn't send emails yet.
+- **Super admin.** The product owner (a login listed in `platformOwners`, set with
+  `"platformOwner": true` in `local-accounts.json`) sees every company on the **Platform**
+  page and can change its plan, extend a trial, activate it or suspend it. They can't see any
+  company's data.
+
 ## Roles
 
 Each signed-in person has a profile at `users/{uid}` with a `workspaceId` and one of
@@ -71,14 +90,14 @@ these roles, which apply inside their own workspace:
 
 | Role | Access |
 |---|---|
-| `admin` | Everything, including creating and removing users |
+| `admin` | Everything, including inviting and removing people |
 | `manager` | All business data and the employee directory |
 | `user` (employee) | All business data; read-only employee directory |
 | `client` | Only the projects linked to them (by `clientId` or `organizationId`) |
 
-Accounts are created by an admin from **Settings → Registration portal** and always join
-that admin's workspace. A Firebase Auth account without a `users/{uid}` profile (or
-without a workspace) gets no data access.
+People join through an invite link from **Settings → Team**, or by signing up a new
+company. A Firebase Auth account without a `users/{uid}` profile (or without a workspace)
+gets no data access.
 
 The UI hides pages by role (`ProtectedRoute` in `src/App.tsx`), but the real enforcement
 lives in `firestore.rules` and `storage.rules`, so keep both in sync when you change
