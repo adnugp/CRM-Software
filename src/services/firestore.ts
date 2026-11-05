@@ -154,17 +154,21 @@ export const addFile = async (wsId: string, file: Omit<FileRecord, 'id'>): Promi
 export const updateFile = async (wsId: string, id: string, file: Partial<FileRecord>): Promise<void> => updateDocument<FileRecord>(wsId, 'files', id, file);
 export const deleteFile = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'files', id);
 
-// Workspace (company) settings: name, logo, brand colour, divisions.
+const toDate = (value: unknown): Date | undefined => (value instanceof Timestamp ? value.toDate() : undefined);
+
+/** Firestore data → Workspace (timestamps become Dates). */
+export const toWorkspace = (id: string, data: DocumentData): Workspace => ({
+  id,
+  ...data,
+  divisions: Array.isArray(data.divisions) ? data.divisions : [],
+  createdAt: toDate(data.createdAt),
+  trialEndsAt: toDate(data.trialEndsAt),
+} as Workspace);
+
+// Workspace (company) settings: name, logo, brand colour, divisions, plan.
 export const getWorkspace = async (wsId: string): Promise<Workspace | null> => {
   const snapshot = await getDoc(doc(db, 'workspaces', wsId));
-  if (!snapshot.exists()) return null;
-  const data = snapshot.data();
-  return {
-    id: snapshot.id,
-    ...data,
-    divisions: Array.isArray(data.divisions) ? data.divisions : [],
-    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
-  } as Workspace;
+  return snapshot.exists() ? toWorkspace(snapshot.id, snapshot.data()) : null;
 };
 
 export const updateWorkspace = async (wsId: string, data: Partial<Omit<Workspace, 'id' | 'createdAt'>>): Promise<void> => {

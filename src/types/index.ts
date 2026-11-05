@@ -1,5 +1,6 @@
 export type { Division } from '@/lib/workspace';
 import type { Division } from '@/lib/workspace';
+import type { InviteStatus, WorkspaceStatus } from '@/lib/subscription';
 
 export type UserRole = 'admin' | 'user' | 'client' | 'manager';
 
@@ -13,6 +14,8 @@ export interface User {
   /** The customer company (workspace) this login belongs to. */
   workspaceId?: string;
   avatar?: string;
+  /** The invite this login joined through, if any. */
+  inviteId?: string;
 }
 
 /** A customer company using the CRM. Its records live under workspaces/{id}/. */
@@ -24,6 +27,37 @@ export interface Workspace {
   brandColor?: string;
   divisions: Division[];
   createdAt?: Date;
+  /** Plan state. Missing = 'active' (companies created before plans). */
+  status?: WorkspaceStatus;
+  /** 'starter' | 'team' | 'business' (src/config/plans.ts) or 'custom'. */
+  plan?: string;
+  /** Maximum staff; 0 = unlimited. */
+  staffLimit?: number;
+  /** Staff (non-client) members right now. */
+  staffCount?: number;
+  trialEndsAt?: Date;
+  createdBy?: string;
+  contactName?: string;
+  contactEmail?: string;
+}
+
+/** A one-time link that lets someone join a workspace with a given role. */
+export interface Invite {
+  /** The random document id; it is the secret in the link. */
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  company?: string;
+  organizationId?: string;
+  status: InviteStatus;
+  invitedBy: string;
+  createdAt?: Date;
+  expiresAt: Date;
+  acceptedBy?: string;
+  acceptedAt?: Date;
 }
 
 export interface DocumentFile {
