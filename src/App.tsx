@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 // Pages load on demand so the initial download stays small.
 const Signup = lazy(() => import("./pages/Signup"));
 const Join = lazy(() => import("./pages/Join"));
+const Platform = lazy(() => import("./pages/Platform"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Projects = lazy(() => import("./pages/Projects"));
 const Tenders = lazy(() => import("./pages/Tenders"));
@@ -129,6 +130,12 @@ const App = () => {
               <Route path="/settings" element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              } />
+              {/* Super admin only (the page itself checks isOwner) */}
+              <Route path="/platform" element={
+                <ProtectedRoute>
+                  <Platform />
                 </ProtectedRoute>
               } />
 

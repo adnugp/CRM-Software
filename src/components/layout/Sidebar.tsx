@@ -13,7 +13,8 @@ import {
   LogOut,
   Menu,
   X,
-  Files
+  Files,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -27,7 +28,7 @@ import { accessLabel } from '@/lib/subscription';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isOwner } = useAuth();
   const { access } = useWorkspace();
   const [mobileOpen, setMobileOpen] = useState(false);
   const scrollRef = useDragScroll<HTMLElement>();
@@ -54,6 +55,10 @@ const Sidebar: React.FC = () => {
   const filteredMenuItems = menuItems.filter(item =>
     !user || item.roles.includes(user.role)
   );
+  // The product owner also manages every company from the Platform page.
+  const visibleItems = isOwner
+    ? [...filteredMenuItems, { path: '/platform', icon: Building2, label: 'Platform', roles: [] as string[] }]
+    : filteredMenuItems;
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
@@ -81,7 +86,7 @@ const Sidebar: React.FC = () => {
         ref={scrollRef}
         className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
       >
-        {filteredMenuItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           return (
             <Link
