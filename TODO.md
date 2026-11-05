@@ -20,7 +20,8 @@ until it is migrated. Write and run a one-time migration script (Admin SDK) that
       domain for the app. Set `VITE_APP_URL` to the app address so invite links point there.
 
 ## Product (later sub-projects)
-- [ ] Card payment with Stripe (Cloud Functions, Blaze plan): turn trials into paid plans,
+- [ ] Card payment with Stripe (Cloud Functions, Blaze plan): replace the demo
+      `savePaymentMethod` in `src/services/billing.ts`, charge when the trial ends,
       send invite and sign-up emails, and verify sign-up email addresses.
 - [ ] Contacts, companies and a deals pipeline.
 

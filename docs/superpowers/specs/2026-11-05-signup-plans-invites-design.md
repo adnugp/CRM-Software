@@ -224,3 +224,26 @@ hit the staff limit, see Falcon read-only, approve/extend/suspend from Platform.
   are secret and expire; email verification comes with Cloud Functions.
 - A read-only company cannot invite or remove people until it is activated.
 - Removing a person deletes their profile, not their Auth login (existing TODO).
+
+## Addendum (2026-11-05): demo payment step at sign-up
+
+Approved after the main build. Sign-up now takes a card **first**, then starts the 14-day
+trial (no charge until it ends). Card payment is simulated until Stripe is added.
+
+- **Billing period:** monthly or yearly. Yearly charges 10 months for 12
+  (`YEARLY_MONTHS_CHARGED` in `src/config/plans.ts`): Starter AED 990, Team AED 2,990,
+  Business AED 5,990 a year (placeholders).
+- **Form:** name on card, number (Luhn check, Visa / Mastercard / Amex, length), expiry
+  (MM/YY, not past), CVC (3 digits, Amex 4). Pure checks in `src/lib/payment.ts`.
+- **Provider seam:** `savePaymentMethod()` in `src/services/billing.ts` is the only code
+  that touches a provider. Demo version checks the card, waits briefly, declines the test
+  card `4000 0000 0000 0002`, and returns a summary. Stripe replaces only this function.
+- **Stored on the workspace:** `billingCycle` and `paymentMethod: { provider: 'demo', brand,
+  last4, expMonth, expYear }`. The rules require exactly these keys at sign-up, so a full
+  card number or CVC can never be written.
+- **Order:** the card is checked before the login is created, so a declined card leaves no
+  half-made account.
+- **Unchanged:** when the trial ends nothing is charged; the company goes read-only until
+  the super admin activates it. Automatic charging needs Stripe webhooks (next sub-project).
+- **Shown in:** Settings → Team ("Team plan · Yearly · Visa ••4242 · …") and the Platform
+  page (Billing column).
