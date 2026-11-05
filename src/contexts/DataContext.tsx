@@ -13,6 +13,8 @@ import { Project, Tender, Employee, Registration, Payment, Subscription, Partner
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { nextProjectNumber } from '@/lib/workspace';
+import { readOnlyMessage } from '@/lib/subscription';
+import { toast } from '@/hooks/use-toast';
 
 interface DataContextType {
   // Data
@@ -89,7 +91,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const userId = user?.id;
   const userRole = user?.role;
   const userOrganizationId = user?.organizationId;
-  const { workspaceId, divisionById } = useWorkspace();
+  const { workspaceId, divisionById, access } = useWorkspace();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -188,6 +190,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // the project has no division (see src/lib/workspace.ts).
   const generateProjectId = (divisionId?: string) =>
     nextProjectNumber(projects.map(p => p.projectId), divisionById(divisionId)?.code);
+
+  // Read-only companies (trial ended / suspended): stop writes here with a
+  // clear message instead of a raw permission error from Firestore.
+  const guard = <A extends unknown[], R>(fn: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      if (!access.canWrite) {
+        const message = readOnlyMessage(access.state);
+        toast({ title: 'Read-only', description: message, variant: 'destructive' });
+        throw new Error(message);
+      }
+      return fn(...args);
+    };
 
   // CRUD functions
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
@@ -430,30 +444,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       partners,
       files,
       loading,
-      addProject: handleAddProject,
-      updateProject: handleUpdateProject,
-      deleteProject: handleDeleteProject,
-      addTender: handleAddTender,
-      updateTender: handleUpdateTender,
-      deleteTender: handleDeleteTender,
-      addEmployee: handleAddEmployee,
-      updateEmployee: handleUpdateEmployee,
-      deleteEmployee: handleDeleteEmployee,
-      addRegistration: handleAddRegistration,
-      updateRegistration: handleUpdateRegistration,
-      deleteRegistration: handleDeleteRegistration,
-      addPayment: handleAddPayment,
-      updatePayment: handleUpdatePayment,
-      deletePayment: handleDeletePayment,
-      addSubscription: handleAddSubscription,
-      updateSubscription: handleUpdateSubscription,
-      deleteSubscription: handleDeleteSubscription,
-      addPartner: handleAddPartner,
-      updatePartner: handleUpdatePartner,
-      deletePartner: handleDeletePartner,
-      addFile: handleAddFile,
-      updateFile: handleUpdateFile,
-      deleteFile: handleDeleteFile,
+      addProject: guard(handleAddProject),
+      updateProject: guard(handleUpdateProject),
+      deleteProject: guard(handleDeleteProject),
+      addTender: guard(handleAddTender),
+      updateTender: guard(handleUpdateTender),
+      deleteTender: guard(handleDeleteTender),
+      addEmployee: guard(handleAddEmployee),
+      updateEmployee: guard(handleUpdateEmployee),
+      deleteEmployee: guard(handleDeleteEmployee),
+      addRegistration: guard(handleAddRegistration),
+      updateRegistration: guard(handleUpdateRegistration),
+      deleteRegistration: guard(handleDeleteRegistration),
+      addPayment: guard(handleAddPayment),
+      updatePayment: guard(handleUpdatePayment),
+      deletePayment: guard(handleDeletePayment),
+      addSubscription: guard(handleAddSubscription),
+      updateSubscription: guard(handleUpdateSubscription),
+      deleteSubscription: guard(handleDeleteSubscription),
+      addPartner: guard(handleAddPartner),
+      updatePartner: guard(handleUpdatePartner),
+      deletePartner: guard(handleDeletePartner),
+      addFile: guard(handleAddFile),
+      updateFile: guard(handleUpdateFile),
+      deleteFile: guard(handleDeleteFile),
       stats
     }}>
       {children}

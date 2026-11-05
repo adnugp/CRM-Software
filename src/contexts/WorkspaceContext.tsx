@@ -3,6 +3,7 @@ import { Building2, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorkspace, updateWorkspace as saveWorkspace } from '@/services/firestore';
 import { brandThemeCss } from '@/lib/workspace';
+import { workspaceAccess, type WorkspaceAccess } from '@/lib/subscription';
 import { Button } from '@/components/ui/button';
 import { FullPageLoader } from '@/components/ProtectedRoute';
 import type { Division, Workspace } from '@/types';
@@ -18,6 +19,10 @@ interface WorkspaceContextType {
   divisionById: (id?: string) => Division | undefined;
   /** Saves settings (admins only, see firestore.rules) and updates the UI. */
   updateWorkspace: (data: WorkspaceUpdate) => Promise<void>;
+  /** Plan state: trial days left, and whether writes are allowed (read-only otherwise). */
+  access: WorkspaceAccess;
+  /** Re-reads the workspace (e.g. after staffCount changed). */
+  reloadWorkspace: () => Promise<void>;
   loading: boolean;
 }
 
@@ -97,6 +102,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : prev));
   }, [wsId]);
 
+  const reloadWorkspace = useCallback(async () => {
+    if (!wsId) return;
+    const ws = await getWorkspace(wsId);
+    setLoaded({ forId: wsId, workspace: ws });
+  }, [wsId]);
+
   const value = useMemo<WorkspaceContextType>(() => {
     const divisions = workspace?.divisions ?? [];
     return {
@@ -105,9 +116,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       divisions,
       divisionById: (id?: string) => (id ? divisions.find(d => d.id === id) : undefined),
       updateWorkspace,
+      access: workspaceAccess(workspace, new Date()),
+      reloadWorkspace,
       loading,
     };
-  }, [workspace, updateWorkspace, loading]);
+  }, [workspace, updateWorkspace, reloadWorkspace, loading]);
 
   if (user && !authLoading) {
     if (loading) return <FullPageLoader />;

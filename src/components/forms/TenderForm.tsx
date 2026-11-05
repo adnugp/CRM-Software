@@ -55,7 +55,7 @@ interface TenderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tender?: Tender | null;
-  onSubmit: (data: TenderFormData) => void;
+  onSubmit: (data: TenderFormData) => void | Promise<void>;
 }
 
 const TenderForm: React.FC<TenderFormProps> = ({
@@ -155,8 +155,19 @@ const TenderForm: React.FC<TenderFormProps> = ({
     }
   }, [tender, form, defaultDivisionId]);
 
-  const handleSubmit = (data: TenderFormData) => {
-    onSubmit(data);
+  // Report success only once the save has gone through; on failure keep the
+  // form open so nothing typed is lost (e.g. a read-only company).
+  const handleSubmit = async (data: TenderFormData) => {
+    try {
+      await onSubmit(data);
+    } catch (error) {
+      toast({
+        title: 'Not saved',
+        description: error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
     toast({
       title: isEditing ? 'Tender Updated' : 'Tender Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,

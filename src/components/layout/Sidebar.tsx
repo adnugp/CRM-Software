@@ -22,12 +22,17 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { useDragScroll } from '@/hooks/use-drag-scroll';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { accessLabel } from '@/lib/subscription';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { access } = useWorkspace();
   const [mobileOpen, setMobileOpen] = useState(false);
   const scrollRef = useDragScroll<HTMLElement>();
+  // Admins see their trial / read-only state at a glance.
+  const planNote = user?.role === 'admin' && access.state !== 'active' ? accessLabel(access) : null;
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -56,6 +61,20 @@ const Sidebar: React.FC = () => {
       <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
         <BrandMark size="lg" />
       </div>
+      {planNote && (
+        <Link
+          to="/settings"
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            'mx-3 mt-3 block rounded-md px-3 py-1.5 text-xs font-medium',
+            access.canWrite
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200'
+          )}
+        >
+          {planNote}
+        </Link>
+      )}
 
       {/* Navigation */}
       <nav 

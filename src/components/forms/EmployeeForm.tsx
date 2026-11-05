@@ -47,7 +47,7 @@ interface EmployeeFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   employee?: Employee | null;
-  onSubmit: (data: EmployeeFormData) => void;
+  onSubmit: (data: EmployeeFormData) => void | Promise<void>;
 }
 
 const departments = ['Engineering', 'Sales', 'Operations', 'Marketing', 'Finance', 'HR'];
@@ -97,8 +97,19 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     }
   }, [employee, form]);
 
-  const handleSubmit = (data: EmployeeFormData) => {
-    onSubmit(data);
+  // Report success only once the save has gone through; on failure keep the
+  // form open so nothing typed is lost (e.g. a read-only company).
+  const handleSubmit = async (data: EmployeeFormData) => {
+    try {
+      await onSubmit(data);
+    } catch (error) {
+      toast({
+        title: 'Not saved',
+        description: error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
     toast({
       title: isEditing ? 'Employee Updated' : 'Employee Added',
       description: `${data.name} has been ${isEditing ? 'updated' : 'added'} successfully.`,

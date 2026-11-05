@@ -52,7 +52,7 @@ interface ProjectFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
-  onSubmit: (data: ProjectFormData) => void;
+  onSubmit: (data: ProjectFormData) => void | Promise<void>;
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({
@@ -120,8 +120,19 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     }
   }, [project, form, defaultDivisionId]);
 
-  const handleSubmit = (data: ProjectFormData) => {
-    onSubmit(data);
+  // Report success only once the save has gone through; on failure keep the
+  // form open so nothing typed is lost (e.g. a read-only company).
+  const handleSubmit = async (data: ProjectFormData) => {
+    try {
+      await onSubmit(data);
+    } catch (error) {
+      toast({
+        title: 'Not saved',
+        description: error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
     toast({
       title: isEditing ? 'Project Updated' : 'Project Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,

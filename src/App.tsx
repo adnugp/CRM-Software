@@ -80,6 +80,7 @@ const App = () => {
         <DataProvider>
           <BrowserRouter>
             <ThemeInitializer />
+            <Toaster />
             <LocalDataBadge />
             <Suspense fallback={<FullPageLoader />}>
             <Routes>

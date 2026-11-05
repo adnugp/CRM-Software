@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from './Sidebar';
 import { useDragScroll } from '@/hooks/use-drag-scroll';
 import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
+import ReadOnlyBanner from '@/components/subscription/ReadOnlyBanner';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -26,6 +27,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         ref={scrollRef} 
         className="flex-1 lg:pl-64 pt-16 lg:pt-0 overflow-auto h-screen scroll-smooth"
       >
+        <ReadOnlyBanner />
         {showAnnouncement && (
           <AnnouncementBanner
             message="Welcome to the CRM system. Stay tuned for updates!"
