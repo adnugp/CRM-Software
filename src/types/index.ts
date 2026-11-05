@@ -1,6 +1,8 @@
 export type { Division } from '@/lib/workspace';
 import type { Division } from '@/lib/workspace';
 import type { InviteStatus, WorkspaceStatus } from '@/lib/subscription';
+import type { PaymentMethodSummary } from '@/lib/payment';
+import type { BillingCycle } from '@/config/plans';
 
 export type UserRole = 'admin' | 'user' | 'client' | 'manager';
 
@@ -39,6 +41,9 @@ export interface Workspace {
   createdBy?: string;
   contactName?: string;
   contactEmail?: string;
+  billingCycle?: BillingCycle;
+  /** Card on file: brand, last 4 and expiry only. */
+  paymentMethod?: PaymentMethodSummary;
 }
 
 /** A one-time link that lets someone join a workspace with a given role. */

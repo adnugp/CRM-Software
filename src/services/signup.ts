@@ -1,10 +1,14 @@
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { planById, TRIAL_DAYS, type PlanId } from '@/config/plans';
+import { planById, TRIAL_DAYS, type BillingCycle, type PlanId } from '@/config/plans';
 import { addDays } from '@/lib/subscription';
+import type { PaymentMethodSummary } from '@/lib/payment';
 
 export interface CompanySignup {
   plan: PlanId;
+  billingCycle: BillingCycle;
+  /** From savePaymentMethod (src/services/billing.ts): a summary, never the card number. */
+  paymentMethod: PaymentMethodSummary;
   companyName: string;
   name: string;
   email: string;
@@ -36,6 +40,14 @@ export async function createCompanyRecords(uid: string, input: CompanySignup): P
     createdAt: serverTimestamp(),
     contactName: name,
     contactEmail: email,
+    billingCycle: input.billingCycle,
+    paymentMethod: {
+      provider: input.paymentMethod.provider,
+      brand: input.paymentMethod.brand,
+      last4: input.paymentMethod.last4,
+      expMonth: input.paymentMethod.expMonth,
+      expYear: input.paymentMethod.expYear,
+    },
   });
   batch.set(doc(db, 'users', uid), { name, email, role: 'admin', workspaceId: workspaceRef.id });
   await batch.commit();
