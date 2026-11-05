@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { listAllWorkspaces, updateWorkspacePlan, type PlanChange } from '@/services/platform';
 import { accessLabel, extendedTrialEnd, workspaceAccess, type AccessState } from '@/lib/subscription';
+import { cardLabel } from '@/lib/payment';
 import { PLANS, planById, TRIAL_DAYS } from '@/config/plans';
 import type { Workspace } from '@/types';
 
@@ -100,6 +101,7 @@ const Platform: React.FC = () => {
               <TableRow className="bg-muted/50">
                 <TableHead>Company</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead className="hidden md:table-cell">Billing</TableHead>
                 <TableHead>Staff</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden lg:table-cell">Trial ends</TableHead>
@@ -109,10 +111,10 @@ const Platform: React.FC = () => {
             </TableHeader>
             <TableBody>
               {companies === null && (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Loading…</TableCell></TableRow>
               )}
               {companies !== null && rows.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No companies match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">No companies match.</TableCell></TableRow>
               )}
               {rows.map(({ ws, access }) => (
                 <TableRow key={ws.id}>
@@ -130,6 +132,10 @@ const Platform: React.FC = () => {
                         <SelectItem value="custom">Custom</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="capitalize">{ws.billingCycle ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground">{cardLabel(ws.paymentMethod) || 'No card'}</div>
                   </TableCell>
                   <TableCell>{ws.staffCount ?? 0} / {ws.staffLimit ? ws.staffLimit : '∞'}</TableCell>
                   <TableCell><Badge variant={BADGE[access.state]}>{accessLabel(access)}</Badge></TableCell>

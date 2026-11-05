@@ -6,6 +6,7 @@ import { createInvite, inviteLink, listInvites, revokeInvite } from '@/services/
 import { nextOrganizationId } from '@/lib/workspace';
 import { accessLabel, inviteState, isStaffRole, staffSeatsLeft, type InviteState } from '@/lib/subscription';
 import { planById } from '@/config/plans';
+import { cardLabel } from '@/lib/payment';
 import { ROLE_LABELS } from '@/config/roles';
 import type { Invite, UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,10 @@ const TeamInvites: React.FC = () => {
   const staffFull = seatsLeft === 0;
   const plan = planById(workspace?.plan);
   const planName = plan?.name ?? (workspace?.plan === 'custom' ? 'Custom' : 'Current');
+  const billingText = [
+    workspace?.billingCycle === 'yearly' ? 'Yearly' : workspace?.billingCycle === 'monthly' ? 'Monthly' : '',
+    cardLabel(workspace?.paymentMethod),
+  ].filter(Boolean).join(' · ');
   const staffText = workspace?.staffLimit
     ? `${workspace.staffCount ?? 0} of ${workspace.staffLimit} staff`
     : `${workspace?.staffCount ?? 0} staff (no limit)`;
@@ -134,6 +139,12 @@ const TeamInvites: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
         <span className="font-semibold text-foreground">{planName} plan</span>
+        {billingText && (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span>{billingText}</span>
+          </>
+        )}
         <span className="text-muted-foreground">·</span>
         <span>{accessLabel(access)}</span>
         <span className="text-muted-foreground">·</span>
