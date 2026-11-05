@@ -37,23 +37,33 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
 
+    // Mirrors writable() in firestore.rules: no uploads once a trial has ended
+    // or the company is suspended.
+    function writable(ws) {
+      let w = firestore.get(/databases/(default)/documents/workspaces/$(ws)).data;
+      let status = w.get('status', 'active');
+      return status == 'active' || (status == 'trial' && request.time < w.trialEndsAt);
+    }
+
     // Project, tender, registration and file-manager documents.
     match /workspaces/{ws}/documents/{fileName} {
-      allow read, delete: if isStaffOf(ws);
-      allow create, update: if isStaffOf(ws) && underMB(50);
+      allow read: if isStaffOf(ws);
+      allow delete: if isStaffOf(ws) && writable(ws);
+      allow create, update: if isStaffOf(ws) && writable(ws) && underMB(50);
     }
 
     // Attachments on project tasks.
     match /workspaces/{ws}/task-attachments/{fileName} {
-      allow read, delete: if isStaffOf(ws);
-      allow create, update: if isStaffOf(ws) && underMB(50);
+      allow read: if isStaffOf(ws);
+      allow delete: if isStaffOf(ws) && writable(ws);
+      allow create, update: if isStaffOf(ws) && writable(ws) && underMB(50);
     }
 
     // Company logo (Settings → Company).
     match /workspaces/{ws}/branding/{fileName} {
       allow read: if inWs(ws);
-      allow create, update: if isAdminOf(ws) && isImage() && underMB(2);
-      allow delete: if isAdminOf(ws);
+      allow create, update: if isAdminOf(ws) && writable(ws) && isImage() && underMB(2);
+      allow delete: if isAdminOf(ws) && writable(ws);
     }
 
     // Profile pictures are stored as avatars/{uid}_{timestamp}_{name}.

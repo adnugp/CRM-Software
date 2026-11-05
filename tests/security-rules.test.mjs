@@ -265,6 +265,12 @@ describe('storage', () => {
     await assertFails(storage('employeeB').ref('workspaces/wsA/branding/logo.png').getMetadata());
   });
 
+  it('read-only companies cannot upload', async () => {
+    await assertFails(put('adminT', 'workspaces/wsT/documents/a.pdf', pdf, 'application/pdf'));
+    await assertFails(put('adminT', 'workspaces/wsT/task-attachments/a.pdf', pdf, 'application/pdf'));
+    await assertFails(put('adminS', 'workspaces/wsS/branding/logo.png', png, 'image/png'));
+  });
+
   it('accounts without a profile cannot upload avatars', async () => {
     await assertFails(put('stranger', 'avatars/stranger_1_me.png', png, 'image/png'));
   });
