@@ -2,7 +2,9 @@
 // Firestore + Storage emulators (demo project, never touches production).
 //
 // Two workspaces (companies), wsA and wsB, prove that one company can never
-// see or change another company's data.
+// see or change another company's data. wsT (trial ended) and wsS (suspended)
+// are read-only; `owner` is the product's super admin.
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import {
@@ -10,6 +12,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
+import { PLANS } from '../src/config/plans.ts';
 
 let env;
 
@@ -21,6 +24,34 @@ const profiles = {
   clientA2: { name: 'Client A2', email: 'a2@client.dev', role: 'client', workspaceId: 'wsA', company: 'Beta', organizationId: 'ORG-BET-002' },
   adminB: { name: 'Admin B', email: 'admin@b.dev', role: 'admin', workspaceId: 'wsB' },
   employeeB: { name: 'Employee B', email: 'employee@b.dev', role: 'user', workspaceId: 'wsB' },
+  adminT: { name: 'Admin T', email: 'admin@t.dev', role: 'admin', workspaceId: 'wsT' }, // trial ended
+  adminS: { name: 'Admin S', email: 'admin@s.dev', role: 'admin', workspaceId: 'wsS' }, // suspended
+  owner: { name: 'Owner', email: 'owner@p.dev', role: 'admin', workspaceId: 'wsO' }, // super admin
+};
+
+const inDays = (n) => new Date(Date.now() + n * 86400000);
+const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+// A signed-in context whose token carries an email (needed for sign-up and invites).
+const as = (uid, email) => env.authenticatedContext(uid, { email }).firestore();
+
+const workspaces = {
+  wsA: { name: 'Company A', divisions: [], status: 'active', plan: 'team', staffLimit: 5, staffCount: 3 },
+  wsB: { name: 'Company B', divisions: [], status: 'active', plan: 'custom', staffLimit: 0, staffCount: 2 },
+  wsT: { name: 'Trial over', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1, trialEndsAt: inDays(-1) },
+  wsS: { name: 'Suspended', divisions: [], status: 'suspended', plan: 'starter', staffLimit: 5, staffCount: 1 },
+  wsO: { name: 'Owner Co', divisions: [], status: 'active', plan: 'custom', staffLimit: 0, staffCount: 1 },
+};
+
+const invite = (over) => ({
+  workspaceId: 'wsA', workspaceName: 'Company A', name: 'Invitee', status: 'pending',
+  invitedBy: 'admin', createdAt: new Date(), expiresAt: inDays(7), ...over,
+});
+const invites = {
+  'inv-mgr': invite({ role: 'manager', email: 'new@a.dev', name: 'New Manager' }),
+  'inv-client': invite({ role: 'client', email: 'gamma@client.dev', name: 'Gamma', company: 'Gamma LLC', organizationId: 'ORG-GL-001' }),
+  'inv-expired': invite({ role: 'user', email: 'late@a.dev', expiresAt: inDays(-1) }),
+  'inv-revoked': invite({ role: 'user', email: 'gone@a.dev', status: 'revoked' }),
+  'inv-t': invite({ workspaceId: 'wsT', workspaceName: 'Trial over', role: 'user', email: 't@t.dev' }),
 };
 
 const db = (uid) => (uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore());
@@ -46,8 +77,9 @@ beforeEach(async () => {
     for (const [uid, data] of Object.entries(profiles)) {
       await fs.collection('users').doc(uid).set(data);
     }
-    await fs.collection('workspaces').doc('wsA').set({ name: 'Company A', divisions: [] });
-    await fs.collection('workspaces').doc('wsB').set({ name: 'Company B', divisions: [] });
+    for (const [id, data] of Object.entries(workspaces)) {
+      await fs.collection('workspaces').doc(id).set(data);
+    }
     const a = fs.collection('workspaces').doc('wsA');
     await a.collection('projects').doc('p-by-client').set({ name: 'Linked by clientId', clientId: 'clientA' });
     await a.collection('projects').doc('p-by-org').set({ name: 'Linked by org', organizationId: 'ORG-ACM-001' });
@@ -57,6 +89,11 @@ beforeEach(async () => {
     const b = fs.collection('workspaces').doc('wsB');
     await b.collection('projects').doc('pb').set({ name: 'B project', clientId: 'clientA' });
     await b.collection('tenders').doc('tb').set({ name: 'B tender' });
+    await fs.collection('workspaces').doc('wsT').collection('projects').doc('p-t').set({ name: 'Old project' });
+    await fs.collection('platformOwners').doc('owner').set({ email: 'owner@p.dev' });
+    for (const [id, data] of Object.entries(invites)) {
+      await fs.collection('invites').doc(id).set(data);
+    }
   });
 });
 
@@ -96,7 +133,7 @@ describe('workspace isolation', () => {
     await assertFails(ws('clientA', 'wsB').collection('projects').doc('pb').get());
   });
 
-  it('nobody can create or delete a workspace from the app', async () => {
+  it('staff cannot create or delete a workspace', async () => {
     await assertFails(ws('admin', 'wsNew').set({ name: 'New' }));
     await assertFails(ws('admin', 'wsA').delete());
   });
@@ -145,20 +182,16 @@ describe('user profiles', () => {
     await assertFails(db('admin').collection('users').doc('adminB').get());
   });
 
-  it('only admins create users, and only in their own workspace', async () => {
-    await assertSucceeds(db('admin').collection('users').doc('new').set({ name: 'N', email: 'n@x', role: 'user', workspaceId: 'wsA' }));
-    await assertFails(db('admin').collection('users').doc('new2').set({ name: 'N', email: 'n@x', role: 'user', workspaceId: 'wsB' }));
-    await assertFails(db('admin').collection('users').doc('new3').set({ name: 'N', email: 'n@x', role: 'user' }));
-    await assertFails(db('admin').collection('users').doc('new4').set({ name: 'N', email: 'n@x', role: 'owner', workspaceId: 'wsA' }));
+  it('nobody creates profiles directly: people join by sign-up or invite', async () => {
+    await assertFails(db('admin').collection('users').doc('new').set({ name: 'N', email: 'n@x', role: 'user', workspaceId: 'wsA' }));
     await assertFails(db('manager').collection('users').doc('new5').set({ name: 'N', email: 'n@x', role: 'user', workspaceId: 'wsA' }));
   });
 
   it('admins manage users of their own workspace only', async () => {
     await assertSucceeds(db('admin').collection('users').doc('employee').update({ role: 'manager' }));
     await assertFails(db('admin').collection('users').doc('employee').update({ workspaceId: 'wsB' }));
-    await assertFails(db('admin').collection('users').doc('employeeB').update({ role: 'client' }));
+    await assertFails(db('admin').collection('users').doc('employeeB').update({ role: 'manager' }));
     await assertFails(db('admin').collection('users').doc('employeeB').delete());
-    await assertSucceeds(db('admin').collection('users').doc('employee').delete());
   });
 
   it('users can edit their own name/avatar but not their role or workspace', async () => {
@@ -240,5 +273,227 @@ describe('storage', () => {
     await assertSucceeds(put('clientA', 'avatars/clientA_1_me.png', png, 'image/png'));
     await assertFails(put('clientA', 'avatars/employee_1_me.png', png, 'image/png'));
     await assertFails(put('clientA', 'avatars/clientA_2_x.pdf', pdf, 'application/pdf'));
+  });
+});
+
+describe('company sign-up', () => {
+  const founder = () => as('founder', 'founder@new.dev');
+  const newCompany = (over = {}) => ({
+    name: 'New Co', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1,
+    trialEndsAt: inDays(14), createdBy: 'founder', createdAt: new Date(),
+    contactName: 'Fay', contactEmail: 'founder@new.dev', ...over,
+  });
+  const founderProfile = (over = {}) => ({ name: 'Fay', email: 'founder@new.dev', role: 'admin', workspaceId: 'wsNew', ...over });
+  const signUp = (fs, { company = {}, profile = {}, wsId = 'wsNew' } = {}) => {
+    const batch = fs.batch();
+    batch.set(fs.collection('workspaces').doc(wsId), newCompany(company));
+    batch.set(fs.collection('users').doc('founder'), founderProfile({ workspaceId: wsId, ...profile }));
+    return batch.commit();
+  };
+
+  it('creates a trial company with its founder as admin, who can then work in it', async () => {
+    await assertSucceeds(signUp(founder()));
+    await assertSucceeds(ws('founder', 'wsNew').get());
+    await assertSucceeds(ws('founder', 'wsNew').collection('tenders').add({ name: 'First' }));
+  });
+
+  it('cannot skip the trial or choose its own staff limit', async () => {
+    await assertFails(signUp(founder(), { company: { status: 'active' } }));
+    await assertFails(signUp(founder(), { company: { staffLimit: 500 } }));
+    await assertFails(signUp(founder(), { company: { plan: 'custom', staffLimit: 0 } }));
+    await assertFails(signUp(founder(), { company: { trialEndsAt: inDays(60) } }));
+    await assertFails(signUp(founder(), { company: { staffCount: 0 } }));
+  });
+
+  it('must use the login email, be the creator and be the admin', async () => {
+    await assertFails(signUp(founder(), { profile: { email: 'someone@else.dev' } }));
+    await assertFails(signUp(founder(), { company: { createdBy: 'admin' } }));
+    await assertFails(signUp(founder(), { profile: { role: 'manager' } }));
+  });
+
+  it('cannot join an existing company', async () => {
+    await assertFails(signUp(founder(), { wsId: 'wsA' }));
+    await assertFails(founder().collection('users').doc('founder').set(founderProfile({ workspaceId: 'wsA' })));
+  });
+
+  it('only works for a login with no profile yet', async () => {
+    const fs = as('admin', 'admin@a.dev');
+    await assertFails(fs.collection('workspaces').doc('wsSecond').set(newCompany({ createdBy: 'admin', contactEmail: 'admin@a.dev' })));
+  });
+
+  it('a company without its founder profile is rejected', async () => {
+    await assertFails(founder().collection('workspaces').doc('wsNew').set(newCompany()));
+  });
+});
+
+describe('invites', () => {
+  const newInvite = (over = {}) => invite({ email: 'hire@a.dev', name: 'Hire', role: 'user', ...over });
+  const accept = (uid, token, { email = invites[token].email, profile = {}, staffCount } = {}) => {
+    const inv = invites[token];
+    const fs = as(uid, email);
+    const batch = fs.batch();
+    batch.set(fs.collection('users').doc(uid), clean({
+      name: inv.name, email: inv.email, role: inv.role, workspaceId: inv.workspaceId,
+      company: inv.company, organizationId: inv.organizationId, inviteId: token, ...profile,
+    }));
+    batch.update(fs.collection('invites').doc(token), { status: 'accepted', acceptedBy: uid, acceptedAt: new Date() });
+    if (staffCount !== undefined) batch.update(fs.collection('workspaces').doc(inv.workspaceId), { staffCount });
+    return batch.commit();
+  };
+
+  it('only an admin creates invites, for their own company', async () => {
+    await assertSucceeds(db('admin').collection('invites').add(newInvite()));
+    await assertFails(db('manager').collection('invites').add(newInvite({ invitedBy: 'manager' })));
+    await assertFails(db('adminB').collection('invites').add(newInvite({ invitedBy: 'adminB' })));
+    await assertFails(db('admin').collection('invites').add(newInvite({ expiresAt: inDays(30) })));
+    await assertFails(db('admin').collection('invites').add(newInvite({ email: 'Hire@A.dev' })));
+    await assertFails(db('admin').collection('invites').add(newInvite({ status: 'accepted' })));
+  });
+
+  it('anyone with the link can open one invite, but nobody can browse them', async () => {
+    await assertSucceeds(db(null).collection('invites').doc('inv-mgr').get());
+    await assertFails(db(null).collection('invites').get());
+    await assertSucceeds(db('admin').collection('invites').where('workspaceId', '==', 'wsA').get());
+    await assertFails(db('adminB').collection('invites').where('workspaceId', '==', 'wsA').get());
+    await assertFails(db('employee').collection('invites').where('workspaceId', '==', 'wsA').get());
+  });
+
+  it('admins can revoke a pending invite of their own company', async () => {
+    await assertFails(db('employee').collection('invites').doc('inv-mgr').update({ status: 'revoked' }));
+    await assertFails(db('adminB').collection('invites').doc('inv-mgr').update({ status: 'revoked' }));
+    await assertSucceeds(db('admin').collection('invites').doc('inv-mgr').update({ status: 'revoked' }));
+  });
+
+  it('a staff invite is accepted with the invited email and takes one staff place', async () => {
+    await assertSucceeds(accept('newbie', 'inv-mgr', { staffCount: 4 }));
+    await assertSucceeds(ws('newbie', 'wsA').collection('projects').get());
+  });
+
+  it('a staff invite cannot skip the staff count', async () => {
+    await assertFails(accept('newbie', 'inv-mgr'));
+  });
+
+  it('a client invite does not touch the staff count', async () => {
+    await assertFails(accept('gamma', 'inv-client', { staffCount: 4 }));
+    await assertSucceeds(accept('gamma', 'inv-client'));
+  });
+
+  it('the login email must match the invite', async () => {
+    await assertFails(accept('newbie', 'inv-mgr', { email: 'other@a.dev', staffCount: 4 }));
+  });
+
+  it('expired, revoked and used invites cannot be accepted', async () => {
+    await assertFails(accept('late', 'inv-expired', { staffCount: 4 }));
+    await assertFails(accept('gone', 'inv-revoked', { staffCount: 4 }));
+    await assertSucceeds(accept('newbie', 'inv-mgr', { staffCount: 4 }));
+    await assertFails(accept('again', 'inv-mgr', { staffCount: 5 }));
+  });
+
+  it('the profile must copy the invite (no role or company escalation)', async () => {
+    await assertFails(accept('newbie', 'inv-mgr', { staffCount: 4, profile: { role: 'admin' } }));
+    await assertFails(accept('newbie', 'inv-mgr', { staffCount: 4, profile: { workspaceId: 'wsB' } }));
+    await assertFails(accept('gamma', 'inv-client', { profile: { organizationId: 'ORG-ACM-001' } }));
+  });
+
+  it('a full company cannot take more staff', async () => {
+    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().collection('workspaces').doc('wsA').update({ staffCount: 5 }));
+    await assertFails(accept('newbie', 'inv-mgr', { staffCount: 6 }));
+  });
+
+  it('a read-only company cannot take new people', async () => {
+    await assertFails(accept('tnew', 'inv-t', { staffCount: 2 }));
+  });
+});
+
+describe('read-only companies (trial ended or suspended)', () => {
+  it('can still read their data', async () => {
+    await assertSucceeds(ws('adminT', 'wsT').get());
+    await assertSucceeds(ws('adminT', 'wsT').collection('projects').get());
+    await assertSucceeds(ws('adminS', 'wsS').collection('tenders').get());
+  });
+
+  it('cannot change anything', async () => {
+    await assertFails(ws('adminT', 'wsT').collection('projects').add({ name: 'x' }));
+    await assertFails(ws('adminT', 'wsT').collection('projects').doc('p-t').update({ name: 'y' }));
+    await assertFails(ws('adminT', 'wsT').update({ name: 'Renamed' }));
+    await assertFails(ws('adminS', 'wsS').collection('tenders').add({ name: 'x' }));
+    await assertFails(ws('adminS', 'wsS').collection('employees').add({ name: 'x' }));
+    await assertFails(db('adminT').collection('invites').add(invite({ workspaceId: 'wsT', workspaceName: 'Trial over', email: 'n@t.dev', role: 'user', invitedBy: 'adminT' })));
+  });
+});
+
+describe('super admin', () => {
+  it('lists every company', async () => {
+    await assertSucceeds(db('owner').collection('workspaces').get());
+    await assertFails(db('admin').collection('workspaces').get());
+  });
+
+  it('changes plan and status, nothing else', async () => {
+    await assertSucceeds(ws('owner', 'wsA').update({ status: 'suspended' }));
+    await assertSucceeds(ws('owner', 'wsA').update({ plan: 'business', staffLimit: 50 }));
+    await assertSucceeds(ws('owner', 'wsT').update({ trialEndsAt: inDays(14) }));
+    await assertFails(ws('owner', 'wsA').update({ name: 'Taken over' }));
+    await assertFails(ws('owner', 'wsA').update({ status: 'deleted' }));
+    await assertFails(ws('owner', 'wsA').update({ staffCount: 0 }));
+  });
+
+  it("cannot read any company's records or people", async () => {
+    await assertFails(ws('owner', 'wsA').collection('projects').get());
+    await assertFails(db('owner').collection('users').doc('admin').get());
+  });
+
+  it('owner status is set by script only', async () => {
+    await assertSucceeds(db('owner').collection('platformOwners').doc('owner').get());
+    await assertFails(db('admin').collection('platformOwners').doc('owner').get());
+    await assertFails(db('admin').collection('platformOwners').doc('admin').set({ email: 'admin@a.dev' }));
+  });
+
+  it('company admins cannot change their own plan, status or count', async () => {
+    await assertFails(ws('admin', 'wsA').update({ plan: 'business', staffLimit: 50 }));
+    await assertFails(ws('admin', 'wsA').update({ staffCount: 0 }));
+    await assertFails(ws('admin', 'wsA').update({ status: 'trial' }));
+    await assertFails(ws('adminT', 'wsT').update({ status: 'active' }));
+    await assertFails(ws('adminT', 'wsT').update({ trialEndsAt: inDays(30) }));
+  });
+});
+
+describe('removing people and changing roles', () => {
+  const removeStaff = (uid, staffCount, removedUid = uid) => {
+    const fs = db('admin');
+    const batch = fs.batch();
+    batch.delete(fs.collection('users').doc(uid));
+    batch.update(fs.collection('workspaces').doc('wsA'), { staffCount, removedUid });
+    return batch.commit();
+  };
+
+  it('removing staff frees exactly one place', async () => {
+    await assertFails(db('admin').collection('users').doc('employee').delete());
+    await assertFails(removeStaff('employee', 1));
+    await assertSucceeds(removeStaff('employee', 2));
+  });
+
+  it('the freed place must belong to the person removed', async () => {
+    await assertFails(removeStaff('employee', 2, 'manager'));
+    await assertFails(db('admin').collection('workspaces').doc('wsA').update({ staffCount: 2, removedUid: 'manager' }));
+  });
+
+  it('removing a client needs no count change', async () => {
+    await assertSucceeds(db('admin').collection('users').doc('clientA').delete());
+  });
+
+  it("admins can't switch people between staff and client (re-invite instead)", async () => {
+    await assertFails(db('admin').collection('users').doc('clientA').update({ role: 'user' }));
+    await assertFails(db('admin').collection('users').doc('employee').update({ role: 'client' }));
+    await assertSucceeds(db('admin').collection('users').doc('employee').update({ role: 'manager' }));
+  });
+});
+
+describe('plans', () => {
+  it('plan limits in firestore.rules match src/config/plans.ts', () => {
+    const rules = readFileSync('firestore.rules', 'utf8');
+    const match = rules.match(/function planLimits\(\) \{\s*return (\{[^}]*\});/);
+    assert.ok(match, 'planLimits() not found in firestore.rules');
+    const inRules = JSON.parse(match[1].replace(/'/g, '"'));
+    assert.deepEqual(inRules, Object.fromEntries(PLANS.map((p) => [p.id, p.staffLimit])));
   });
 });

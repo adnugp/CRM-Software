@@ -1,21 +1,24 @@
 rules_version = '2';
 
-// Multi-company access for the CRM.
+// Multi-company access for ProjectDesk.
 //
 // Each customer company is a workspace: /workspaces/{ws} holds its settings
-// (name, logo, brand colour, divisions) and every business record lives
-// underneath it, e.g. /workspaces/{ws}/projects/{id}.
+// (name, logo, brand colour, divisions) and its plan (status, plan, staffLimit,
+// staffCount, trialEndsAt). Every business record lives underneath it, e.g.
+// /workspaces/{ws}/projects/{id}.
 //
 // Every signed-in person has a profile at /users/{uid} with a `workspaceId`
 // and a `role` of 'admin' | 'manager' | 'user' (employee) | 'client'. A person
-// can only ever reach the workspace named on their own profile. Accounts with
-// no profile get no access at all.
+// can only ever reach the workspace named on their own profile. A login with
+// no profile gets no access, except to finish a company sign-up or accept an
+// invite; both are single batched writes, checked as a whole with getAfter().
 //
-// Inside a workspace:
-// - Staff (admin, manager, user) work with all business data.
-// - Clients can only read projects linked to them by clientId or organizationId.
-// - Only admins and managers manage the employee directory.
-// - Only admins change workspace settings or create/remove users.
+// Plans: a company whose trial has ended, or that is suspended, is read-only
+// (every write requires writable(ws)). Staff, not clients, count against the
+// plan's staffLimit through the workspace's staffCount.
+//
+// The product owner (super admin) has a /platformOwners/{uid} document, made
+// by script only. They can list companies and change plan fields, nothing else.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -23,12 +26,29 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function wsPath(ws) {
+      return /databases/$(database)/documents/workspaces/$(ws);
+    }
+
+    function invitePath(token) {
+      return /databases/$(database)/documents/invites/$(token);
+    }
+
     function hasProfile() {
-      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return signedIn() && exists(userPath(request.auth.uid));
     }
 
     function me() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    // The caller's profile as it will be after this write (batches).
+    function meAfter() {
+      return getAfter(userPath(request.auth.uid)).data;
     }
 
     function myWs() {
@@ -44,20 +64,105 @@ service cloud.firestore {
       return myWs() != '' && myWs() == ws;
     }
 
+    function isStaffRole(r) {
+      return r in ['admin', 'manager', 'user'];
+    }
+
+    function validRole(r) {
+      return r in ['admin', 'manager', 'user', 'client'];
+    }
+
     function isAdmin() {
       return role() == 'admin';
     }
 
     function isStaff() {
-      return role() in ['admin', 'manager', 'user'];
+      return isStaffRole(role());
     }
 
     function isClient() {
       return role() == 'client';
     }
 
-    function validRole(r) {
-      return r in ['admin', 'manager', 'user', 'client'];
+    function isOwner() {
+      return signedIn() && exists(/databases/$(database)/documents/platformOwners/$(request.auth.uid));
+    }
+
+    function authEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Self-serve plans and their staff limits. Keep in sync with
+    // src/config/plans.ts (tests/security-rules.test.mjs checks).
+    function planLimits() {
+      return {'starter': 5, 'team': 20, 'business': 50};
+    }
+
+    // False once a trial has ended or the company is suspended (read-only).
+    // Mirrors workspaceAccess() in src/lib/subscription.ts.
+    function writable(ws) {
+      let w = get(wsPath(ws)).data;
+      let status = w.get('status', 'active');
+      return status == 'active' || (status == 'trial' && request.time < w.trialEndsAt);
+    }
+
+    function canWrite(ws) {
+      return inWs(ws) && writable(ws);
+    }
+
+    // A new trial company written together with its founder's admin profile.
+    function validSignupWorkspace(ws, d) {
+      return d.keys().hasOnly(['name', 'divisions', 'status', 'plan', 'staffLimit', 'staffCount',
+                               'trialEndsAt', 'createdBy', 'createdAt', 'contactName', 'contactEmail'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && d.divisions is list && d.divisions.size() == 0
+        && d.status == 'trial'
+        && d.plan in planLimits()
+        && d.staffLimit == planLimits()[d.plan]
+        && d.staffCount == 1
+        && d.trialEndsAt > request.time
+        && d.trialEndsAt <= request.time + duration.value(15, 'd')
+        && d.createdBy == request.auth.uid
+        && d.contactEmail == authEmail()
+        && meAfter().workspaceId == ws
+        && meAfter().role == 'admin';
+    }
+
+    // A profile that copies a pending invite, which the same batch marks
+    // accepted. Staff also take one place (staffCount + 1, see workspaces).
+    function validInviteProfile(d) {
+      let inv = get(invitePath(d.inviteId)).data;
+      let ws = d.workspaceId;
+      return d.keys().hasOnly(['name', 'email', 'role', 'workspaceId', 'company', 'organizationId', 'inviteId'])
+        && inv.status == 'pending'
+        && request.time < inv.expiresAt
+        && inv.email == authEmail()
+        && d.email == inv.email
+        && ws == inv.workspaceId
+        && d.role == inv.role
+        && d.get('company', '') == inv.get('company', '')
+        && d.get('organizationId', '') == inv.get('organizationId', '')
+        && writable(ws)
+        && getAfter(invitePath(d.inviteId)).data.status == 'accepted'
+        && (!isStaffRole(d.role)
+            || getAfter(wsPath(ws)).data.staffCount == get(wsPath(ws)).data.staffCount + 1);
+    }
+
+    // `uid` was a staff member of `ws` before this batch and is gone after it.
+    function removedStaff(ws, uid) {
+      return exists(userPath(uid))
+        && get(userPath(uid)).data.workspaceId == ws
+        && isStaffRole(get(userPath(uid)).data.role)
+        && !existsAfter(userPath(uid));
+    }
+
+    // ---- Super admin marker (script-only) ------------------------------
+    match /platformOwners/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
     }
 
     // ---- User profiles -------------------------------------------------
@@ -67,35 +172,113 @@ service cloud.firestore {
       allow read: if (signedIn() && request.auth.uid == uid)
         || (isStaff() && resource.data.workspaceId == myWs());
 
-      // Admins add people to their own workspace only.
-      allow create: if isAdmin()
-        && request.resource.data.workspaceId == myWs()
-        && validRole(request.resource.data.role);
+      // Company sign-up: the founder's own admin profile, created in the same
+      // batch as their new trial workspace (see validSignupWorkspace).
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'workspaceId'])
+        && request.resource.data.role == 'admin'
+        && request.resource.data.email == authEmail()
+        && !exists(wsPath(request.resource.data.workspaceId))
+        && getAfter(wsPath(request.resource.data.workspaceId)).data.createdBy == uid;
 
-      // Admins manage their own workspace's people but can never move anyone
-      // to another workspace. Everyone can edit their own name/email/avatar.
+      // Accepting an invite.
+      allow create: if signedIn() && request.auth.uid == uid
+        && validInviteProfile(request.resource.data);
+
+      // Admins manage their own workspace's people but never move anyone to
+      // another workspace, and never switch someone between staff and client
+      // (that would bypass the staff count: re-invite instead). Everyone can
+      // edit their own name/email/avatar.
       allow update: if (isAdmin()
           && resource.data.workspaceId == myWs()
           && request.resource.data.workspaceId == resource.data.workspaceId
-          && validRole(request.resource.data.role))
+          && validRole(request.resource.data.role)
+          && isStaffRole(request.resource.data.role) == isStaffRole(resource.data.role)
+          && writable(myWs()))
         || (signedIn() && request.auth.uid == uid
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['name', 'email', 'avatar']));
+          && changed().hasOnly(['name', 'email', 'avatar']));
 
-      allow delete: if isAdmin() && resource.data.workspaceId == myWs();
+      // Removing a staff member frees their place: the same batch lowers the
+      // workspace's staffCount and names them in removedUid.
+      allow delete: if isAdmin() && resource.data.workspaceId == myWs() && writable(myWs())
+        && (!isStaffRole(resource.data.role)
+          || (getAfter(wsPath(myWs())).data.staffCount == get(wsPath(myWs())).data.staffCount - 1
+            && getAfter(wsPath(myWs())).data.get('removedUid', '') == uid));
+    }
+
+    // ---- Invites -------------------------------------------------------
+    match /invites/{token} {
+      // The random token is the secret: whoever has the link can open that one
+      // invite, even signed out. Invites can't be browsed.
+      allow get: if true;
+      allow list: if isAdmin() && resource.data.workspaceId == myWs();
+
+      allow create: if isAdmin() && writable(myWs())
+        && request.resource.data.keys().hasOnly(['workspaceId', 'workspaceName', 'email', 'name', 'role',
+                                                 'company', 'organizationId', 'status', 'invitedBy',
+                                                 'createdAt', 'expiresAt'])
+        && request.resource.data.workspaceId == myWs()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.invitedBy == request.auth.uid
+        && validRole(request.resource.data.role)
+        && request.resource.data.email is string
+        && request.resource.data.email == request.resource.data.email.lower()
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+
+      allow update: if
+        // An admin revokes a pending invite.
+        (isAdmin() && resource.data.workspaceId == myWs()
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'revoked'
+          && changed().hasOnly(['status']))
+        // The invitee accepts it (see validInviteProfile).
+        || (signedIn() && resource.data.status == 'pending'
+          && request.resource.data.status == 'accepted'
+          && changed().hasOnly(['status', 'acceptedBy', 'acceptedAt'])
+          && request.resource.data.acceptedBy == request.auth.uid
+          && meAfter().get('inviteId', '') == token);
+      // Never deleted: kept as a record of who was invited.
     }
 
     // ---- Workspaces ----------------------------------------------------
     match /workspaces/{ws} {
-      // Every member, clients included, needs the name/logo/colour.
-      allow read: if inWs(ws);
+      // Every member, clients included, needs the name/logo/colour and plan.
+      allow get: if inWs(ws) || isOwner();
+      allow list: if isOwner();
 
-      allow update: if isAdmin() && inWs(ws)
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['name', 'logoUrl', 'brandColor', 'divisions']);
+      // Company sign-up (one batch with the founder's profile).
+      allow create: if signedIn() && !hasProfile()
+        && validSignupWorkspace(ws, request.resource.data);
 
-      // Workspaces are created by the platform (scripts / sign-up flow), not here.
-      allow create, delete: if false;
+      allow update: if
+        // Company admins: branding and divisions.
+        (isAdmin() && canWrite(ws)
+          && changed().hasOnly(['name', 'logoUrl', 'brandColor', 'divisions']))
+        // Super admin: plan and status only.
+        || (isOwner()
+          && changed().hasOnly(['status', 'plan', 'staffLimit', 'trialEndsAt'])
+          && request.resource.data.get('status', 'active') in ['trial', 'active', 'suspended']
+          && (request.resource.data.get('plan', 'custom') in planLimits()
+              || request.resource.data.get('plan', 'custom') == 'custom')
+          && request.resource.data.get('staffLimit', 0) is int
+          && request.resource.data.get('staffLimit', 0) >= 0)
+        // Someone accepting a staff invite takes one place.
+        || (signedIn() && !hasProfile()
+          && changed().hasOnly(['staffCount'])
+          && request.resource.data.staffCount == resource.data.staffCount + 1
+          && (resource.data.get('staffLimit', 0) == 0
+              || request.resource.data.staffCount <= resource.data.staffLimit)
+          && meAfter().workspaceId == ws
+          && isStaffRole(meAfter().role)
+          && meAfter().get('inviteId', '') != '')
+        // An admin removing a staff member frees one place.
+        || (isAdmin() && canWrite(ws)
+          && changed().hasOnly(['staffCount', 'removedUid'])
+          && request.resource.data.staffCount == resource.data.staffCount - 1
+          && removedStaff(ws, request.resource.data.removedUid));
+
+      allow delete: if false;
 
       // ---- Projects ----------------------------------------------------
       match /projects/{projectId} {
@@ -108,18 +291,20 @@ service cloud.firestore {
                 || (me().get('organizationId', '') != ''
                     && resource.data.organizationId == me().organizationId))));
 
-        allow create, update, delete: if inWs(ws) && isStaff();
+        allow create, update, delete: if canWrite(ws) && isStaff();
       }
 
       // ---- Employee directory ------------------------------------------
       match /employees/{employeeId} {
         allow read: if inWs(ws) && isStaff();
-        allow create, update, delete: if inWs(ws) && role() in ['admin', 'manager'];
+        allow create, update, delete: if canWrite(ws) && role() in ['admin', 'manager'];
       }
 
       // ---- Other business data (staff only) ----------------------------
       match /{coll}/{docId} {
-        allow read, write: if inWs(ws) && isStaff()
+        allow read: if inWs(ws) && isStaff()
+          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files'];
+        allow write: if canWrite(ws) && isStaff()
           && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files'];
       }
     }
