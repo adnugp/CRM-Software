@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { User as AppUser, UserRole } from '@/types';
-import { auth, connectAuthIfEmulated } from '@/services/auth';
-import { db, storage, firebaseConfig } from '@/services/firebase';
-import { initializeApp, getApps } from 'firebase/app';
+import { User as AppUser } from '@/types';
+import { auth } from '@/services/auth';
+import { db, storage } from '@/services/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -10,7 +9,6 @@ import {
   onAuthStateChanged,
   updateProfile as updateFirebaseProfile,
   updatePassword as updateFirebasePassword,
-  getAuth,
   EmailAuthProvider,
   reauthenticateWithCredential,
   User as FirebaseUser
@@ -59,7 +57,6 @@ interface AuthContextType {
   user: AppUser | null;
   allUsers: (AppUser & { password?: string })[];
   login: (email: string, password: string) => Promise<{ success: boolean; errorCode?: string }>;
-  addUser: (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string) => Promise<string | true>;
   removeUser: (id: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUsers: () => Promise<void>;
@@ -89,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // its profile, so the auth listener leaves the session to onboard().
   const onboardingRef = useRef(false);
 
-  // The signed-in user's workspace. Kept in a ref so refreshUsers/addUser,
+  // The signed-in user's workspace. Kept in a ref so refreshUsers/removeUser,
   // which are called from many places, always use the current one.
   const workspaceIdRef = useRef('');
 
@@ -212,61 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, errorCode: (error as { code?: string })?.code || 'auth/unknown' };
     }
   }, []);
-
-  const getSecondaryApp = () => {
-    const existingApp = getApps().find((appInstance) => appInstance.name === 'secondary');
-    if (existingApp) {
-      return existingApp;
-    }
-    return initializeApp(firebaseConfig, 'secondary');
-  };
-
-  const addUser = useCallback(async (name: string, email: string, password: string, role: UserRole, company?: string, organizationId?: string): Promise<string | true> => {
-    // Use a separate Firebase app instance for user creation so the current
-    // authenticated admin session is not replaced by the newly created user.
-    // New people always join the admin's own workspace.
-    const workspaceId = workspaceIdRef.current;
-    if (!workspaceId) return 'Your account is not linked to a company.';
-
-    try {
-      const secondaryApp = getSecondaryApp();
-      const secondaryAuth = getAuth(secondaryApp);
-      connectAuthIfEmulated(secondaryAuth);
-
-      const newUserCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-      const newUid = newUserCredential.user.uid;
-
-      const newUserData: Omit<AppUser, 'id'> = {
-        email,
-        name,
-        role,
-        company,
-        organizationId,
-        workspaceId,
-      };
-
-      const cleanUserData = Object.fromEntries(
-        Object.entries(newUserData).filter(([_, v]) => v !== undefined)
-      );
-      await setDoc(doc(db, 'users', newUid), cleanUserData);
-      await signOut(secondaryAuth);
-      await refreshUsers();
-      return true;
-    } catch (error: unknown) {
-      console.error('Add user error:', error);
-      const code = (error as { code?: string })?.code;
-      if (code === 'auth/email-already-in-use') {
-        return 'Email already registered';
-      }
-      if (code === 'auth/weak-password') {
-        return 'Password should be at least 6 characters';
-      }
-      if (code === 'auth/invalid-email') {
-        return 'Invalid email address';
-      }
-      return 'Registration failed. Please try again.';
-    }
-  }, [refreshUsers]);
 
   const logout = useCallback(async () => {
     try {
@@ -403,7 +345,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       allUsers,
       login,
-      addUser,
       removeUser,
       logout,
       refreshUsers,

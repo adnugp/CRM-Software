@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Users, Bell, Shield, Palette, Info, Sun, Moon, Monitor, UserPlus, Trash2, Mail, Lock, AlertCircle, ExternalLink, Camera } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { User, Users, Bell, Shield, Palette, Info, Sun, Moon, Monitor, Trash2, Mail, Lock, AlertCircle, Camera } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import EmailAlertSettings from '@/components/notifications/EmailAlertSettings';
 import CompanySettings from '@/components/settings/CompanySettings';
+import TeamInvites from '@/components/settings/TeamInvites';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,7 +83,7 @@ const Settings: React.FC = () => {
     const { user, allUsers, removeUser, updateProfile, updateAvatar, updatePassword } = useAuth();
     const { employees, registrations, deleteEmployee, deleteRegistration } = useData();
     const { toast } = useToast();
-    const navigate = useNavigate();
+    const { reloadWorkspace } = useWorkspace();
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
         return (localStorage.getItem('crm-theme') as 'light' | 'dark' | 'system') || 'system';
@@ -167,6 +168,8 @@ const Settings: React.FC = () => {
                 console.info(`Result: ${success ? 'Success' : 'Failed/Restricted'}`);
 
                 if (success) {
+                    // Staff count on the plan may have changed.
+                    await reloadWorkspace();
                     toast({
                         title: "User Removed",
                         description: `${name} has been successfully removed from the system.`,
@@ -278,7 +281,7 @@ const Settings: React.FC = () => {
                                                     value="access"
                                                     className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 h-10 transition-all"
                                                 >
-                                                    Access Control
+                                                    Team
                                                 </TabsTrigger>
                                                 <TabsTrigger
                                                     value="staff"
@@ -296,54 +299,8 @@ const Settings: React.FC = () => {
                                         </div>
 
                                         <TabsContent value="access" className="p-6 space-y-10 m-0">
-                                            {/* Specialized Registration Portals */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {/* Employee Registration */}
-                                                <div className="group relative overflow-hidden flex flex-col items-center justify-between p-8 rounded-3xl bg-gradient-to-br from-blue-500/5 via-blue-500/10 to-transparent border border-blue-500/20 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-500">
-                                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                        <Users className="h-24 w-24 -mr-8 -mt-8" />
-                                                    </div>
-                                                    <div className="space-y-3 text-center mb-6 relative z-10">
-                                                        <div className="mx-auto h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-inner group-hover:scale-110 transition-transform duration-500">
-                                                            <UserPlus className="h-8 w-8" />
-                                                        </div>
-                                                        <h3 className="text-xl font-black text-blue-700">Team Onboarding</h3>
-                                                        <p className="text-xs font-medium text-slate-500 max-w-[220px] mx-auto leading-relaxed">
-                                                            Register new staff members, managers, and operational personnel.
-                                                        </p>
-                                                    </div>
-                                                    <Button
-                                                        onClick={() => navigate('/registration/employee')}
-                                                        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/30 font-bold tracking-tight transition-all active:scale-95"
-                                                    >
-                                                        Register Employee
-                                                        <ExternalLink className="ml-2 h-4 w-4" />
-                                                    </Button>
-                                                </div>
-
-                                                {/* Client Registration */}
-                                                <div className="group relative overflow-hidden flex flex-col items-center justify-between p-8 rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-transparent border border-primary/20 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-500">
-                                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                        <Shield className="h-24 w-24 -mr-8 -mt-8" />
-                                                    </div>
-                                                    <div className="space-y-3 text-center mb-6 relative z-10">
-                                                        <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner group-hover:scale-110 transition-transform duration-500">
-                                                            <Shield className="h-8 w-8" />
-                                                        </div>
-                                                        <h3 className="text-xl font-black text-primary">Client Gateway</h3>
-                                                        <p className="text-xs font-medium text-slate-500 max-w-[220px] mx-auto leading-relaxed">
-                                                            Create secure Entity IDs and access for Dubai Police, DEWA, and others.
-                                                        </p>
-                                                    </div>
-                                                    <Button
-                                                        onClick={() => navigate('/registration/client')}
-                                                        className="w-full h-11 gradient-primary text-white rounded-xl shadow-lg shadow-primary/30 font-bold tracking-tight transition-all active:scale-95"
-                                                    >
-                                                        Onboard Client
-                                                        <ExternalLink className="ml-2 h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                            {/* Invite staff and clients by link */}
+                                            <TeamInvites />
 
                                             {/* Access Tables Split by System/Client */}
                                             <div className="space-y-12 pb-4">
