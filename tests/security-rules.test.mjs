@@ -287,7 +287,10 @@ describe('company sign-up', () => {
   const newCompany = (over = {}) => ({
     name: 'New Co', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1,
     trialEndsAt: inDays(14), createdBy: 'founder', createdAt: new Date(),
-    contactName: 'Fay', contactEmail: 'founder@new.dev', ...over,
+    contactName: 'Fay', contactEmail: 'founder@new.dev',
+    billingCycle: 'monthly',
+    paymentMethod: { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 },
+    ...over,
   });
   const founderProfile = (over = {}) => ({ name: 'Fay', email: 'founder@new.dev', role: 'admin', workspaceId: 'wsNew', ...over });
   const signUp = (fs, { company = {}, profile = {}, wsId = 'wsNew' } = {}) => {
@@ -315,6 +318,19 @@ describe('company sign-up', () => {
     await assertFails(signUp(founder(), { profile: { email: 'someone@else.dev' } }));
     await assertFails(signUp(founder(), { company: { createdBy: 'admin' } }));
     await assertFails(signUp(founder(), { profile: { role: 'manager' } }));
+  });
+
+  it('needs a card summary and a billing period', async () => {
+    await assertSucceeds(signUp(founder(), { company: { billingCycle: 'yearly' } }));
+  });
+
+  it('rejects a missing card, a full card number or an unknown billing period', async () => {
+    const card = { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 };
+    await assertFails(signUp(founder(), { company: { paymentMethod: null } }));
+    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, number: '4242424242424242' } } }));
+    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, cvc: '123' } } }));
+    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, last4: '42424242' } } }));
+    await assertFails(signUp(founder(), { company: { billingCycle: 'weekly' } }));
   });
 
   it('cannot join an existing company', async () => {

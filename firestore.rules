@@ -114,10 +114,27 @@ service cloud.firestore {
       return inWs(ws) && writable(ws);
     }
 
+    // Only a summary of the card is ever stored, never the number or CVC.
+    // 'demo' until Stripe is integrated (src/services/billing.ts).
+    function validPaymentMethod(p) {
+      return p is map
+        && p.keys().hasOnly(['provider', 'brand', 'last4', 'expMonth', 'expYear'])
+        && p.keys().hasAll(['provider', 'brand', 'last4', 'expMonth', 'expYear'])
+        && p.provider == 'demo'
+        && p.brand in ['visa', 'mastercard', 'amex']
+        && p.last4 is string && p.last4.matches('^[0-9]{4}$')
+        && p.expMonth is int && p.expMonth >= 1 && p.expMonth <= 12
+        && p.expYear is int;
+    }
+
     // A new trial company written together with its founder's admin profile.
+    // A card goes on file first; the trial then runs before any charge.
     function validSignupWorkspace(ws, d) {
       return d.keys().hasOnly(['name', 'divisions', 'status', 'plan', 'staffLimit', 'staffCount',
-                               'trialEndsAt', 'createdBy', 'createdAt', 'contactName', 'contactEmail'])
+                               'trialEndsAt', 'createdBy', 'createdAt', 'contactName', 'contactEmail',
+                               'billingCycle', 'paymentMethod'])
+        && d.billingCycle in ['monthly', 'yearly']
+        && validPaymentMethod(d.paymentMethod)
         && d.name is string && d.name.size() > 0 && d.name.size() <= 100
         && d.divisions is list && d.divisions.size() == 0
         && d.status == 'trial'
