@@ -98,7 +98,7 @@ Fixed in `src/config/pipeline.ts`:
   - `companyId` matches;
   - `organizationId` matches (when both are set);
   - `company` equals the company name, ignoring case and surrounding spaces.
-- **Client invites** (Settings → Team) get a "Company" picker for directory companies. Picking one fills the client company and reuses its `organizationId`, or creates one and saves it on the company.
+- **Client invites** (Settings → Team) suggest directory companies as you type the client company. Choosing one reuses its `organizationId`, or creates one and saves it on the company.
 
 ## Access
 
@@ -108,7 +108,7 @@ Same as tenders:
 - Other workspaces have no access.
 - A read-only workspace (trial ended or suspended) can read but not write.
 
-In `firestore.rules`, add `companies`, `contacts` and `deals` to the staff-only collection list. The rules don't check field contents, as with tenders; the forms do. The `DataContext` `guard()` already blocks writes in read-only workspaces.
+In `firestore.rules`, add `companies`, `contacts` and `deals` to the staff-only collection list. The rules don't check field contents, as with tenders; the forms do. The read-only guard (moved into a shared `useWriteGuard()` hook used by `DataContext` and `SalesContext`) blocks writes in read-only workspaces.
 
 ## Screens
 
@@ -124,7 +124,7 @@ A new **Sales** group, staff only: **Deals**, **Companies**, **Contacts**. It co
 - **Filters** on both views: owner, division (only when divisions exist), and a search on title and company name.
 - **Summary bar:** open pipeline value, weighted value, and won this month (deals with `wonAt` in the current month).
 - **New deal** dialog fields:
-  - title, value, stage (default Lead);
+  - title, value, stage (an open stage, default Lead; Won and Lost are reached by moving the deal);
   - company: pick one, or "＋ New company" to type a name and create it on save;
   - contact, filtered by the company;
   - expected close, owner, division, source.
@@ -176,7 +176,7 @@ A new **Sales** group, staff only: **Deals**, **Companies**, **Contacts**. It co
 | `src/lib/pipeline.ts` (pure, no `@/` imports) | `pipelineTotals(deals)` → open, weighted, won this month. `isFollowUpDue(deal, today)`, `dueFollowUps(deals, today)`. `stageChange(deal, to, byId, now)` → the fields to write: stage, the stage activity, `wonAt`/`closedAt`, and clearing them on reopen; it rejects Lost without a reason. `sortActivities`, `matchesCompany(record, company)` for earlier records. |
 | `src/types/index.ts` | `Company`, `Contact`, `Deal`, `Activity`, `DealStage`. `companyId?` and `dealId?` on Project and Tender. |
 | `src/services/firestore.ts` | CRUD for the three collections, following the tender functions. `addDealActivity` uses `arrayUnion`. |
-| `src/contexts/DataContext.tsx` | `companies`, `contacts`, `deals` state and write functions, all through `guard()`. |
+| `src/contexts/SalesContext.tsx` | `companies`, `contacts`, `deals` state and write functions, all through the shared `useWriteGuard()`. |
 | `src/pages/Deals.tsx`, `DealDetail.tsx`, `Companies.tsx`, `CompanyDetail.tsx`, `Contacts.tsx`, `ContactDetail.tsx` | Screens. |
 | `src/components/deals/` | `DealBoard`, `DealCard`, `DealForm`, `LostReasonDialog`, `ActivityTimeline`, `FollowUpBox`. |
 | `src/components/companies/` | `CompanyForm`, `ContactForm`, `CompanyPicker` (with "＋ New company"). |
