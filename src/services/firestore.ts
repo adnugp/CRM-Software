@@ -12,10 +12,11 @@ import {
   where,
   DocumentData,
   QueryDocumentSnapshot,
-  Timestamp
+  Timestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace } from '@/types';
+import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, Company, Contact, Deal, Activity } from '@/types';
 
 // Every company's records live under workspaces/{wsId}/{collection}. Callers
 // pass the signed-in user's workspace id; firestore.rules reject any other.
@@ -173,4 +174,32 @@ export const getWorkspace = async (wsId: string): Promise<Workspace | null> => {
 
 export const updateWorkspace = async (wsId: string, data: Partial<Omit<Workspace, 'id' | 'createdAt'>>): Promise<void> => {
   await updateDoc(doc(db, 'workspaces', wsId), removeUndefined(data) as DocumentData);
+};
+
+// Sales: companies, contacts and deals (staff only, see firestore.rules)
+export const getCompanies = async (wsId: string): Promise<Company[]> => getCollection<Company>(wsId, 'companies');
+export const addCompany = async (wsId: string, data: Omit<Company, 'id'>): Promise<string> => addDocument<Company>(wsId, 'companies', data);
+export const updateCompany = async (wsId: string, id: string, data: Partial<Company>): Promise<void> => updateDocument<Company>(wsId, 'companies', id, data);
+export const deleteCompany = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'companies', id);
+
+export const getContacts = async (wsId: string): Promise<Contact[]> => getCollection<Contact>(wsId, 'contacts');
+export const addContact = async (wsId: string, data: Omit<Contact, 'id'>): Promise<string> => addDocument<Contact>(wsId, 'contacts', data);
+export const updateContact = async (wsId: string, id: string, data: Partial<Contact>): Promise<void> => updateDocument<Contact>(wsId, 'contacts', id, data);
+export const deleteContact = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'contacts', id);
+
+export const getDeals = async (wsId: string): Promise<Deal[]> => getCollection<Deal>(wsId, 'deals');
+export const addDeal = async (wsId: string, data: Omit<Deal, 'id'>): Promise<string> => addDocument<Deal>(wsId, 'deals', data);
+export const updateDeal = async (wsId: string, id: string, data: Partial<Deal>): Promise<void> => updateDocument<Deal>(wsId, 'deals', id, data);
+export const deleteDeal = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'deals', id);
+
+/**
+ * Updates a deal and appends one history entry in a single write. arrayUnion
+ * is added after removeUndefined, which would otherwise walk into the
+ * FieldValue object and break it.
+ */
+export const updateDealWithActivity = async (wsId: string, id: string, data: Partial<Deal>, activity: Activity): Promise<void> => {
+  await updateDoc(wsDoc(wsId, 'deals', id), {
+    ...(removeUndefined(data) as DocumentData),
+    activities: arrayUnion(removeUndefined(activity)),
+  });
 };

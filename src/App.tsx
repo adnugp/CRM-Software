@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import { DataProvider } from "@/contexts/DataContext";
+import { SalesProvider } from "@/contexts/SalesContext";
 import ProtectedRoute, { FullPageLoader } from "@/components/ProtectedRoute";
 import Index from "./Index";
 import Login from "./pages/Login";
@@ -80,6 +81,7 @@ const App = () => {
       <AuthProvider>
         <WorkspaceProvider>
         <DataProvider>
+        <SalesProvider>
           <BrowserRouter>
             <ThemeInitializer />
             <Toaster />
@@ -155,6 +157,7 @@ const App = () => {
             </Suspense>
             <ChatbotWrapper />
           </BrowserRouter>
+        </SalesProvider>
         </DataProvider>
         </WorkspaceProvider>
       </AuthProvider>

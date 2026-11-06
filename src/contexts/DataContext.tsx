@@ -13,8 +13,7 @@ import { Project, Tender, Employee, Registration, Payment, Subscription, Partner
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { nextProjectNumber } from '@/lib/workspace';
-import { readOnlyMessage } from '@/lib/subscription';
-import { toast } from '@/hooks/use-toast';
+import { useWriteGuard } from '@/hooks/use-write-guard';
 
 interface DataContextType {
   // Data
@@ -91,7 +90,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const userId = user?.id;
   const userRole = user?.role;
   const userOrganizationId = user?.organizationId;
-  const { workspaceId, divisionById, access } = useWorkspace();
+  const { workspaceId, divisionById } = useWorkspace();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -191,17 +190,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const generateProjectId = (divisionId?: string) =>
     nextProjectNumber(projects.map(p => p.projectId), divisionById(divisionId)?.code);
 
-  // Read-only companies (trial ended / suspended): stop writes here with a
-  // clear message instead of a raw permission error from Firestore.
-  const guard = <A extends unknown[], R>(fn: (...args: A) => Promise<R>) =>
-    async (...args: A): Promise<R> => {
-      if (!access.canWrite) {
-        const message = readOnlyMessage(access.state);
-        toast({ title: 'Read-only', description: message, variant: 'destructive' });
-        throw new Error(message);
-      }
-      return fn(...args);
-    };
+  // Read-only companies (trial ended / suspended) get a clear message.
+  const guard = useWriteGuard();
 
   // CRUD functions
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
