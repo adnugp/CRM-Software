@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Copy, Link2, Loader2, UserPlus, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useSales } from '@/contexts/SalesContext';
+import { sameName } from '@/lib/pipeline';
 import { createInvite, inviteLink, listInvites, revokeInvite } from '@/services/invites';
 import { nextOrganizationId } from '@/lib/workspace';
 import { accessLabel, inviteState, isStaffRole, staffSeatsLeft, type InviteState } from '@/lib/subscription';
@@ -30,6 +32,7 @@ const STATE_BADGE: Record<InviteState, { label: string; variant: 'default' | 'se
 const TeamInvites: React.FC = () => {
   const { user, allUsers } = useAuth();
   const { workspace, access, reloadWorkspace } = useWorkspace();
+  const { companies, updateCompany } = useSales();
   const { toast } = useToast();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [email, setEmail] = useState('');
@@ -71,12 +74,15 @@ const TeamInvites: React.FC = () => {
     : `${workspace?.staffCount ?? 0} staff (no limit)`;
 
   // Everyone from one client company shares an organisation id, including
-  // people invited but not joined yet.
+  // people invited but not joined yet, and the company's directory entry.
+  const directoryCompany = (clientName: string) => companies.find(c => sameName(c.name, clientName));
   const organizationIdFor = (clientName: string) => {
-    const key = clientName.trim().toLowerCase();
+    const fromDirectory = directoryCompany(clientName)?.organizationId;
+    if (fromDirectory) return fromDirectory;
     const people = [...allUsers, ...invites];
-    const known = people.find(p => p.role === 'client' && p.organizationId && (p.company || '').trim().toLowerCase() === key);
-    return known?.organizationId || nextOrganizationId(clientName, people.map(p => p.organizationId));
+    const known = people.find(p => p.role === 'client' && p.organizationId && sameName(p.company, clientName));
+    return known?.organizationId
+      || nextOrganizationId(clientName, [...people.map(p => p.organizationId), ...companies.map(c => c.organizationId)]);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -104,6 +110,11 @@ const TeamInvites: React.FC = () => {
       });
       setInvites(prev => [invite, ...prev]);
       setLastLink(inviteLink(invite.id));
+      const entry = role === 'client' ? directoryCompany(company) : undefined;
+      if (entry && !entry.organizationId && invite.organizationId) {
+        // Not fatal: the invite already works; the directory just won't show the id yet.
+        updateCompany(entry.id, { organizationId: invite.organizationId }).catch(err => console.error('Saving organisation id:', err));
+      }
       setEmail('');
       setName('');
       setCompany('');
@@ -178,7 +189,10 @@ const TeamInvites: React.FC = () => {
           {role === 'client' && (
             <div className="space-y-2">
               <Label htmlFor="invite-company">Client company</Label>
-              <Input id="invite-company" value={company} onChange={e => setCompany(e.target.value)} />
+              <Input id="invite-company" list="directory-companies" value={company} onChange={e => setCompany(e.target.value)} />
+              <datalist id="directory-companies">
+                {companies.map(c => <option key={c.id} value={c.name} />)}
+              </datalist>
               {company.trim().length >= 2 && (
                 <p className="text-xs text-muted-foreground">Organisation ID: {organizationIdFor(company)}</p>
               )}
