@@ -53,6 +53,8 @@ interface ProjectFormProps {
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
   onSubmit: (data: ProjectFormData) => void | Promise<void>;
+  /** Starting values for a new project (e.g. created from a deal). */
+  prefill?: Partial<ProjectFormData>;
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({
@@ -60,6 +62,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   onOpenChange,
   project,
   onSubmit,
+  prefill,
 }) => {
   const { employees } = useData();
   const { allUsers } = useAuth();
@@ -116,9 +119,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         assignedTo: '',
         deadline: '',
         budget: 0,
+        ...prefill,
       });
     }
-  }, [project, form, defaultDivisionId]);
+  }, [project, form, defaultDivisionId, prefill, open]);
 
   // Report success only once the save has gone through; on failure keep the
   // form open so nothing typed is lost (e.g. a read-only company).

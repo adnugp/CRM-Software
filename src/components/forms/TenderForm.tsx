@@ -56,6 +56,8 @@ interface TenderFormProps {
   onOpenChange: (open: boolean) => void;
   tender?: Tender | null;
   onSubmit: (data: TenderFormData) => void | Promise<void>;
+  /** Starting values for a new tender (e.g. converted from a deal). */
+  prefill?: Partial<TenderFormData>;
 }
 
 const TenderForm: React.FC<TenderFormProps> = ({
@@ -63,6 +65,7 @@ const TenderForm: React.FC<TenderFormProps> = ({
   onOpenChange,
   tender,
   onSubmit,
+  prefill,
 }) => {
   const { employees, tenders } = useData();
   const { allUsers } = useAuth();
@@ -151,9 +154,10 @@ const TenderForm: React.FC<TenderFormProps> = ({
         deadline: '',
         rfqCode: '',
         portal: '',
+        ...prefill,
       });
     }
-  }, [tender, form, defaultDivisionId]);
+  }, [tender, form, defaultDivisionId, prefill, open]);
 
   // Report success only once the save has gone through; on failure keep the
   // form open so nothing typed is lost (e.g. a read-only company).
