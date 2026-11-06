@@ -14,3 +14,6 @@ export function useStaffOptions() {
     [allUsers],
   );
 }
+
+/** Company select value meaning "create a new company with the typed name". */
+export const NEW_COMPANY = '__new__';

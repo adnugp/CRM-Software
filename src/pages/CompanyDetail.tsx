@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CompanyForm } from '@/components/companies/CompanyForm';
 import { ContactForm } from '@/components/companies/ContactForm';
 import { StageBadge } from '@/components/deals/StageBadge';
+import { DealForm } from '@/components/deals/DealForm';
 import { errorMessage } from '@/components/sales/helpers';
 import { companyInUse, formatAed, matchesCompany } from '@/lib/pipeline';
 import { toast } from '@/hooks/use-toast';
@@ -37,6 +38,7 @@ const CompanyDetail: React.FC = () => {
   const [contactOpen, setContactOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [dealOpen, setDealOpen] = useState(false);
 
   const earlier = useMemo(() => company ? {
     projects: projects.filter(p => matchesCompany(p, company)),
@@ -118,7 +120,7 @@ const CompanyDetail: React.FC = () => {
         </Section>
 
         <Section title={`Deals (${companyDeals.length})`} action={
-          <Button size="sm" variant="outline" asChild><Link to="/deals">Go to deals</Link></Button>
+          <Button size="sm" variant="outline" onClick={() => setDealOpen(true)}><Plus className="mr-1 h-4 w-4" />New deal</Button>
         }>
           {companyDeals.length ? (
             <ul className="divide-y text-sm">
@@ -146,6 +148,7 @@ const CompanyDetail: React.FC = () => {
 
       <CompanyForm open={editOpen} onOpenChange={setEditOpen} company={company} />
       <ContactForm open={contactOpen} onOpenChange={setContactOpen} contact={editingContact} defaultCompanyId={company.id} />
+      <DealForm open={dealOpen} onOpenChange={setDealOpen} defaultCompanyId={company.id} onSaved={newId => navigate(`/deals/${newId}`)} />
       <DeleteConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title="Delete company?" description={`${company.name} will be removed from the directory.`} onConfirm={doDelete} />
     </MainLayout>
   );
