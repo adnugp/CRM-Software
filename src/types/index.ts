@@ -103,6 +103,10 @@ export interface Project {
   name: string;
   company: string;
   organizationId?: string;
+  /** Directory company this record belongs to (records made from a deal). */
+  companyId?: string;
+  /** The deal this record was created from. */
+  dealId?: string;
   /** Division of the workspace this record belongs to (optional). */
   divisionId?: string;
   status: 'running' | 'in-progress' | 'completed' | 'handed-over';
@@ -126,6 +130,10 @@ export interface Tender {
   name: string;
   company: string;
   organizationId?: string;
+  /** Directory company this record belongs to (records made from a deal). */
+  companyId?: string;
+  /** The deal this record was created from. */
+  dealId?: string;
   rfqCode?: string;
   portal?: string;
   /** Division of the workspace this record belongs to (optional). */
@@ -219,3 +227,74 @@ export interface FileRecord {
   documents: DocumentFile[];
   createdAt?: Date;
 }
+
+// ---- Sales: companies, contacts and deals --------------------------------
+export type { DealStage, ActivityType } from '@/config/pipeline';
+import type { DealStage, ActivityType } from '@/config/pipeline';
+
+export interface Company {
+  id: string;
+  name: string;
+  industry?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  address?: string;
+  notes?: string;
+  /** Same format as client logins (ORG-XX-NNN); set when a client is invited. */
+  organizationId?: string;
+  ownerId: string;
+  createdAt?: Date;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  jobTitle?: string;
+  companyId?: string;
+  notes?: string;
+  createdAt?: Date;
+}
+
+export interface FollowUp {
+  date: string; // YYYY-MM-DD
+  note: string;
+}
+
+export interface Activity {
+  id: string;
+  type: ActivityType | 'stage';
+  text: string;
+  at: string; // ISO time (nested values aren't converted from Timestamps)
+  byId: string;
+}
+
+export interface ConvertedTo {
+  kind: 'tender' | 'project';
+  id: string;
+}
+
+export interface Deal {
+  id: string;
+  title: string;
+  value: number; // AED
+  stage: DealStage;
+  companyId: string;
+  contactId?: string;
+  ownerId: string;
+  divisionId?: string;
+  expectedCloseDate?: string;
+  source?: string;
+  nextFollowUp?: FollowUp | null;
+  lostReason?: string | null;
+  activities: Activity[];
+  convertedTo?: ConvertedTo | null;
+  wonAt?: Date | null;
+  closedAt?: Date | null;
+  createdAt?: Date;
+}
+
+/** What the New deal form provides; the context adds history and close fields. */
+export type NewDeal = Omit<Deal, 'id' | 'activities' | 'createdAt' | 'wonAt' | 'closedAt' | 'lostReason' | 'convertedTo'>;
