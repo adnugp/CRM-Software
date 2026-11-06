@@ -86,6 +86,11 @@ beforeEach(async () => {
     await a.collection('projects').doc('p-other').set({ name: 'Someone else', clientId: 'clientA2', organizationId: 'ORG-BET-002' });
     await a.collection('tenders').doc('t1').set({ name: 'Tender' });
     await a.collection('employees').doc('e1').set({ name: 'Emp' });
+    await a.collection('companies').doc('c1').set({ name: 'Gulf Facilities LLC', ownerId: 'admin' });
+    await a.collection('contacts').doc('k1').set({ name: 'Omar', companyId: 'c1' });
+    await a.collection('deals').doc('d1').set({ title: 'Chiller retrofit', stage: 'lead', value: 1000, companyId: 'c1' });
+    await fs.collection('workspaces').doc('wsT').collection('deals').doc('d-t').set({ title: 'Old deal' });
+    await fs.collection('workspaces').doc('wsS').collection('deals').doc('d-s').set({ title: 'Paused deal' });
     const b = fs.collection('workspaces').doc('wsB');
     await b.collection('projects').doc('pb').set({ name: 'B project', clientId: 'clientA' });
     await b.collection('tenders').doc('tb').set({ name: 'B tender' });
@@ -136,6 +141,46 @@ describe('workspace isolation', () => {
   it('staff cannot create or delete a workspace', async () => {
     await assertFails(ws('admin', 'wsNew').set({ name: 'New' }));
     await assertFails(ws('admin', 'wsA').delete());
+  });
+});
+
+describe('sales: companies, contacts and deals', () => {
+  const SALES = { companies: 'c1', contacts: 'k1', deals: 'd1' };
+
+  it('staff can read and write all three', async () => {
+    for (const uid of ['admin', 'manager', 'employee']) {
+      for (const [coll, id] of Object.entries(SALES)) {
+        await assertSucceeds(ws(uid, 'wsA').collection(coll).get());
+        await assertSucceeds(ws(uid, 'wsA').collection(coll).doc(id).update({ notes: uid }));
+        await assertSucceeds(ws(uid, 'wsA').collection(coll).doc(`new-${uid}`).set({ name: 'x' }));
+        await assertSucceeds(ws(uid, 'wsA').collection(coll).doc(`new-${uid}`).delete());
+      }
+    }
+  });
+
+  it('clients cannot read or write them', async () => {
+    for (const [coll, id] of Object.entries(SALES)) {
+      await assertFails(ws('clientA', 'wsA').collection(coll).doc(id).get());
+      await assertFails(ws('clientA', 'wsA').collection(coll).get());
+      await assertFails(ws('clientA', 'wsA').collection(coll).doc('x').set({ name: 'x' }));
+    }
+  });
+
+  it('another company cannot read or write them', async () => {
+    for (const [coll, id] of Object.entries(SALES)) {
+      await assertFails(ws('adminB', 'wsA').collection(coll).doc(id).get());
+      await assertFails(ws('adminB', 'wsA').collection(coll).doc(id).update({ notes: 'b' }));
+    }
+  });
+
+  it('read-only companies can read deals but not change them', async () => {
+    for (const [uid, wsId, id] of [['adminT', 'wsT', 'd-t'], ['adminS', 'wsS', 'd-s']]) {
+      const deals = ws(uid, wsId).collection('deals');
+      await assertSucceeds(deals.doc(id).get());
+      await assertFails(deals.doc(id).update({ stage: 'won' }));
+      await assertFails(deals.doc('new').set({ title: 'x' }));
+      await assertFails(deals.doc(id).delete());
+    }
   });
 });
 

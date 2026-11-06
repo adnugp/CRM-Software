@@ -324,9 +324,11 @@ service cloud.firestore {
       // ---- Other business data (staff only) ----------------------------
       match /{coll}/{docId} {
         allow read: if inWs(ws) && isStaff()
-          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files'];
+          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files',
+                      'companies', 'contacts', 'deals'];
         allow write: if canWrite(ws) && isStaff()
-          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files'];
+          && coll in ['tenders', 'registrations', 'payments', 'subscriptions', 'partners', 'files',
+                      'companies', 'contacts', 'deals'];
       }
     }
 
