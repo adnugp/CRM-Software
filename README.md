@@ -28,7 +28,7 @@ npm run seed        # terminal 2, first time only: load sample data and test log
 npm run dev         # terminal 2: app at http://localhost:8080
 ```
 
-`npm run seed` creates three demo companies, all logins sharing the test password defined
+`npm run seed` creates three demo companies, each with sample companies, contacts and deals, all logins sharing the test password defined
 as `TEST_PASSWORD` in `scripts/seed-emulator.mjs`:
 
 | Company | Plan | Divisions | Logins |
@@ -51,7 +51,7 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials) |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers) |
 | `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
 
 ## Workspaces and divisions
@@ -87,6 +87,21 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
   `"platformOwner": true` in `local-accounts.json`) sees every company on the **Platform**
   page and can change its plan, extend a trial, activate it or suspend it. They can't see any
   company's data.
+
+## Sales: deals, companies and contacts
+
+Staff see a **Sales** group in the sidebar.
+
+- **Deals** is the pipeline: Lead → Qualified → Proposal → Negotiation → Won / Lost.
+  - Win chances are 10 / 25 / 50 / 75 / 100 / 0 %, giving the weighted value. They're set in `src/config/pipeline.ts`.
+  - Drag cards between columns, or use "Move to…". Lost asks for a reason.
+  - Each deal has a history (notes, calls, meetings, emails and stage changes) and one next follow-up.
+- **Converting:** "Convert to tender" or "Create project" opens the usual form, pre-filled. The deal then links to the record it became.
+- **Companies:** each company page lists its contacts and deals. It also lists earlier projects, tenders and payments whose company name or organisation ID matches.
+- **Deleting** a company or contact is blocked while something uses it.
+- **Rules:** the pipeline rules are pure functions in `src/lib/pipeline.ts`, unit-tested in `tests/unit/pipeline.test.mjs`.
+- **Access:** clients can't see any of it (see `firestore.rules`).
+- **Dashboard and assistant:** the Dashboard shows follow-ups due and pipeline totals. The assistant answers "pipeline value", "deals in proposal" or "follow-ups today".
 
 ## Roles
 

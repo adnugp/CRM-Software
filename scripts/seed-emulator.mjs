@@ -10,6 +10,7 @@
 //   Acme Contracting  - active plan, two divisions (BLD, ENG), a full team, two clients
 //   Noor Engineering  - on a trial (9 days left), no divisions, a small team, one client
 //   Falcon Builders   - trial ended, so read-only
+// Each also has sample sales data (companies, contacts and deals in every stage),
 // plus one pending invite into Acme (the link is printed at the end).
 
 import { AUTH, FIRESTORE, PROJECT, assertEmulatorsRunning, put, request, signUp } from './emulator-rest.mjs';
@@ -79,6 +80,29 @@ async function putProjects(ws, person, projects) {
   }
 }
 
+// Sales: companies, contacts and deals. History entries use ISO times
+// (nested values aren't converted from Timestamps when the app reads them).
+async function putSales(ws, person, { companies, contacts, deals }) {
+  for (const { id, who, ...c } of companies) {
+    await putIn(ws, 'companies', id, { ...c, ownerId: person[who].id, createdAt: ago(120) });
+  }
+  for (const { id, ...k } of contacts) {
+    await putIn(ws, 'contacts', id, { ...k, createdAt: ago(90) });
+  }
+  for (const { id, who, activities = [], ...d } of deals) {
+    await putIn(ws, 'deals', id, {
+      nextFollowUp: null, lostReason: null, wonAt: null, closedAt: null, convertedTo: null,
+      contactId: '', divisionId: '', source: '',
+      ...d,
+      ownerId: person[who].id,
+      activities: activities.map(([aid, type, text, daysAgo, by]) => ({
+        id: aid, type, text, at: ago(daysAgo).toISOString(), byId: person[by ?? who].id,
+      })),
+      createdAt: ago(Math.max(...activities.map((a) => a[3]), 1)),
+    });
+  }
+}
+
 // ---------- Acme Contracting (with divisions) ----------
 
 async function seedAcme() {
@@ -129,7 +153,7 @@ async function seedAcme() {
     {
       id: 'prj-2', projectId: 'PRJ-ENG-001', name: 'Rooftop Solar Phase 2', company: 'Desert Solar FZE',
       divisionId: ENG, status: 'running', who: 'manager', deadline: day(90), budget: 420000,
-      client: 'clientDesert', createdAt: ago(40),
+      client: 'clientDesert', createdAt: ago(40), companyId: 'co-desert', dealId: 'dl-6',
       description: '1.2 MW rooftop PV extension.',
       tasks: [
         t('t-5', 'prj-2', 'Structural assessment', 'employee', -10, 'completed', 'high'),
@@ -216,6 +240,52 @@ async function seedAcme() {
       name, company, email, phone: '+971 4 000 0000', partnershipType, category, status, since: day(-500), createdAt: ago(200),
     });
   }
+
+  await putSales(ws, person, {
+    companies: [
+      { id: 'co-gulf', name: 'Gulf Facilities LLC', industry: 'Facilities management', phone: '+971 4 123 4567', email: 'info@gulffacilities.test', organizationId: 'ORG-GF-001', who: 'manager' },
+      { id: 'co-desert', name: 'Desert Solar FZE', industry: 'Renewable energy', email: 'hello@desertsolar.test', organizationId: 'ORG-DS-001', who: 'manager' },
+      { id: 'co-gtc', name: 'Gulf Trading Co.', industry: 'Trading', who: 'employee2' },
+      { id: 'co-dha', name: 'Dubai Health Authority', industry: 'Healthcare', who: 'employee2' },
+      { id: 'co-sharjah', name: 'Sharjah Municipality', industry: 'Government', who: 'manager' },
+      { id: 'co-palm', name: 'Palm Hospitality Group', industry: 'Hospitality', website: 'palmhospitality.test', who: 'admin' },
+    ],
+    contacts: [
+      { id: 'k-1', name: 'Hassan Ali', jobTitle: 'Facilities Director', email: 'hassan@gulffacilities.test', phone: '+971 50 900 1001', companyId: 'co-gulf' },
+      { id: 'k-2', name: 'Mira Thomas', jobTitle: 'Procurement Lead', email: 'mira@gulffacilities.test', companyId: 'co-gulf' },
+      { id: 'k-3', name: 'Faisal Noor', jobTitle: 'Project Director', email: 'faisal@desertsolar.test', companyId: 'co-desert' },
+      { id: 'k-4', name: 'Anita Rao', jobTitle: 'IT Manager', email: 'anita@gtc.test', companyId: 'co-gtc' },
+      { id: 'k-5', name: 'Dr. Salem Obaid', jobTitle: 'Head of Infrastructure', companyId: 'co-dha' },
+      { id: 'k-6', name: 'Rashid Al Suwaidi', jobTitle: 'Lighting Engineer', companyId: 'co-sharjah' },
+      { id: 'k-7', name: 'Claire Dubois', jobTitle: 'Group Engineering Manager', email: 'claire@palmhospitality.test', companyId: 'co-palm' },
+      { id: 'k-8', name: 'Tariq Hamdan', jobTitle: 'Independent consultant', phone: '+971 55 900 1008' },
+    ],
+    deals: [
+      { id: 'dl-1', title: 'Chiller plant retrofit', companyId: 'co-gulf', contactId: 'k-1', value: 185000, stage: 'proposal', divisionId: BLD, source: 'Existing client', expectedCloseDate: day(30), who: 'manager',
+        nextFollowUp: { date: day(-2), note: 'Call Hassan about the revised quote' },
+        activities: [['a1', 'stage', 'Created in Lead', 40], ['a2', 'meeting', 'Site walk-through with Hassan; two chillers past end of life.', 32], ['a3', 'stage', 'Moved to Proposal', 10], ['a4', 'email', 'Sent proposal v1.', 9]] },
+      { id: 'dl-2', title: 'Solar carport extension', companyId: 'co-desert', contactId: 'k-3', value: 240000, stage: 'negotiation', divisionId: ENG, source: 'Existing client', expectedCloseDate: day(14), who: 'manager',
+        nextFollowUp: { date: day(0), note: 'Send the final price' },
+        activities: [['a1', 'stage', 'Created in Qualified', 50], ['a2', 'stage', 'Moved to Negotiation', 6], ['a3', 'call', 'Faisal asked for 5% off for a 3-year O&M bundle.', 2]] },
+      { id: 'dl-3', title: 'BMS service contract', companyId: 'co-gulf', contactId: 'k-2', value: 60000, stage: 'qualified', divisionId: BLD, source: 'Existing client', expectedCloseDate: day(45), who: 'employee2',
+        nextFollowUp: { date: day(5), note: 'Share service levels' },
+        activities: [['a1', 'stage', 'Created in Lead', 20], ['a2', 'stage', 'Moved to Qualified', 8]] },
+      { id: 'dl-4', title: 'ERP phase 2', companyId: 'co-gtc', contactId: 'k-4', value: 95000, stage: 'lead', divisionId: BLD, source: 'Referral', who: 'employee2',
+        nextFollowUp: { date: day(-1), note: 'Book a discovery call with Anita' },
+        activities: [['a1', 'stage', 'Created in Lead', 7]] },
+      { id: 'dl-5', title: 'Clinic network cabling', companyId: 'co-dha', contactId: 'k-5', value: 120000, stage: 'lead', divisionId: BLD, source: 'Tender portal', who: 'employee2',
+        activities: [['a1', 'stage', 'Created in Lead', 3], ['a2', 'note', 'Watch Dubai eSupply for the RFQ.', 3]] },
+      { id: 'dl-6', title: 'Rooftop solar phase 2', companyId: 'co-desert', contactId: 'k-3', value: 310000, stage: 'won', divisionId: ENG, source: 'Existing client', who: 'manager',
+        wonAt: ago(40), closedAt: ago(40), convertedTo: { kind: 'project', id: 'prj-2' },
+        activities: [['a1', 'stage', 'Created in Proposal', 70], ['a2', 'stage', 'Moved to Won', 40], ['a3', 'note', 'Project created', 40]] },
+      { id: 'dl-7', title: 'Hotel energy audit', companyId: 'co-palm', contactId: 'k-7', value: 35000, stage: 'won', divisionId: ENG, source: 'Website', who: 'admin',
+        wonAt: ago(2), closedAt: ago(2),
+        activities: [['a1', 'stage', 'Created in Lead', 25], ['a2', 'stage', 'Moved to Won', 2]] },
+      { id: 'dl-8', title: 'Street lighting phase 2', companyId: 'co-sharjah', contactId: 'k-6', value: 150000, stage: 'lost', divisionId: ENG, source: 'Tender portal', who: 'manager',
+        closedAt: ago(10), lostReason: 'Lost on price to a local contractor',
+        activities: [['a1', 'stage', 'Created in Proposal', 45], ['a2', 'stage', 'Moved to Lost: Lost on price to a local contractor', 10]] },
+    ],
+  });
   return person;
 }
 
@@ -266,6 +336,26 @@ async function seedNoor() {
   await putIn(ws, 'payments', 'pay-1', {
     description: 'Fire alarm — advance', amount: 19200, dueDate: day(-3), status: 'overdue', company: 'Harbor Logistics LLC', createdAt: ago(15),
   });
+  await putSales(ws, person, {
+    companies: [
+      { id: 'co-harbor', name: 'Harbor Logistics LLC', industry: 'Logistics', organizationId: 'ORG-HL-001', who: 'admin' },
+      { id: 'co-lagoon', name: 'Blue Lagoon Hotels', industry: 'Hospitality', who: 'admin' },
+    ],
+    contacts: [
+      { id: 'k-1', name: 'Joseph Mathai', jobTitle: 'Warehouse Manager', companyId: 'co-harbor' },
+      { id: 'k-2', name: 'Sara Haddad', jobTitle: 'Projects Manager', companyId: 'co-lagoon' },
+    ],
+    deals: [
+      { id: 'dl-1', title: 'Cold store fire alarm', companyId: 'co-harbor', contactId: 'k-1', value: 48000, stage: 'proposal', who: 'admin',
+        nextFollowUp: { date: day(-1), note: 'Chase the signed quote' },
+        activities: [['a1', 'stage', 'Created in Lead', 12], ['a2', 'stage', 'Moved to Proposal', 4]] },
+      { id: 'dl-2', title: 'Lobby lighting upgrade', companyId: 'co-lagoon', contactId: 'k-2', value: 22000, stage: 'lead', who: 'employee',
+        activities: [['a1', 'stage', 'Created in Lead', 2]] },
+      { id: 'dl-3', title: 'Port lighting maintenance', companyId: 'co-harbor', value: 36000, stage: 'negotiation', who: 'admin',
+        nextFollowUp: { date: day(3), note: 'Agree visit frequency' },
+        activities: [['a1', 'stage', 'Created in Qualified', 15], ['a2', 'stage', 'Moved to Negotiation', 5]] },
+    ],
+  });
   return person;
 }
 
@@ -291,6 +381,14 @@ async function seedFalcon() {
       description: 'Full interior renovation of a four-bedroom villa.', tasks: [], costs: [],
     },
   ]);
+  await putSales(ws, person, {
+    companies: [{ id: 'co-private', name: 'Private Client', who: 'admin' }],
+    contacts: [],
+    deals: [
+      { id: 'dl-1', title: 'Garden annex', companyId: 'co-private', value: 60000, stage: 'qualified', who: 'admin',
+        activities: [['a1', 'stage', 'Created in Lead', 30], ['a2', 'stage', 'Moved to Qualified', 20]] },
+    ],
+  });
   return person;
 }
 
