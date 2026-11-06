@@ -14,7 +14,10 @@ import {
   Menu,
   X,
   Files,
-  Building2
+  Building2,
+  Building,
+  Contact,
+  Target
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -40,16 +43,20 @@ const Sidebar: React.FC = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  const menuItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'user', 'manager'] },
+  const STAFF = ['admin', 'user', 'manager'];
+  const menuItems: { path: string; icon: typeof LayoutDashboard; label: string; roles: string[]; group?: string }[] = [
+    { path: '/', icon: LayoutDashboard, label: 'Dashboard', roles: STAFF },
+    { path: '/deals', icon: Target, label: 'Deals', roles: STAFF, group: 'Sales' },
+    { path: '/companies', icon: Building, label: 'Companies', roles: STAFF, group: 'Sales' },
+    { path: '/contacts', icon: Contact, label: 'Contacts', roles: STAFF, group: 'Sales' },
     { path: '/projects', icon: FolderKanban, label: 'Projects', roles: ['admin', 'user', 'client', 'manager'] },
-    { path: '/tenders', icon: FileText, label: 'Tenders', roles: ['admin', 'user', 'manager'] },
-    { path: '/registrations', icon: ClipboardList, label: 'Registrations', roles: ['admin', 'user', 'manager'] },
-    { path: '/files', icon: Files, label: 'Files', roles: ['admin', 'user', 'manager'] },
-    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: ['admin', 'user', 'manager'] },
-    { path: '/partners', icon: Handshake, label: 'Partners', roles: ['admin', 'user', 'manager'] },
+    { path: '/tenders', icon: FileText, label: 'Tenders', roles: STAFF },
+    { path: '/registrations', icon: ClipboardList, label: 'Registrations', roles: STAFF },
+    { path: '/files', icon: Files, label: 'Files', roles: STAFF },
+    { path: '/payments', icon: CreditCard, label: 'Payments & Subscriptions', roles: STAFF },
+    { path: '/partners', icon: Handshake, label: 'Partners', roles: STAFF },
     { path: '/employees', icon: Users, label: 'Employees', roles: ['admin', 'manager'] },
-    { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'user', 'manager'] },
+    { path: '/settings', icon: Settings, label: 'Settings', roles: STAFF },
   ];
 
   const filteredMenuItems = menuItems.filter(item =>
@@ -86,23 +93,31 @@ const Sidebar: React.FC = () => {
         ref={scrollRef}
         className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
       >
-        {visibleItems.map((item) => {
+        {visibleItems.map((item, i) => {
           const Icon = item.icon;
+          const prevGroup = visibleItems[i - 1]?.group;
+          const startsGroup = item.group && item.group !== prevGroup;
+          const endsGroup = !item.group && prevGroup;
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                isActive(item.path)
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            <React.Fragment key={item.path}>
+              {startsGroup && (
+                <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">{item.group}</p>
               )}
-            >
-              <Icon className="h-5 w-5" />
-              {item.label}
-            </Link>
+              {endsGroup && <div className="mx-3 my-2 border-t border-sidebar-border" />}
+              <Link
+                to={item.path}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                  isActive(item.path)
+                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            </React.Fragment>
           );
         })}
       </nav>

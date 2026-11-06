@@ -27,6 +27,10 @@ const Employees = lazy(() => import("./pages/Employees"));
 const ProjectManagement = lazy(() => import("./pages/ProjectManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Settings = lazy(() => import("./pages/Settings"));
+const Companies = lazy(() => import("./pages/Companies"));
+const CompanyDetail = lazy(() => import("./pages/CompanyDetail"));
+const Contacts = lazy(() => import("./pages/Contacts"));
+const ContactDetail = lazy(() => import("./pages/ContactDetail"));
 const AIChatbotWidget = lazy(() => import("@/components/AIChatbotWidget"));
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmulators } from "@/services/firebase";
@@ -99,6 +103,11 @@ const App = () => {
                   <Dashboard />
                 </ProtectedRoute>
               } />
+              {/* Sales (staff only) */}
+              <Route path="/companies" element={<ProtectedRoute allowedRoles={['admin', 'user', 'manager']}><Companies /></ProtectedRoute>} />
+              <Route path="/companies/:id" element={<ProtectedRoute allowedRoles={['admin', 'user', 'manager']}><CompanyDetail /></ProtectedRoute>} />
+              <Route path="/contacts" element={<ProtectedRoute allowedRoles={['admin', 'user', 'manager']}><Contacts /></ProtectedRoute>} />
+              <Route path="/contacts/:id" element={<ProtectedRoute allowedRoles={['admin', 'user', 'manager']}><ContactDetail /></ProtectedRoute>} />
               <Route path="/tenders" element={
                 <ProtectedRoute allowedRoles={['admin', 'user', 'manager']}>
                   <Tenders />
