@@ -18,7 +18,10 @@ import type {
   Partner,
   FileRecord,
   Division,
+  Deal,
+  Company,
 } from '@/types';
+import { answerSalesQuestion } from '@/lib/salesChat';
 
 export interface CrmData {
   projects: Project[];
@@ -31,6 +34,9 @@ export interface CrmData {
   files: FileRecord[];
   /** The company's divisions, used to filter by division name or code. */
   divisions?: Division[];
+  /** Sales pipeline (staff only); omitted when not loaded. */
+  deals?: Deal[];
+  companies?: Company[];
 }
 
 /* ----------------------------- small utilities ---------------------------- */
@@ -766,6 +772,7 @@ Try asking me things like:
 • "What is Sarah working on?"
 • "Total pending payments"
 • "Registrations expiring soon"
+• "Pipeline value", "deals in proposal" or "follow-ups today"
 • "List the tenders for a division" (use its name or code)
 • "Show me the employees in engineering"
 • "Give me an overview of the CRM"
@@ -785,6 +792,11 @@ export function answerCrmQuestion(question: string, data: CrmData): string {
   if (isThanks(q) && q.length < 25) return "You're welcome! Anything else you'd like to know about your CRM?";
 
   const sections = buildSections(data);
+
+  if (data.deals) {
+    const sales = answerSalesQuestion(q, { deals: data.deals, companies: data.companies ?? [] }, new Date());
+    if (sales) return sales;
+  }
 
   if (isOverview(q)) return overview(data, sections);
 

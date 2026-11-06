@@ -28,6 +28,7 @@ import robotIcon from '@/assets/robot.png';
 import userIcon from '@/assets/user-removebg-preview.png';
 import { cn } from '@/lib/utils';
 import { useData } from '@/contexts/DataContext';
+import { useSales } from '@/contexts/SalesContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { answerCrmQuestion, type CrmData } from '@/services/crmChatEngine';
 import { FormattedAnswer } from '@/components/FormattedAnswer';
@@ -440,6 +441,7 @@ interface ChatState {
 const AIChatbotWidget: React.FC = () => {
   // Live CRM data (already loaded by DataContext) — the chatbot answers from this.
   const crm = useData();
+  const sales = useSales();
   const { divisions } = useWorkspace();
 
   const [chatState, setChatState] = useState<ChatState>({
@@ -673,6 +675,8 @@ const AIChatbotWidget: React.FC = () => {
       partners: crm.partners,
       files: crm.files,
       divisions,
+      deals: sales.deals,
+      companies: sales.companies,
     };
 
     let answer: string;
@@ -698,7 +702,7 @@ const AIChatbotWidget: React.FC = () => {
       }));
       startTypingAnimation(answerId, answer);
     }, 500);
-  }, [crm, divisions, startTypingAnimation]);
+  }, [crm, divisions, sales.deals, sales.companies, startTypingAnimation]);
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {

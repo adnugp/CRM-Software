@@ -5,6 +5,8 @@ import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ProjectStatusChart from '@/components/charts/ProjectStatusChart';
+import { FollowUpsCard } from '@/components/dashboard/FollowUpsCard';
+import { PipelineCard } from '@/components/dashboard/PipelineCard';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -171,6 +173,13 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      {!isLoading && !isClient && (
+        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <FollowUpsCard />
+          <PipelineCard />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="rounded-xl border bg-card p-6 shadow-card animate-pulse mb-8">
