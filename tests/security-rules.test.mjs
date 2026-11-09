@@ -246,6 +246,12 @@ describe('user profiles', () => {
     await assertFails(db('clientA').collection('users').doc('clientA').update({ organizationId: 'ORG-BET-002' }));
   });
 
+  it('a profile email can only follow the real sign-in email', async () => {
+    const asEmployee = env.authenticatedContext('employee', { email: 'emp@a.dev' }).firestore();
+    await assertFails(asEmployee.collection('users').doc('employee').update({ email: 'owner@p.dev' }));
+    await assertSucceeds(asEmployee.collection('users').doc('employee').update({ email: 'emp@a.dev' }));
+  });
+
   it('clients can read only their own profile', async () => {
     await assertSucceeds(db('clientA').collection('users').doc('clientA').get());
     await assertFails(db('clientA').collection('users').doc('employee').get());

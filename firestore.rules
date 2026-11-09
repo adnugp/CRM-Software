@@ -205,7 +205,8 @@ service cloud.firestore {
       // Admins manage their own workspace's people but never move anyone to
       // another workspace, and never switch someone between staff and client
       // (that would bypass the staff count: re-invite instead). Everyone can
-      // edit their own name/email/avatar.
+      // edit their own name and avatar; the profile email can only follow
+      // their real sign-in email, so nobody can pose as another address.
       allow update: if (isAdmin()
           && resource.data.workspaceId == myWs()
           && request.resource.data.workspaceId == resource.data.workspaceId
@@ -214,7 +215,8 @@ service cloud.firestore {
           && isStaffRole(request.resource.data.role) == isStaffRole(resource.data.role)
           && writable(myWs()))
         || (signedIn() && request.auth.uid == uid
-          && changed().hasOnly(['name', 'email', 'avatar']));
+          && changed().hasOnly(['name', 'email', 'avatar'])
+          && (!changed().hasAny(['email']) || request.resource.data.email == authEmail()));
 
       // Removing a staff member frees their place: the same batch lowers the
       // workspace's staffCount and names them in removedUid.
