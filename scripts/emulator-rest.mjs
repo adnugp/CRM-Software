@@ -5,6 +5,9 @@ export const PROJECT = 'demo-crm';
 export const AUTH = 'http://127.0.0.1:9099';
 export const FIRESTORE = 'http://127.0.0.1:8085';
 
+// Test logins (local emulator only) all share one password.
+export const TEST_PASSWORD = 'Test@1234';
+
 // "Bearer owner" is the emulator's admin credential: it bypasses security rules.
 const OWNER = { 'Content-Type': 'application/json', Authorization: 'Bearer owner' };
 
@@ -69,4 +72,20 @@ export async function upsertLogin(email, password, displayName) {
     body: JSON.stringify({ localId: existing.localId, password, displayName }),
   });
   return existing.localId;
+}
+
+// Wipe every login and document in the emulators.
+export async function clearEmulators() {
+  await request(`${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
+  await request(`${FIRESTORE}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
+}
+
+// Create a login with a fixed uid (so it matches a users/{uid} profile), or
+// reset its email, password and name if that uid already exists.
+export async function upsertLoginWithUid(uid, email, password, displayName) {
+  const accounts = `${AUTH}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts`;
+  const found = await request(`${accounts}:lookup`, { method: 'POST', headers: OWNER, body: JSON.stringify({ localId: [uid] }) });
+  const body = JSON.stringify({ localId: uid, email, password, displayName });
+  if (found?.users?.length) await request(`${accounts}:update`, { method: 'POST', headers: OWNER, body });
+  else await request(accounts, { method: 'POST', headers: OWNER, body });
 }

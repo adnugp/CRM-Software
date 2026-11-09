@@ -32,8 +32,31 @@ export function convertRecord(collection, doc) {
 
 export const countStaff = (users) => users.filter((u) => STAFF_ROLES.includes(str(u, 'role'))).length;
 
-export const findOwner = (users, email = OWNER_EMAIL) =>
-  users.find((u) => (str(u, 'email') ?? '').toLowerCase() === email.toLowerCase());
+const emailOf = (u) => (str(u, 'email') ?? '').toLowerCase();
+
+export const findOwners = (users, email = OWNER_EMAIL) => users.filter((u) => emailOf(u) === email.toLowerCase());
+
+/**
+ * The super admin's profile. Profiles were writable by anyone under the old
+ * open rules, so the email alone can't be trusted: the uid must be passed in
+ * explicitly (copied from Firebase console → Authentication), its profile must
+ * carry the owner email, and no other profile may claim that email.
+ */
+export function resolveOwner(users, ownerUid) {
+  if (!ownerUid) {
+    throw new Error(`Pass --owner-uid <uid>: copy the UID of ${OWNER_EMAIL} from Firebase console → Authentication.`);
+  }
+  const profile = users.find((u) => docId(u) === ownerUid);
+  if (!profile) throw new Error(`No users profile has the uid ${ownerUid}.`);
+  if (emailOf(profile) !== OWNER_EMAIL) {
+    throw new Error(`Profile ${ownerUid} has the email ${emailOf(profile) || '(none)'}, not ${OWNER_EMAIL}.`);
+  }
+  const claims = findOwners(users);
+  if (claims.length > 1) {
+    throw new Error(`${claims.length} profiles use ${OWNER_EMAIL} (${claims.map(docId).join(', ')}). Remove the ones that aren't yours first.`);
+  }
+  return profile;
+}
 
 export function workspaceFields(users, now) {
   return {
@@ -48,8 +71,9 @@ export function workspaceFields(users, now) {
 }
 
 /** Every write for documents:commit, in order. Safe to run twice. */
-export function buildWrites(backup, { project, now }) {
+export function buildWrites(backup, { project, now, ownerUid }) {
   checkBackup(backup);
+  const owner = resolveOwner(backup.collections.users, ownerUid);
   const base = `projects/${project}/databases/(default)/documents`;
   const ws = `${base}/workspaces/${WORKSPACE_ID}`;
   const users = backup.collections.users;
@@ -68,15 +92,12 @@ export function buildWrites(backup, { project, now }) {
       updateMask: { fieldPaths: ['workspaceId'] },
     });
   }
-  const owner = findOwner(users);
-  if (owner) {
-    writes.push({
-      update: {
-        name: `${base}/platformOwners/${docId(owner)}`,
-        fields: { email: sv(OWNER_EMAIL), createdAt: { timestampValue: now.toISOString() } },
-      },
-    });
-  }
+  writes.push({
+    update: {
+      name: `${base}/platformOwners/${docId(owner)}`,
+      fields: { email: sv(OWNER_EMAIL), createdAt: { timestampValue: now.toISOString() } },
+    },
+  });
   return writes;
 }
 
@@ -84,7 +105,7 @@ export function buildWrites(backup, { project, now }) {
 export function planReport(backup) {
   checkBackup(backup);
   const { users, projects } = backup.collections;
-  const owner = findOwner(users);
+  const owners = findOwners(users);
   const warnings = [];
 
   for (const u of users) {
@@ -107,13 +128,17 @@ export function planReport(backup) {
     const n = backup.collections[col].filter((d) => !d.fields?.createdAt).length;
     if (n) warnings.push(`${col}: ${n} record${n === 1 ? '' : 's'} without createdAt (lists sort by it, so they won't show).`);
   }
-  if (!owner) warnings.push(`Super admin ${OWNER_EMAIL} was not found among users.`);
+  if (!owners.length) warnings.push(`Super admin ${OWNER_EMAIL} was not found among users.`);
+  const byEmail = Object.groupBy(users.filter(emailOf), emailOf);
+  for (const [email, same] of Object.entries(byEmail)) {
+    if (same.length > 1) warnings.push(`${same.length} profiles use ${email} (${same.map(docId).join(', ')}). Check which are real in Firebase console → Authentication.`);
+  }
 
   return {
     counts: Object.fromEntries(COLLECTIONS.map((c) => [c, backup.collections[c].length])),
     staffCount: countStaff(users),
-    owner: owner ? str(owner, 'email') : null,
-    users: users.map((u) => ({ email: str(u, 'email') ?? docId(u), role: str(u, 'role') ?? '', owner: u === owner })),
+    owners: owners.map((u) => ({ uid: docId(u), email: str(u, 'email') })),
+    users: users.map((u) => ({ uid: docId(u), email: str(u, 'email') ?? docId(u), role: str(u, 'role') ?? '', owner: owners.includes(u) })),
     warnings,
   };
 }

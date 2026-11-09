@@ -13,11 +13,11 @@
 // Each also has sample sales data (companies, contacts and deals in every stage),
 // plus one pending invite into Acme (the link is printed at the end).
 
-import { AUTH, FIRESTORE, PROJECT, assertEmulatorsRunning, put, request, signUp } from './emulator-rest.mjs';
+import { TEST_PASSWORD, assertEmulatorsRunning, clearEmulators, put, signUp } from './emulator-rest.mjs';
 import { addLocalAccounts } from './local-accounts.mjs';
 
-// Test logins (local emulator only). All share one password.
-export const TEST_PASSWORD = 'Test@1234';
+// Test logins (local emulator only) all share TEST_PASSWORD, set in emulator-rest.mjs.
+export { TEST_PASSWORD };
 
 // ---------- helpers ----------
 
@@ -410,8 +410,7 @@ async function main() {
   await assertEmulatorsRunning();
 
   console.log('Clearing local emulator data...');
-  await request(`${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
-  await request(`${FIRESTORE}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
+  await clearEmulators();
 
   console.log('Creating demo companies...');
   const acme = await seedAcme();
@@ -419,7 +418,7 @@ async function main() {
   const falcon = await seedFalcon();
   await seedInvite(acme);
 
-  console.log(`\nDone. Local logins (password for all: see TEST_PASSWORD in scripts/seed-emulator.mjs):`);
+  console.log(`\nDone. Local logins (password for all: see TEST_PASSWORD in scripts/emulator-rest.mjs):`);
   for (const [label, people] of [
     ['Acme Contracting (active)', acme],
     ['Noor Engineering (trial, 9 days left)', noor],

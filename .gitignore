@@ -158,3 +158,6 @@ ui-debug.log
 
 # Personal emulator logins (hold passwords)
 scripts/local-accounts.json
+
+# Migration backups (contain all business data)
+backups/

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   COLLECTIONS, WORKSPACE_ID, OWNER_EMAIL, docId, checkBackup, convertRecord, countStaff,
-  findOwner, workspaceFields, buildWrites, planReport,
+  findOwners, resolveOwner, workspaceFields, buildWrites, planReport,
 } from '../../scripts/lib/migration.mjs';
 
 const s = (v) => ({ stringValue: v });
@@ -50,9 +50,18 @@ test('countStaff counts admins, managers and employees, not clients', () => {
   assert.equal(countStaff(users), 3);
 });
 
-test('findOwner matches the email case-insensitively', () => {
-  assert.equal(docId(findOwner(users)), 'u-owner');
-  assert.equal(findOwner(users, 'nobody@x.com'), undefined);
+test('findOwners matches the email case-insensitively', () => {
+  assert.deepEqual(findOwners(users).map(docId), ['u-owner']);
+  assert.deepEqual(findOwners(users, 'nobody@x.com'), []);
+});
+
+test('resolveOwner needs an explicit uid whose profile has the owner email, and only one such profile', () => {
+  assert.equal(docId(resolveOwner(users, 'u-owner')), 'u-owner');
+  assert.throws(() => resolveOwner(users, undefined), /--owner-uid/);
+  assert.throws(() => resolveOwner(users, 'u-ghost'), /u-ghost/);
+  assert.throws(() => resolveOwner(users, 'u-man'), /m@x\.com/);
+  const impostor = doc('users', 'u-fake', { email: s(OWNER_EMAIL), role: s('admin') });
+  assert.throws(() => resolveOwner([...users, impostor], 'u-owner'), /2 profiles/);
 });
 
 test('workspaceFields describes an active, unlimited, custom-plan company', () => {
@@ -71,7 +80,7 @@ test('buildWrites creates the workspace, copies records, tags users and adds the
     users,
     projects: [doc('projects', 'p1', { name: s('A'), belongsTo: s('Grow Plus Technologies') })],
   });
-  const writes = buildWrites(backup, { project: 'demo-crm', now: NOW });
+  const writes = buildWrites(backup, { project: 'demo-crm', now: NOW, ownerUid: 'u-owner' });
   const base = 'projects/demo-crm/databases/(default)/documents';
   const byName = Object.fromEntries(writes.map((w) => [w.update.name, w]));
 
@@ -91,9 +100,9 @@ test('buildWrites creates the workspace, copies records, tags users and adds the
   assert.equal(writes.length, 1 + 1 + users.length + 1);
 });
 
-test('buildWrites skips the owner record when the owner is not a user', () => {
-  const writes = buildWrites(backupWith({ users: users.slice(1) }), { project: 'p', now: NOW });
-  assert.ok(!writes.some((w) => w.update.name.includes('/platformOwners/')));
+test('buildWrites refuses to run without a valid owner uid', () => {
+  assert.throws(() => buildWrites(backupWith({ users }), { project: 'p', now: NOW }), /--owner-uid/);
+  assert.throws(() => buildWrites(backupWith({ users: users.slice(1) }), { project: 'p', now: NOW, ownerUid: 'u-owner' }), /u-owner/);
 });
 
 test('planReport counts records and finds the owner', () => {
@@ -101,7 +110,7 @@ test('planReport counts records and finds the owner', () => {
   assert.equal(r.counts.projects, 1);
   assert.equal(r.counts.users, 4);
   assert.equal(r.staffCount, 3);
-  assert.equal(r.owner, OWNER_EMAIL.toUpperCase());
+  assert.deepEqual(r.owners, [{ uid: 'u-owner', email: OWNER_EMAIL.toUpperCase() }]);
   assert.equal(r.users.find((u) => u.email === 'm@x.com').role, 'manager');
 });
 
@@ -121,6 +130,14 @@ test('planReport warns about unlinked clients, unknown roles, missing createdAt 
   assert.match(text, /projects: 1 record/);
   assert.match(text, /p1.*client/i);
   assert.match(text, new RegExp(OWNER_EMAIL.replace(/\./g, '\\.')));
+});
+
+test('planReport warns when several profiles share an email (e.g. the owner email)', () => {
+  const impostor = doc('users', 'u-fake', { email: s(OWNER_EMAIL), role: s('admin') });
+  const twin = doc('users', 'u-twin', { email: s('E@x.com'), role: s('user') });
+  const text = planReport(backupWith({ users: [...users, impostor, twin] })).warnings.join(' | ');
+  assert.match(text, /2 profiles use .*gptechnologies/);
+  assert.match(text, /2 profiles use e@x\.com/);
 });
 
 test('planReport: a client linked by clientId or organizationId is fine', () => {
