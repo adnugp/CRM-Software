@@ -28,6 +28,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { ProjectCost } from '@/types';
+import { trySave } from '@/lib/trySave';
 
 const costSchema = z.object({
     description: z.string().min(1, 'Description is required').max(100, 'Description must be less than 100 characters'),
@@ -42,7 +43,7 @@ export type CostFormData = z.infer<typeof costSchema>;
 interface ProjectCostFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (data: CostFormData) => void;
+    onSubmit: (data: CostFormData) => void | Promise<void>;
     cost?: ProjectCost | null;
 }
 
@@ -85,8 +86,8 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
         }
     }, [cost, form]);
 
-    const handleSubmit = (data: CostFormData) => {
-        onSubmit(data);
+    const handleSubmit = async (data: CostFormData) => {
+        if (!(await trySave(() => onSubmit(data)))) return;
         onOpenChange(false);
         form.reset();
     };
@@ -191,7 +192,7 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" className="gradient-primary text-white">
+                            <Button type="submit" className="gradient-primary text-white" disabled={form.formState.isSubmitting}>
                                 {isEditing ? 'Update Expense' : 'Add Expense'}
                             </Button>
                         </div>

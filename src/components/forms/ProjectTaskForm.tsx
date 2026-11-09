@@ -32,6 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProjectTask } from '@/types';
 import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { trySave } from '@/lib/trySave';
 
 const taskSchema = z.object({
     name: z.string().min(1, 'Task name is required').max(100, 'Name must be less than 100 characters'),
@@ -47,7 +48,7 @@ export type TaskFormData = z.infer<typeof taskSchema>;
 interface ProjectTaskFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (data: TaskFormData) => void;
+    onSubmit: (data: TaskFormData) => void | Promise<void>;
     task?: ProjectTask | null;
 }
 
@@ -100,8 +101,8 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
         }
     }, [task, form]);
 
-    const handleSubmit = (data: TaskFormData) => {
-        onSubmit(data);
+    const handleSubmit = async (data: TaskFormData) => {
+        if (!(await trySave(() => onSubmit(data)))) return;
         onOpenChange(false);
         form.reset();
     };
@@ -243,7 +244,7 @@ const ProjectTaskForm: React.FC<ProjectTaskFormProps> = ({
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" className="gradient-primary text-white min-w-[120px]">
+                            <Button type="submit" className="gradient-primary text-white min-w-[120px]" disabled={form.formState.isSubmitting}>
                                 {isEditing ? 'Update Task' : 'Add Task'}
                             </Button>
                         </DialogFooter>

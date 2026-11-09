@@ -5,15 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Payment } from '@/types';
+import { trySave } from '@/lib/trySave';
 
 interface PaymentFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payment: Omit<Payment, 'id'> & { id?: string }) => void;
+  onSubmit: (payment: Omit<Payment, 'id'> & { id?: string }) => void | Promise<void>;
   payment?: Payment | null;
 }
 
 const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit, payment }) => {
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -42,7 +44,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
     }
   }, [payment, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const paymentData = {
       description: formData.description,
@@ -51,13 +53,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
       status: formData.status,
       company: formData.company,
     };
-
-    if (payment?.id) {
-      onSubmit({ ...paymentData, id: payment.id });
-    } else {
-      onSubmit(paymentData);
-    }
-    onOpenChange(false);
+    setSaving(true);
+    const saved = await trySave(() => onSubmit(payment?.id ? { ...paymentData, id: payment.id } : paymentData));
+    setSaving(false);
+    if (saved) onOpenChange(false);
   };
 
   return (
@@ -140,7 +139,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ open, onOpenChange, onSubmit,
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground">
+            <Button type="submit" className="bg-primary text-primary-foreground" disabled={saving}>
               {payment ? 'Update Payment' : 'Add Payment'}
             </Button>
           </div>

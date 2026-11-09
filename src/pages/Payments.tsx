@@ -156,13 +156,9 @@ const Payments: React.FC = () => {
         });
       }
     } catch (error) {
-      const msg = 'Failed to save payment. Please try again.';
-      setOperationError(msg);
-      toast({
-        title: 'Error',
-        description: msg,
-        variant: 'destructive',
-      });
+      // PaymentForm shows "Not saved" and stays open.
+      setOperationError('Failed to save payment. Please try again.');
+      throw error;
     } finally {
       setIsProcessing(false);
     }
@@ -197,13 +193,9 @@ const Payments: React.FC = () => {
         });
       }
     } catch (error) {
-      const msg = 'Failed to save subscription. Please try again.';
-      setOperationError(msg);
-      toast({
-        title: 'Error',
-        description: msg,
-        variant: 'destructive',
-      });
+      // SubscriptionForm shows "Not saved" and stays open.
+      setOperationError('Failed to save subscription. Please try again.');
+      throw error;
     } finally {
       setIsProcessing(false);
     }

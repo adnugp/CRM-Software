@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Partner } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { trySave } from '@/lib/trySave';
 
 const partnerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
@@ -47,7 +48,7 @@ interface PartnerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   partner?: Partner | null;
-  onSubmit: (data: PartnerFormData) => void;
+  onSubmit: (data: PartnerFormData) => void | Promise<void>;
 }
 
 const partnershipTypes = [
@@ -126,14 +127,14 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
 
   const watchedPartnershipType = form.watch('partnershipType');
 
-  const handleSubmit = (data: PartnerFormData) => {
+  const handleSubmit = async (data: PartnerFormData) => {
     const payload = {
       ...data,
       partnershipType: data.partnershipType === 'Others' && data.partnershipTypeOther
         ? data.partnershipTypeOther
         : data.partnershipType,
     };
-    onSubmit(payload);
+    if (!(await trySave(() => onSubmit(payload)))) return;
     toast({
       title: isEditing ? 'Partner Updated' : 'Partner Added',
       description: `${data.name} has been ${isEditing ? 'updated' : 'added'} successfully.`,
@@ -319,7 +320,7 @@ const PartnerForm: React.FC<PartnerFormProps> = ({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="gradient-primary text-primary-foreground">
+              <Button type="submit" className="gradient-primary text-primary-foreground" disabled={form.formState.isSubmitting}>
                 {isEditing ? 'Update Partner' : 'Add Partner'}
               </Button>
             </div>

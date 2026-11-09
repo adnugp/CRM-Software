@@ -5,15 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Subscription } from '@/types';
+import { trySave } from '@/lib/trySave';
 
 interface SubscriptionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (subscription: Omit<Subscription, 'id'> & { id?: string }) => void;
+  onSubmit: (subscription: Omit<Subscription, 'id'> & { id?: string }) => void | Promise<void>;
   subscription?: Subscription | null;
 }
 
 const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange, onSubmit, subscription }) => {
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     provider: '',
@@ -45,9 +47,10 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
     }
   }, [subscription, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
+    setSaving(true);
+    const saved = await trySave(() => onSubmit({
       id: subscription?.id,
       name: formData.name,
       provider: formData.provider,
@@ -55,8 +58,9 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
       billingCycle: formData.billingCycle,
       nextBillingDate: formData.nextBillingDate,
       status: formData.status,
-    });
-    onOpenChange(false);
+    }));
+    setSaving(false);
+    if (saved) onOpenChange(false);
   };
 
   return (
@@ -155,7 +159,7 @@ const SubscriptionForm: React.FC<SubscriptionFormProps> = ({ open, onOpenChange,
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground">
+            <Button type="submit" className="bg-primary text-primary-foreground" disabled={saving}>
               {subscription ? 'Update Subscription' : 'Add Subscription'}
             </Button>
           </div>

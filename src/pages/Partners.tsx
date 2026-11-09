@@ -67,29 +67,14 @@ const Partners: React.FC = () => {
     }
   };
 
+  // PartnerForm shows the success / "Not saved" messages; errors must reach it.
   const handleFormSubmit = async (data: PartnerFormData) => {
-    try {
-      if (editingPartner) {
-        await updatePartner(editingPartner.id, data);
-        toast({
-          title: 'Partner updated',
-          description: `"${data.name}" has been updated successfully.`,
-        });
-      } else {
-        await addPartner(data as Omit<Partner, 'id'>);
-        toast({
-          title: 'Partner added',
-          description: `"${data.name}" has been added successfully.`,
-        });
-      }
-      setEditingPartner(null);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to save partner.',
-        variant: 'destructive',
-      });
+    if (editingPartner) {
+      await updatePartner(editingPartner.id, data);
+    } else {
+      await addPartner(data as Omit<Partner, 'id'>);
     }
+    setEditingPartner(null);
   };
 
   const handleOpenForm = () => {

@@ -32,6 +32,7 @@ import { Registration } from '@/types';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionField } from '@/components/divisions/DivisionField';
 import { toast } from '@/hooks/use-toast';
+import { trySave } from '@/lib/trySave';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 
@@ -52,7 +53,7 @@ interface RegistrationFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   registration?: Registration | null;
-  onSubmit: (data: RegistrationFormData) => void;
+  onSubmit: (data: RegistrationFormData) => void | Promise<void>;
 }
 
 const registrationTypes = [
@@ -128,12 +129,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   }, [registration, form, defaultDivisionId]);
 
-  const handleSubmit = (data: RegistrationFormData) => {
+  const handleSubmit = async (data: RegistrationFormData) => {
     const finalData = {
       ...data,
       type: data.type === 'Others' ? (otherTypeSpecify ? `Others: ${otherTypeSpecify}` : 'Others') : data.type,
     };
-    onSubmit(finalData);
+    if (!(await trySave(() => onSubmit(finalData)))) return;
     toast({
       title: isEditing ? 'Registration Updated' : 'Registration Created',
       description: `${data.name} has been ${isEditing ? 'updated' : 'created'} successfully.`,
@@ -309,7 +310,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="gradient-primary text-primary-foreground min-w-[120px]">
+              <Button type="submit" className="gradient-primary text-primary-foreground min-w-[120px]" disabled={form.formState.isSubmitting}>
                 {isEditing ? 'Update Registration' : 'Create Registration'}
               </Button>
             </DialogFooter>
