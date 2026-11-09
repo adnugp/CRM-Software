@@ -29,7 +29,7 @@ npm run dev         # terminal 2: app at http://localhost:8080
 ```
 
 `npm run seed` creates three demo companies, each with sample companies, contacts and deals, all logins sharing the test password defined
-as `TEST_PASSWORD` in `scripts/seed-emulator.mjs`:
+as `TEST_PASSWORD` in `scripts/emulator-rest.mjs`:
 
 | Company | Plan | Divisions | Logins |
 |---|---|---|---|
@@ -47,11 +47,13 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 | `npm run emulators` | Start the local Firebase emulators |
 | `npm run seed` | Reset the emulators to sample data |
 | `npm run accounts` | Add or update your own company and logins from `scripts/local-accounts.json` (git-ignored; copy `local-accounts.example.json`). `"platformOwner": true` on an account makes it the super admin. `seed` re-adds them too |
+| `npm run migrate -- <step>` | One-time move of the old single-company live data into a workspace: `backup`, `plan`, `apply` (see `docs/go-live.md`) |
+| `npm run migrate:fixture` | Put old-layout sample data in the emulators to rehearse the move (wipes them; `seed` restores) |
 | `npm run dev` | Dev server using local emulator data |
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers) |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers, data migration) |
 | `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
 
 ## Workspaces and divisions
@@ -134,12 +136,17 @@ src/
   types/            Shared TypeScript types
 firestore.rules     Database security rules
 storage.rules       File storage security rules
-tests/              Security rules tests (run against emulators)
-scripts/            Local emulator launcher and sample-data seed
+tests/              Security rules tests (run against emulators) and unit tests
+scripts/            Emulator launcher, sample-data seed and the live-data migration
 docs/               Product analysis, improvement notes, bug sheet
 ```
 
 ## Deploying
+
+**The first deploy of this multi-company version** needs the live data moved first. Follow
+[`docs/go-live.md`](docs/go-live.md) step by step.
+
+After that, updates are deployed with:
 
 ```bash
 npm run build
