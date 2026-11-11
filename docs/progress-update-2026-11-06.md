@@ -1,6 +1,15 @@
-# ProjectDesk progress update (6 November 2026)
+# ProjectDesk progress update (4–11 November 2026)
 
-Between 4 and 6 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. All 37 changes are on the `redesign` branch and tested on local data. Nothing is live yet: the live site and its data are unchanged.
+Between 4 and 11 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. **It went live on 11 November** at https://crm-gpt-2026.web.app, with the existing data moved across. All the work (about 50 saved changes) is on GitHub (`main`).
+
+## Go-live (11 November)
+
+- **Why it was urgent.** The old database rules let anyone on the internet, signed in or not, read, change and delete every record. That is now closed: a signed-out request is refused.
+- **Data moved.** The existing data became the company **Grow Plus Technologies**: 4 people (2 admins, 2 employees), 3 employees, 3 payments, 2 subscriptions and 1 file. Nothing was lost. The old "belongs to" (GPT / SDE) tag was dropped, as agreed.
+- **Rehearsed first.** A read-only copy of the live data was loaded on a local computer and checked screen by screen before anything changed on live. The real move matched the rehearsal exactly.
+- **Safety net.** A full backup was taken just before the move. The old records were left in place (hidden) so the old version could be restored. They can be deleted after a few weeks.
+- **Deployed together.** The data move, the new database and file rules and the new app went out within minutes of each other. The live site was then checked.
+- **Two security fixes** found by an automated review were deployed the same day (see Security below).
 
 "ProjectDesk" is a working name and can be changed in one place.
 
@@ -37,8 +46,10 @@ In total, 85 unused files were deleted.
 | Sales: Companies and Contacts | A directory of the companies you sell to and their people. Each company page shows its contacts, its deals and its earlier projects, tenders and payments. A company or contact can't be deleted while deals use it. |
 | Dashboard cards | "Follow-ups due" (overdue in red) and "Pipeline" totals. |
 | Assistant | Also answers "pipeline value", "deals in proposal" and "follow-ups today". |
+| Email confirmation | Signing up a company or joining by invite sends a confirmation link. Nothing is created until it's clicked, so nobody can use an email address that isn't theirs. Existing accounts sign in as before. |
+| Live-data move tool | Backs up the live data, shows a dry run with every person and any problems, then moves it. Tested on sample data and on a copy of the real data first. |
 | Local test environment | Development runs on local copies of the database, logins and file storage, so testing never touches live data. A "Local data" badge shows on screen. One command loads 3 demo companies with sample data. |
-| Automated tests | 52 unit tests of the business rules and 63 security tests of who can read and change what. |
+| Automated tests | 67 unit tests of the business rules and the data move, and 72 security tests of who can read and change what. |
 
 ## What was fixed and improved
 
@@ -51,13 +62,19 @@ In total, 85 unused files were deleted.
 - Data from the previous user stayed on screen after logout.
 - Chatbot images were broken in the live build.
 - Wrong redirects after sign-in for users without access.
-- Pop-up messages weren't shown at all. With them restored, the project, tender and employee forms now wait for the save. On failure they say "Not saved" and stay open, instead of claiming success.
+- Pop-up messages weren't shown at all. With them restored, every form (projects, tenders, employees, costs, tasks, partners, payments, subscriptions, registrations) now waits for the save. On failure it says "Not saved" in plain words and keeps what was typed, instead of claiming success.
+- The side menu crashed, leaving a blank screen, for a person whose profile had no name.
 - Clients from the same company now share one organisation ID, so they all see their company's projects.
 
 **Security**
 - Role-based database and file-storage rules: each company is isolated, and clients see only their own projects.
 - Sign-up and invites are checked by the database rules, not just the screens. A gap found in a security review was fixed: an invite could be used up without joining.
 - Card numbers and security codes are never stored.
+- **The live database was open to everyone**; it is now closed (see Go-live).
+- **Billing details are private.** The card summary, billing period and contact email were readable by every member of a company, including outside clients. They are now kept apart, visible only to that company's admins and the product owner.
+- **Email addresses are confirmed.** Before, anyone could sign up with an address they didn't own. Now the confirmation link must be clicked first, and the database itself enforces it.
+- People can no longer put someone else's email on their own profile.
+- The super admin for the move was taken from the login system, not from data anyone could have edited while the old database was open.
 
 **Speed and upkeep**
 - The first download dropped from 2.5 MB to 76 KB, because pages now load when opened.
@@ -65,20 +82,21 @@ In total, 85 unused files were deleted.
 
 ## Status and next steps
 
-**Where it stands.** The work is on the `redesign` branch (37 commits). It is not merged into `main` and not deployed.
+**Where it stands.** Live at https://crm-gpt-2026.web.app since 11 November, with both security fixes. GitHub (`main`) matches the live site.
 
 **Checks.** All of these pass:
-- 52 unit tests and 63 security tests;
+- 67 unit tests and 72 security tests;
 - type check, lint (0 errors) and the production build;
-- a hand test of every flow on local data.
+- a hand test of every flow on local data, and a rehearsal with a copy of the real data.
 
-**Before going live**
-- Move the live data into the new multi-company layout with a one-time script, tested on a copy first.
-- Set up the hosting addresses: the main site for sign-up and an app address for everything else.
+**To check on live**
+- Sign in, and have the other three people sign in.
+- Send a test invite to an address you can open, to confirm the email arrives (it comes from noreply@crm-gpt-2026.firebaseapp.com).
 
 **Next work**
-- Real card payments with Stripe. This needs the Firebase Blaze plan. It would also send invite and sign-up emails.
-- Make the remaining forms (costs, tasks, partners, payments) wait for the save the same way.
+- Real card payments with Stripe. This needs the Firebase Blaze plan. It would also let the app send invite emails itself.
+- Delete the old hidden records in a few weeks, once everything has been confirmed fine.
+- Optionally a custom domain, with sign-up on the main domain and the app on `app.`.
 - Replace the fixed risk paragraph in the project's Executive Briefing PDF with real figures.
 - Set the final plan names, prices and sales email.
 - Removing a user should also remove their login. This needs a server function.
