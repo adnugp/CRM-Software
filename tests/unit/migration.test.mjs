@@ -100,6 +100,13 @@ test('buildWrites creates the workspace, copies records, tags users and adds the
   assert.equal(writes.length, 1 + 1 + users.length + 1);
 });
 
+test('buildWrites with fullProfiles writes whole profiles (an empty emulator has none to update)', () => {
+  const writes = buildWrites(backupWith({ users }), { project: 'p', now: NOW, ownerUid: 'u-owner', fullProfiles: true });
+  const u = writes.find((w) => w.update.name.endsWith('/users/u-man'));
+  assert.equal(u.updateMask, undefined);
+  assert.deepEqual(u.update.fields, { email: s('m@x.com'), role: s('manager'), workspaceId: s(WORKSPACE_ID) });
+});
+
 test('buildWrites refuses to run without a valid owner uid', () => {
   assert.throws(() => buildWrites(backupWith({ users }), { project: 'p', now: NOW }), /--owner-uid/);
   assert.throws(() => buildWrites(backupWith({ users: users.slice(1) }), { project: 'p', now: NOW, ownerUid: 'u-owner' }), /u-owner/);

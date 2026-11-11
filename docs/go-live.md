@@ -60,10 +60,11 @@ Read the `plan` output carefully:
     true in the old app);
   - two profiles with the same email.
 
-Then load the copy into the emulators, with local logins for everyone:
+Then load the copy into the emulators. `--fresh` wipes them first (the demo data has a login
+with your email that would clash), and `--emulator-logins` adds a local login for everyone:
 
 ```bash
-npm run migrate -- apply backups/live-<date>.json --target emulator --owner-uid <your UID> --emulator-logins
+npm run migrate -- apply backups/live-<date>.json --target emulator --owner-uid <your UID> --fresh --emulator-logins
 npm run dev
 ```
 

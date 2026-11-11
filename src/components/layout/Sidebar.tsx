@@ -129,7 +129,7 @@ const Sidebar: React.FC = () => {
             {user?.avatar ? (
               <img src={user.avatar} alt="" className="h-full w-full object-cover" />
             ) : (
-              user?.name.charAt(0).toUpperCase()
+              (user?.name || user?.email || '?').charAt(0).toUpperCase()
             )}
           </div>
           <div className="flex-1 min-w-0">

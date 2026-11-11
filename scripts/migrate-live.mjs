@@ -4,14 +4,15 @@
 //
 //   npm run migrate -- backup --source live|emulator
 //   npm run migrate -- plan <backup.json>
-//   npm run migrate -- apply <backup.json> --target emulator|live --owner-uid <uid> [--emulator-logins]
+//   npm run migrate -- apply <backup.json> --target emulator|live --owner-uid <uid> [--fresh] [--emulator-logins]
 //
 // --owner-uid is the super admin's UID, copied from Firebase console → Authentication.
+// --fresh (emulator only) wipes the emulators first, so demo logins can't clash with real ones.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { COLLECTIONS, buildWrites, checkBackup, docId, planReport, str } from './lib/migration.mjs';
 import { commit, listAll, target } from './lib/firestore-rest.mjs';
-import { TEST_PASSWORD, assertEmulatorsRunning, upsertLoginWithUid } from './emulator-rest.mjs';
+import { TEST_PASSWORD, assertEmulatorsRunning, clearEmulators, upsertLoginWithUid } from './emulator-rest.mjs';
 
 const [step, ...rest] = process.argv.slice(2);
 const flag = (name) => {
@@ -63,7 +64,14 @@ async function apply() {
   const data = load(file);
   if (t.name === 'emulator') await assertEmulatorsRunning();
   // Built first so a wrong or missing --owner-uid stops us before anything is written.
-  const writes = buildWrites(data, { project: t.project, now: new Date(), ownerUid: flag('owner-uid') });
+  const writes = buildWrites(data, { project: t.project, now: new Date(), ownerUid: flag('owner-uid'),
+    // The emulator may be empty (a copy of live data): write whole profiles there.
+    fullProfiles: t.name === 'emulator' });
+  if (rest.includes('--fresh')) {
+    if (t.name !== 'emulator') throw new Error('--fresh only works with --target emulator.');
+    await clearEmulators();
+    console.log('Emulators wiped (npm run seed brings the demo data back).');
+  }
   if (t.name === 'live') {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const answer = await rl.question(`This writes to the LIVE project. Type ${t.project} to continue: `);
@@ -85,7 +93,7 @@ async function apply() {
 
 const steps = { backup, plan, apply };
 if (!steps[step]) {
-  console.log('Usage: npm run migrate -- backup --source live|emulator | plan <file> | apply <file> --target emulator|live --owner-uid <uid> [--emulator-logins]');
+  console.log('Usage: npm run migrate -- backup --source live|emulator | plan <file> | apply <file> --target emulator|live --owner-uid <uid> [--fresh] [--emulator-logins]');
   process.exit(1);
 }
 Promise.resolve(steps[step]()).catch((err) => {

@@ -70,8 +70,12 @@ export function workspaceFields(users, now) {
   };
 }
 
-/** Every write for documents:commit, in order. Safe to run twice. */
-export function buildWrites(backup, { project, now, ownerUid }) {
+/**
+ * Every write for documents:commit, in order. Safe to run twice.
+ * Live profiles already exist, so only workspaceId is added to them. With
+ * fullProfiles (a copy loaded into an empty emulator) whole profiles are written.
+ */
+export function buildWrites(backup, { project, now, ownerUid, fullProfiles = false }) {
   checkBackup(backup);
   const owner = resolveOwner(backup.collections.users, ownerUid);
   const base = `projects/${project}/databases/(default)/documents`;
@@ -87,10 +91,10 @@ export function buildWrites(backup, { project, now, ownerUid }) {
     }
   }
   for (const u of users) {
-    writes.push({
-      update: { name: `${base}/users/${docId(u)}`, fields: { workspaceId: sv(WORKSPACE_ID) } },
-      updateMask: { fieldPaths: ['workspaceId'] },
-    });
+    const name = `${base}/users/${docId(u)}`;
+    writes.push(fullProfiles
+      ? { update: { name, fields: { ...(u.fields ?? {}), workspaceId: sv(WORKSPACE_ID) } } }
+      : { update: { name, fields: { workspaceId: sv(WORKSPACE_ID) } }, updateMask: { fieldPaths: ['workspaceId'] } });
   }
   writes.push({
     update: {
