@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getInvite } from '@/services/invites';
 import { inviteState } from '@/lib/subscription';
 import { ROLE_LABELS } from '@/config/roles';
+import ConfirmEmailNotice from '@/components/auth/ConfirmEmailNotice';
 import type { Invite } from '@/types';
 
 type Loaded = { kind: 'loading' } | { kind: 'missing' } | { kind: 'ready'; invite: Invite };
@@ -36,6 +37,9 @@ const Join: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Set once the confirmation email has gone out: the address it went to.
+  const [confirmFor, setConfirmFor] = useState('');
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -84,18 +88,27 @@ const Join: React.FC = () => {
     );
   }
 
+  // On success the new session opens and this page redirects into the app.
+  const finish = async (resend = false) => {
+    setError('');
+    setNote('');
+    setSaving(true);
+    const result = await joinWithInvite(invite, name, password, resend);
+    if (result === true) return;
+    setSaving(false);
+    if (typeof result === 'string') return setError(result);
+    if (confirmFor && !resend) setError('Not confirmed yet. Click the link in the email, then continue.');
+    if (resend) setNote('Sent again.');
+    setConfirmFor(result.confirmEmail);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (name.trim().length < 2) return setError('Enter your name.');
     if (password.length < 6) return setError('Use at least 6 characters for your password.');
     if (password !== confirm) return setError('Passwords do not match.');
-    setSaving(true);
-    const result = await joinWithInvite(invite, name, password);
-    if (result !== true) {
-      setError(result);
-      setSaving(false);
-    }
+    await finish();
   };
 
   return (
@@ -108,6 +121,16 @@ const Join: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {confirmFor ? (
+            <ConfirmEmailNotice
+              email={confirmFor}
+              busy={saving}
+              error={error}
+              note={note}
+              onContinue={() => finish()}
+              onResend={() => finish(true)}
+            />
+          ) : (
           <form onSubmit={submit} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="join-email">Email</Label>
@@ -131,6 +154,7 @@ const Join: React.FC = () => {
               Join {invite.workspaceName}
             </Button>
           </form>
+          )}
         </CardContent>
       </Card>
     </PublicShell>

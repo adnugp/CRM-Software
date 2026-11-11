@@ -20,6 +20,8 @@ import {
 import { addDays } from '@/lib/subscription';
 import { formatCardNumber, formatExpiry, validateCard } from '@/lib/payment';
 import { cn } from '@/lib/utils';
+import ConfirmEmailNotice from '@/components/auth/ConfirmEmailNotice';
+import type { CompanySignup } from '@/services/signup';
 
 const schema = z.object({
   companyName: z.string().trim().min(2, 'Enter your company name').max(100, 'Keep it under 100 characters'),
@@ -52,6 +54,11 @@ const Signup: React.FC = () => {
   const [plan, setPlan] = useState<PlanId>('team');
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [error, setError] = useState('');
+  // After the first submit: everything needed to finish once the email is
+  // confirmed (the card is already checked, so it isn't asked for again).
+  const [pending, setPending] = useState<{ input: CompanySignup & { password: string }; email: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -78,12 +85,48 @@ const Signup: React.FC = () => {
       setError(err instanceof PaymentError ? err.message : 'We could not check your card. Please try again.');
       return;
     }
-    const result = await signUpCompany({
+    const input = {
       plan, billingCycle: cycle, paymentMethod,
       companyName: values.companyName, name: values.name, email: values.email, password: values.password,
-    });
-    if (result !== true) setError(result);
+    };
+    const result = await signUpCompany(input);
+    if (result === true) return;
+    if (typeof result === 'string') return setError(result);
+    setPending({ input, email: result.confirmEmail });
   };
+
+  // From the "confirm your email" step. On success the new session opens the app.
+  const finish = async (resend = false) => {
+    if (!pending) return;
+    setError('');
+    setNote('');
+    setBusy(true);
+    const result = await signUpCompany(pending.input, resend);
+    if (result === true) return;
+    setBusy(false);
+    if (typeof result === 'string') return setError(result);
+    if (resend) setNote('Sent again.');
+    else setError('Not confirmed yet. Click the link in the email, then continue.');
+  };
+
+  if (pending) {
+    return (
+      <PublicShell>
+        <Card>
+          <CardContent className="pt-6">
+            <ConfirmEmailNotice
+              email={pending.email}
+              busy={busy}
+              error={error}
+              note={note}
+              onContinue={() => finish()}
+              onResend={() => finish(true)}
+            />
+          </CardContent>
+        </Card>
+      </PublicShell>
+    );
+  }
 
   const field = (
     name: keyof Values,

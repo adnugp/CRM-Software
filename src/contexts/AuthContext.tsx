@@ -5,6 +5,7 @@ import { db, storage } from '@/services/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
   onAuthStateChanged,
   updateProfile as updateFirebaseProfile,
@@ -18,7 +19,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { createCompanyRecords, type CompanySignup } from '@/services/signup';
 import { acceptInviteRecords } from '@/services/invites';
 import { isStaffRole } from '@/lib/subscription';
-import type { Invite } from '@/types';
+import type { Invite, OnboardResult } from '@/types';
 
 const fetchUserData = async (uid: string): Promise<AppUser | null> => {
   try {
@@ -43,6 +44,8 @@ const onboardingError = (code: string | undefined, deniedMessage: string): strin
       return 'Password should be at least 6 characters.';
     case 'auth/invalid-email':
       return 'Please enter a valid email address.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a few minutes, then try again.';
     case 'auth/network-request-failed':
     case 'unavailable':
       return 'Network problem. Check your connection and try again.';
@@ -67,10 +70,14 @@ interface AuthContextType {
   updatePassword: (current: string, newP: string) => Promise<boolean>;
   /** True for the product owner (super admin): /platformOwners/{uid} exists. */
   isOwner: boolean;
-  /** Self-serve sign-up: creates the login, the trial company and the admin profile. */
-  signUpCompany: (input: CompanySignup & { password: string }) => Promise<true | string>;
-  /** Creates the login for an invite and joins its company. */
-  joinWithInvite: (invite: Invite, name: string, password: string) => Promise<true | string>;
+  /**
+   * Self-serve sign-up: creates the login, then (once its email is confirmed)
+   * the trial company and the admin profile. `resend` sends the confirmation
+   * email again.
+   */
+  signUpCompany: (input: CompanySignup & { password: string }, resend?: boolean) => Promise<OnboardResult>;
+  /** Creates the login for an invite and, once its email is confirmed, joins its company. */
+  joinWithInvite: (invite: Invite, name: string, password: string, resend?: boolean) => Promise<OnboardResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -153,20 +160,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, [applySession]);
 
-  // Creates (or, after an earlier half-finished attempt, re-uses) the login,
-  // writes the records, then loads the session. Returns true or an error message.
+  // Creates (or, after an earlier half-finished attempt, re-uses) the login.
+  // Until its email is confirmed nothing else is written: a confirmation email
+  // goes out (for a new login, or when asked to resend) and the person is signed
+  // out again; repeating the same form after clicking the link finishes the job.
+  // Then writes the records and loads the session.
   const onboard = useCallback(async (
     email: string,
     password: string,
     displayName: string,
     writeRecords: (uid: string) => Promise<unknown>,
     deniedMessage: string,
-  ): Promise<true | string> => {
+    resend = false,
+  ): Promise<OnboardResult> => {
     onboardingRef.current = true;
     try {
       let credential;
+      let created = false;
       try {
         credential = await createUserWithEmailAndPassword(auth, email, password);
+        created = true;
       } catch (error) {
         if ((error as { code?: string }).code !== 'auth/email-already-in-use') throw error;
         // An earlier attempt may have created the login but not the profile: finish it.
@@ -177,6 +190,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       await updateFirebaseProfile(credential.user, { displayName }).catch(() => undefined);
+      if (!credential.user.emailVerified) {
+        // The link brings them back to this page to continue.
+        if (created || resend) await sendEmailVerification(credential.user, { url: window.location.href });
+        await signOut(auth);
+        return { confirmEmail: email };
+      }
       await writeRecords(credential.user.uid);
       await applySession(credential.user);
       return true;
@@ -189,15 +208,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [applySession]);
 
-  const signUpCompany = useCallback((input: CompanySignup & { password: string }) =>
+  const signUpCompany = useCallback((input: CompanySignup & { password: string }, resend = false) =>
     onboard(input.email.trim().toLowerCase(), input.password, input.name.trim(),
       uid => createCompanyRecords(uid, input),
-      'We could not create your company. Please try again.'), [onboard]);
+      'We could not create your company. Please try again.', resend), [onboard]);
 
-  const joinWithInvite = useCallback((invite: Invite, name: string, password: string) =>
+  const joinWithInvite = useCallback((invite: Invite, name: string, password: string, resend = false) =>
     onboard(invite.email, password, name.trim(),
       uid => acceptInviteRecords(uid, invite, name),
-      'This invite can no longer be used: it may have expired, or the company is full or read-only. Ask your admin for a new one.'),
+      'This invite can no longer be used: it may have expired, or the company is full or read-only. Ask your admin for a new one.',
+      resend),
     [onboard]);
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; errorCode?: string }> => {

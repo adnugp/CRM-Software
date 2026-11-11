@@ -54,6 +54,12 @@ export interface WorkspaceBilling {
   paymentMethod?: PaymentMethodSummary;
 }
 
+/**
+ * Result of signing up a company or joining by invite: done (true), an error
+ * message, or "confirm your email first" (a link was sent to this address).
+ */
+export type OnboardResult = true | string | { confirmEmail: string };
+
 /** A one-time link that lets someone join a workspace with a given role. */
 export interface Invite {
   /** The random document id; it is the secret in the link. */

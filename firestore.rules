@@ -92,6 +92,12 @@ service cloud.firestore {
       return request.auth.token.email.lower();
     }
 
+    // The person clicked the confirmation link Firebase emailed them, so the
+    // sign-in email really is theirs. Needed to found or join a company.
+    function emailConfirmed() {
+      return request.auth.token.get('email_verified', false) == true;
+    }
+
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -138,6 +144,7 @@ service cloud.firestore {
         && d.keys().hasAll(['contactName', 'contactEmail', 'billingCycle', 'paymentMethod'])
         && d.contactName is string && d.contactName.size() <= 100
         && d.contactEmail == authEmail()
+        && emailConfirmed()
         && d.billingCycle in ['monthly', 'yearly']
         && validPaymentMethod(d.paymentMethod);
     }
@@ -149,6 +156,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['name', 'divisions', 'status', 'plan', 'staffLimit', 'staffCount',
                                'trialEndsAt', 'createdBy', 'createdAt'])
         && existsAfter(billingPath(ws))
+        && emailConfirmed()
         && d.name is string && d.name.size() > 0 && d.name.size() <= 100
         && d.divisions is list && d.divisions.size() == 0
         && d.status == 'trial'
@@ -171,6 +179,7 @@ service cloud.firestore {
         && inv.status == 'pending'
         && request.time < inv.expiresAt
         && inv.email == authEmail()
+        && emailConfirmed()
         && d.email == inv.email
         && ws == inv.workspaceId
         && d.role == inv.role
@@ -229,7 +238,8 @@ service cloud.firestore {
           && writable(myWs()))
         || (signedIn() && request.auth.uid == uid
           && changed().hasOnly(['name', 'email', 'avatar'])
-          && (!changed().hasAny(['email']) || request.resource.data.email == authEmail()));
+          && (!changed().hasAny(['email'])
+              || (request.resource.data.email == authEmail() && emailConfirmed())));
 
       // Removing a staff member frees their place: the same batch lowers the
       // workspace's staffCount and names them in removedUid.

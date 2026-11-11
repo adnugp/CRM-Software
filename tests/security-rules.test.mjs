@@ -32,7 +32,9 @@ const profiles = {
 const inDays = (n) => new Date(Date.now() + n * 86400000);
 const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 // A signed-in context whose token carries an email (needed for sign-up and invites).
-const as = (uid, email) => env.authenticatedContext(uid, { email }).firestore();
+// A login with an email claim; `verified` is whether the person confirmed it.
+const as = (uid, email, verified = true) =>
+  env.authenticatedContext(uid, { email, email_verified: verified }).firestore();
 
 const workspaces = {
   wsA: { name: 'Company A', divisions: [], status: 'active', plan: 'team', staffLimit: 5, staffCount: 3 },
@@ -266,9 +268,10 @@ describe('user profiles', () => {
     await assertFails(db('clientA').collection('users').doc('clientA').update({ organizationId: 'ORG-BET-002' }));
   });
 
-  it('a profile email can only follow the real sign-in email', async () => {
-    const asEmployee = env.authenticatedContext('employee', { email: 'emp@a.dev' }).firestore();
+  it('a profile email can only follow the real, confirmed sign-in email', async () => {
+    const asEmployee = as('employee', 'emp@a.dev');
     await assertFails(asEmployee.collection('users').doc('employee').update({ email: 'owner@p.dev' }));
+    await assertFails(as('employee', 'emp@a.dev', false).collection('users').doc('employee').update({ email: 'emp@a.dev' }));
     await assertSucceeds(asEmployee.collection('users').doc('employee').update({ email: 'emp@a.dev' }));
   });
 
@@ -413,6 +416,11 @@ describe('company sign-up', () => {
     await assertFails(signUp(founder(), { company: { contactEmail: 'founder@new.dev' } }));
   });
 
+  it('the founder must have confirmed their email', async () => {
+    await assertFails(signUp(as('founder', 'founder@new.dev', false)));
+    await assertSucceeds(signUp(founder()));
+  });
+
   it('billing must carry the login email', async () => {
     await assertFails(signUp(founder(), { billing: { contactEmail: 'someone@else.dev' } }));
   });
@@ -439,9 +447,9 @@ describe('company sign-up', () => {
 
 describe('invites', () => {
   const newInvite = (over = {}) => invite({ email: 'hire@a.dev', name: 'Hire', role: 'user', ...over });
-  const accept = (uid, token, { email = invites[token].email, profile = {}, staffCount } = {}) => {
+  const accept = (uid, token, { email = invites[token].email, profile = {}, staffCount, verified = true } = {}) => {
     const inv = invites[token];
-    const fs = as(uid, email);
+    const fs = as(uid, email, verified);
     const batch = fs.batch();
     batch.set(fs.collection('users').doc(uid), clean({
       name: inv.name, email: inv.email, role: inv.role, workspaceId: inv.workspaceId,
@@ -491,6 +499,12 @@ describe('invites', () => {
 
   it('the login email must match the invite', async () => {
     await assertFails(accept('newbie', 'inv-mgr', { email: 'other@a.dev', staffCount: 4 }));
+  });
+
+  it('the invited email must be confirmed before joining', async () => {
+    await assertFails(accept('newbie', 'inv-mgr', { staffCount: 4, verified: false }));
+    await assertFails(accept('gamma', 'inv-client', { verified: false }));
+    await assertSucceeds(accept('gamma', 'inv-client'));
   });
 
   it('expired, revoked and used invites cannot be accepted', async () => {

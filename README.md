@@ -84,7 +84,14 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
   can still see everything, but nothing can be changed until it's activated.
 - **Invites.** Admins add people from **Settings → Team**: enter email, name and role, then
   copy the one-time link (valid 7 days) and send it. The person opens it, picks a password
-  and joins. The app doesn't send emails yet.
+  and joins. The app doesn't send invite emails itself yet.
+- **Email confirmation.** Signing up a company or joining by invite creates the login, then
+  Firebase emails a confirmation link; nothing else is written until it's clicked (the rules
+  require `email_verified`). Existing logins sign in as before. Locally no email is sent:
+  the link is in the Emulator UI (http://localhost:4000 → Authentication) or at
+  http://127.0.0.1:9099/emulator/v1/projects/demo-crm/oobCodes.
+- **Billing details** (contact, card summary, billing period) are kept in
+  `workspaces/{id}/private/billing`, readable only by that company's admins and the super admin.
 - **Super admin.** The product owner (a login listed in `platformOwners`, set with
   `"platformOwner": true` in `local-accounts.json`) sees every company on the **Platform**
   page and can change its plan, extend a trial, activate it or suspend it. They can't see any
