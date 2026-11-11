@@ -8,7 +8,7 @@ export default function PublicShell({ children, wide = false }: { children: Reac
   return (
     <div className="min-h-screen bg-background px-4 py-10">
       <div className={wide ? 'mx-auto max-w-5xl' : 'mx-auto max-w-md'}>
-        <Link to="/login" className="mb-8 flex items-center justify-center gap-3">
+        <Link to="/" className="mb-8 flex items-center justify-center gap-3">
           <ProductLogo className="h-10 w-10" />
           <span className="text-xl font-bold text-foreground">{PRODUCT_NAME}</span>
         </Link>

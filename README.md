@@ -69,7 +69,7 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
 
 ## Sign-up, plans and invites
 
-- **Sign-up.** A new company signs up at `/signup` (linked from the login page): it picks a
+- **Sign-up.** A new company signs up at `/signup` (linked from the home page, which is also where people sign in): it picks a
   plan and monthly or yearly billing, enters a card, and gets a 14-day trial; the person
   signing up becomes its admin. Plans, prices and trial length are in `src/config/plans.ts`;
   the staff limits are mirrored in `firestore.rules` (`planLimits`), and a rules test fails

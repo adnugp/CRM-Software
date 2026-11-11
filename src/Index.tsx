@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 import { FullPageLoader } from '@/components/ProtectedRoute';
+import Home from './pages/Home';
 
 export default function Index() {
   const { isAuthenticated, user, loading } = useAuth();
@@ -13,9 +14,9 @@ export default function Index() {
     return <FullPageLoader />;
   }
 
-  // Redirect based on authentication status
+  // Signed out: the home page, with the sign-in form.
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Home />;
   }
 
   // Route based on user role

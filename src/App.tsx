@@ -3,14 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { SalesProvider } from "@/contexts/SalesContext";
 import ProtectedRoute, { FullPageLoader } from "@/components/ProtectedRoute";
 import Index from "./Index";
-import Login from "./pages/Login";
 
 // Pages load on demand so the initial download stays small.
 const Signup = lazy(() => import("./pages/Signup"));
@@ -95,7 +94,8 @@ const App = () => {
             <Suspense fallback={<FullPageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
+              {/* The sign-in form lives on the home page; old links and redirects land there. */}
+              <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/join/:token" element={<Join />} />
 

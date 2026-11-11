@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, AlertCircle, LogIn, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/services/auth';
-import { ProductLogo } from '@/components/brand/BrandMark';
-import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@/config/product';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
-const Login: React.FC = () => {
+/** The sign-in form (with lockout and "forgot password"), shown on the home page. */
+const SignInCard: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +20,7 @@ const Login: React.FC = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const [failedAttempts, setFailedAttempts] = useState(() => {
@@ -44,10 +43,6 @@ const Login: React.FC = () => {
   }, [lockoutUntil]);
 
   const isLockedOut = lockoutUntil > Date.now();
-
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
 
   const validateEmail = (value: string): boolean => EMAIL_REGEX.test(value);
 
@@ -149,22 +144,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-      </div>
-
-      <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-8 animate-fade-in">
-          <ProductLogo className="h-16 w-16 mx-auto mb-4" />
-          <h1 className="text-4xl font-bold text-foreground tracking-tight">
-            {PRODUCT_NAME}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">{PRODUCT_TAGLINE}</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl shadow-2xl p-8 animate-slide-up">
+    <div id="sign-in" className="bg-card border border-border rounded-2xl shadow-2xl p-8 animate-slide-up">
           {!showForgotPassword ? (
             <>
               <div className="flex items-center gap-3 mb-2">
@@ -331,10 +311,8 @@ const Login: React.FC = () => {
               )}
             </>
           )}
-        </div>
-      </div>
     </div>
   );
 };
 
-export default Login;
+export default SignInCard;

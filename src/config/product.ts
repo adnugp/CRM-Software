@@ -1,4 +1,4 @@
-// The product's own brand, shown before sign-in (login page, browser tab) and
+// The product's own brand, shown before sign-in (home page, browser tab) and
 // as a fallback when a company hasn't set its own name/logo in Settings.
 //
 // "ProjectDesk" is a working name: rename the product by changing it here
