@@ -11,11 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { listAllWorkspaces, updateWorkspacePlan, type PlanChange } from '@/services/platform';
+import { listAllWorkspaces, updateWorkspacePlan, type CompanyRow, type PlanChange } from '@/services/platform';
 import { accessLabel, extendedTrialEnd, workspaceAccess, type AccessState } from '@/lib/subscription';
 import { cardLabel } from '@/lib/payment';
 import { PLANS, planById, TRIAL_DAYS } from '@/config/plans';
-import type { Workspace } from '@/types';
 
 const STATUS_FILTERS: { value: 'all' | AccessState; label: string }[] = [
   { value: 'all', label: 'All companies' },
@@ -33,7 +32,7 @@ const formatDate = (d?: Date) => (d ? d.toLocaleDateString() : '—');
 const Platform: React.FC = () => {
   const { isOwner } = useAuth();
   const { toast } = useToast();
-  const [companies, setCompanies] = useState<Workspace[] | null>(null);
+  const [companies, setCompanies] = useState<CompanyRow[] | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | AccessState>('all');
   const [busyId, setBusyId] = useState('');
@@ -61,7 +60,7 @@ const Platform: React.FC = () => {
       (filter === 'all' || access.state === filter)
       && ws.name.toLowerCase().includes(search.trim().toLowerCase()));
 
-  const change = async (ws: Workspace, data: PlanChange, done: string) => {
+  const change = async (ws: CompanyRow, data: PlanChange, done: string) => {
     setBusyId(ws.id);
     try {
       await updateWorkspacePlan(ws.id, data);
@@ -75,7 +74,7 @@ const Platform: React.FC = () => {
     }
   };
 
-  const changePlan = (ws: Workspace, planId: string) => {
+  const changePlan = (ws: CompanyRow, planId: string) => {
     const plan = planById(planId);
     change(ws, plan ? { plan: plan.id, staffLimit: plan.staffLimit } : { plan: 'custom', staffLimit: 0 }, 'Plan changed');
   };
@@ -121,7 +120,7 @@ const Platform: React.FC = () => {
                   <TableCell>
                     <div className="font-medium">{ws.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {[ws.contactName, ws.contactEmail].filter(Boolean).join(' · ') || ws.id}
+                      {[ws.billing?.contactName, ws.billing?.contactEmail].filter(Boolean).join(' · ') || ws.id}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -134,8 +133,8 @@ const Platform: React.FC = () => {
                     </Select>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <div className="capitalize">{ws.billingCycle ?? '—'}</div>
-                    <div className="text-xs text-muted-foreground">{cardLabel(ws.paymentMethod) || 'No card'}</div>
+                    <div className="capitalize">{ws.billing?.billingCycle ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground">{cardLabel(ws.billing?.paymentMethod) || 'No card'}</div>
                   </TableCell>
                   <TableCell>{ws.staffCount ?? 0} / {ws.staffLimit ? ws.staffLimit : '∞'}</TableCell>
                   <TableCell><Badge variant={BADGE[access.state]}>{accessLabel(access)}</Badge></TableCell>

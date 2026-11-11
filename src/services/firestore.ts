@@ -16,7 +16,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, Company, Contact, Deal, Activity } from '@/types';
+import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, WorkspaceBilling, Company, Contact, Deal, Activity } from '@/types';
 
 // Every company's records live under workspaces/{wsId}/{collection}. Callers
 // pass the signed-in user's workspace id; firestore.rules reject any other.
@@ -170,6 +170,12 @@ export const toWorkspace = (id: string, data: DocumentData): Workspace => ({
 export const getWorkspace = async (wsId: string): Promise<Workspace | null> => {
   const snapshot = await getDoc(doc(db, 'workspaces', wsId));
   return snapshot.exists() ? toWorkspace(snapshot.id, snapshot.data()) : null;
+};
+
+// Billing contact and card summary (company admins and the super admin only).
+export const getWorkspaceBilling = async (wsId: string): Promise<WorkspaceBilling | null> => {
+  const snapshot = await getDoc(doc(db, 'workspaces', wsId, 'private', 'billing'));
+  return snapshot.exists() ? (snapshot.data() as WorkspaceBilling) : null;
 };
 
 export const updateWorkspace = async (wsId: string, data: Partial<Omit<Workspace, 'id' | 'createdAt'>>): Promise<void> => {

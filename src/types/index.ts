@@ -39,6 +39,14 @@ export interface Workspace {
   staffCount?: number;
   trialEndsAt?: Date;
   createdBy?: string;
+}
+
+/**
+ * workspaces/{id}/private/billing: kept off the workspace record because every
+ * member, clients included, can read that. Only the company's admins and the
+ * super admin can read this one (firestore.rules).
+ */
+export interface WorkspaceBilling {
   contactName?: string;
   contactEmail?: string;
   billingCycle?: BillingCycle;

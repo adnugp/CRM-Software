@@ -85,6 +85,10 @@ beforeEach(async () => {
     await a.collection('projects').doc('p-by-org').set({ name: 'Linked by org', organizationId: 'ORG-ACM-001' });
     await a.collection('projects').doc('p-other').set({ name: 'Someone else', clientId: 'clientA2', organizationId: 'ORG-BET-002' });
     await a.collection('tenders').doc('t1').set({ name: 'Tender' });
+    await a.collection('private').doc('billing').set({
+      contactName: 'Admin', contactEmail: 'admin@a.dev', billingCycle: 'yearly',
+      paymentMethod: { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 },
+    });
     await a.collection('employees').doc('e1').set({ name: 'Emp' });
     await a.collection('companies').doc('c1').set({ name: 'Gulf Facilities LLC', ownerId: 'admin' });
     await a.collection('contacts').doc('k1').set({ name: 'Omar', companyId: 'c1' });
@@ -194,6 +198,22 @@ describe('workspace settings', () => {
     await assertSucceeds(ws('admin', 'wsA').update({ name: 'Company A Ltd', brandColor: '#2563eb' }));
     await assertFails(ws('manager', 'wsA').update({ name: 'Nope' }));
     await assertFails(ws('clientA', 'wsA').update({ name: 'Nope' }));
+  });
+
+  it('billing details are readable by the company admin only', async () => {
+    const billing = (uid, id = 'wsA') => ws(uid, id).collection('private').doc('billing');
+    await assertSucceeds(billing('admin').get());
+    await assertFails(billing('manager').get());
+    await assertFails(billing('employee').get());
+    await assertFails(billing('clientA').get());
+    await assertFails(billing('adminB', 'wsA').get());
+    await assertFails(billing(null).get());
+  });
+
+  it('nobody changes billing details from the app', async () => {
+    const billing = ws('admin', 'wsA').collection('private').doc('billing');
+    await assertFails(billing.update({ billingCycle: 'monthly' }));
+    await assertFails(billing.delete());
   });
 });
 
@@ -335,18 +355,22 @@ describe('storage', () => {
 
 describe('company sign-up', () => {
   const founder = () => as('founder', 'founder@new.dev');
+  const card = { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 };
   const newCompany = (over = {}) => ({
     name: 'New Co', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1,
     trialEndsAt: inDays(14), createdBy: 'founder', createdAt: new Date(),
-    contactName: 'Fay', contactEmail: 'founder@new.dev',
-    billingCycle: 'monthly',
-    paymentMethod: { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 },
     ...over,
   });
+  // Billing lives apart from the company record, so members and clients can't read it.
+  const newBilling = (over = {}) => ({
+    contactName: 'Fay', contactEmail: 'founder@new.dev', billingCycle: 'monthly', paymentMethod: card, ...over,
+  });
   const founderProfile = (over = {}) => ({ name: 'Fay', email: 'founder@new.dev', role: 'admin', workspaceId: 'wsNew', ...over });
-  const signUp = (fs, { company = {}, profile = {}, wsId = 'wsNew' } = {}) => {
+  const signUp = (fs, { company = {}, billing = {}, profile = {}, wsId = 'wsNew', withBilling = true } = {}) => {
     const batch = fs.batch();
-    batch.set(fs.collection('workspaces').doc(wsId), newCompany(company));
+    const wsRef = fs.collection('workspaces').doc(wsId);
+    batch.set(wsRef, newCompany(company));
+    if (withBilling) batch.set(wsRef.collection('private').doc('billing'), newBilling(billing));
     batch.set(fs.collection('users').doc('founder'), founderProfile({ workspaceId: wsId, ...profile }));
     return batch.commit();
   };
@@ -372,16 +396,30 @@ describe('company sign-up', () => {
   });
 
   it('needs a card summary and a billing period', async () => {
-    await assertSucceeds(signUp(founder(), { company: { billingCycle: 'yearly' } }));
+    await assertSucceeds(signUp(founder(), { billing: { billingCycle: 'yearly' } }));
   });
 
   it('rejects a missing card, a full card number or an unknown billing period', async () => {
-    const card = { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 };
-    await assertFails(signUp(founder(), { company: { paymentMethod: null } }));
-    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, number: '4242424242424242' } } }));
-    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, cvc: '123' } } }));
-    await assertFails(signUp(founder(), { company: { paymentMethod: { ...card, last4: '42424242' } } }));
-    await assertFails(signUp(founder(), { company: { billingCycle: 'weekly' } }));
+    await assertFails(signUp(founder(), { withBilling: false }));
+    await assertFails(signUp(founder(), { billing: { paymentMethod: null } }));
+    await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, number: '4242424242424242' } } }));
+    await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, cvc: '123' } } }));
+    await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, last4: '42424242' } } }));
+    await assertFails(signUp(founder(), { billing: { billingCycle: 'weekly' } }));
+  });
+
+  it('keeps billing off the company record that every member reads', async () => {
+    await assertFails(signUp(founder(), { company: { paymentMethod: card } }));
+    await assertFails(signUp(founder(), { company: { contactEmail: 'founder@new.dev' } }));
+  });
+
+  it('billing must carry the login email', async () => {
+    await assertFails(signUp(founder(), { billing: { contactEmail: 'someone@else.dev' } }));
+  });
+
+  it("billing can't be added to an existing company", async () => {
+    await assertFails(as('admin', 'admin@a.dev').collection('workspaces').doc('wsA')
+      .collection('private').doc('billing').set(newBilling({ contactEmail: 'admin@a.dev' })));
   });
 
   it('cannot join an existing company', async () => {
@@ -391,7 +429,7 @@ describe('company sign-up', () => {
 
   it('only works for a login with no profile yet', async () => {
     const fs = as('admin', 'admin@a.dev');
-    await assertFails(fs.collection('workspaces').doc('wsSecond').set(newCompany({ createdBy: 'admin', contactEmail: 'admin@a.dev' })));
+    await assertFails(fs.collection('workspaces').doc('wsSecond').set(newCompany({ createdBy: 'admin' })));
   });
 
   it('a company without its founder profile is rejected', async () => {
@@ -529,6 +567,12 @@ describe('super admin', () => {
     await assertSucceeds(db('owner').collection('platformOwners').doc('owner').get());
     await assertFails(db('admin').collection('platformOwners').doc('owner').get());
     await assertFails(db('admin').collection('platformOwners').doc('admin').set({ email: 'admin@a.dev' }));
+  });
+
+  it('reads any company billing details but cannot change them', async () => {
+    const billing = (uid) => ws(uid, 'wsA').collection('private').doc('billing');
+    await assertSucceeds(billing('owner').get());
+    await assertFails(billing('owner').update({ billingCycle: 'yearly' }));
   });
 
   it('company admins cannot change their own plan, status or count', async () => {

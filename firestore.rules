@@ -127,14 +127,28 @@ service cloud.firestore {
         && p.expYear is int;
     }
 
-    // A new trial company written together with its founder's admin profile.
-    // A card goes on file first; the trial then runs before any charge.
+    function billingPath(ws) {
+      return /databases/$(database)/documents/workspaces/$(ws)/private/billing;
+    }
+
+    // The founder's contact details and card summary, kept in
+    // workspaces/{ws}/private/billing so members and clients can't read them.
+    function validBilling(d) {
+      return d.keys().hasOnly(['contactName', 'contactEmail', 'billingCycle', 'paymentMethod'])
+        && d.keys().hasAll(['contactName', 'contactEmail', 'billingCycle', 'paymentMethod'])
+        && d.contactName is string && d.contactName.size() <= 100
+        && d.contactEmail == authEmail()
+        && d.billingCycle in ['monthly', 'yearly']
+        && validPaymentMethod(d.paymentMethod);
+    }
+
+    // A new trial company written together with its founder's admin profile
+    // and its billing record. A card goes on file first; the trial then runs
+    // before any charge.
     function validSignupWorkspace(ws, d) {
       return d.keys().hasOnly(['name', 'divisions', 'status', 'plan', 'staffLimit', 'staffCount',
-                               'trialEndsAt', 'createdBy', 'createdAt', 'contactName', 'contactEmail',
-                               'billingCycle', 'paymentMethod'])
-        && d.billingCycle in ['monthly', 'yearly']
-        && validPaymentMethod(d.paymentMethod)
+                               'trialEndsAt', 'createdBy', 'createdAt'])
+        && existsAfter(billingPath(ws))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 100
         && d.divisions is list && d.divisions.size() == 0
         && d.status == 'trial'
@@ -144,7 +158,6 @@ service cloud.firestore {
         && d.trialEndsAt > request.time
         && d.trialEndsAt <= request.time + duration.value(15, 'd')
         && d.createdBy == request.auth.uid
-        && d.contactEmail == authEmail()
         && meAfter().workspaceId == ws
         && meAfter().role == 'admin';
     }
@@ -302,6 +315,18 @@ service cloud.firestore {
           && removedStaff(ws, request.resource.data.removedUid));
 
       allow delete: if false;
+
+      // ---- Billing (private) -------------------------------------------
+      // Contact and card summary: the company's admins and the super admin
+      // read it; it is written once, in the sign-up batch, and never changed
+      // from the app (Stripe will manage it from a server).
+      match /private/billing {
+        allow get: if (inWs(ws) && isAdmin()) || isOwner();
+        allow create: if signedIn() && !hasProfile()
+          && !exists(wsPath(ws))
+          && getAfter(wsPath(ws)).data.createdBy == request.auth.uid
+          && validBilling(request.resource.data);
+      }
 
       // ---- Projects ----------------------------------------------------
       match /projects/{projectId} {

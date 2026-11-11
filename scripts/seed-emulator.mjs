@@ -36,11 +36,16 @@ const putIn = (ws, collection, id, data) => put(`workspaces/${ws}/${collection}`
 
 async function createWorkspace({ id, name, brandColor, divisions, people, billing }) {
   const founder = people.find((p) => p.role === 'admin');
+  // Plan state goes on the company record; the card and contact go in the
+  // admin-only private/billing record, as sign-up does.
+  const { billingCycle, paymentMethod, ...plan } = billing;
   await put('workspaces', id, {
     name, brandColor, divisions, createdAt: ago(400),
-    ...billing,
+    ...plan,
     staffCount: people.filter((p) => p.role !== 'client').length,
-    contactName: founder?.name, contactEmail: founder?.email,
+  });
+  await putIn(id, 'private', 'billing', {
+    contactName: founder?.name, contactEmail: founder?.email, billingCycle, paymentMethod,
   });
 
   const person = {};

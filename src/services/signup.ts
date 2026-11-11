@@ -15,7 +15,7 @@ export interface CompanySignup {
 }
 
 /**
- * Creates a trial company and its founder's admin profile in one batch, for
+ * Creates a trial company, its billing record and its founder's admin profile in one batch, for
  * the signed-in login `uid`. firestore.rules accept it only for a login with
  * no profile yet, a self-serve plan with its own limit, and a trial of at most
  * 14 days. Returns the new workspace id.
@@ -38,6 +38,9 @@ export async function createCompanyRecords(uid: string, input: CompanySignup): P
     trialEndsAt: addDays(new Date(), TRIAL_DAYS),
     createdBy: uid,
     createdAt: serverTimestamp(),
+  });
+  // Billing goes in its own record so members and clients can't read it.
+  batch.set(doc(db, 'workspaces', workspaceRef.id, 'private', 'billing'), {
     contactName: name,
     contactEmail: email,
     billingCycle: input.billingCycle,

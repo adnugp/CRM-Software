@@ -5,12 +5,13 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useSales } from '@/contexts/SalesContext';
 import { sameName } from '@/lib/pipeline';
 import { createInvite, inviteLink, listInvites, revokeInvite } from '@/services/invites';
+import { getWorkspaceBilling } from '@/services/firestore';
 import { nextOrganizationId } from '@/lib/workspace';
 import { accessLabel, inviteState, isStaffRole, staffSeatsLeft, type InviteState } from '@/lib/subscription';
 import { planById } from '@/config/plans';
 import { cardLabel } from '@/lib/payment';
 import { ROLE_LABELS } from '@/config/roles';
-import type { Invite, UserRole } from '@/types';
+import type { Invite, UserRole, WorkspaceBilling } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +43,16 @@ const TeamInvites: React.FC = () => {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [lastLink, setLastLink] = useState('');
+  const [billing, setBilling] = useState<WorkspaceBilling | null>(null);
   const workspaceId = workspace?.id ?? '';
+
+  // Billing is a separate admin-only record; without one, the line just shows the plan.
+  useEffect(() => {
+    if (!workspaceId) return;
+    getWorkspaceBilling(workspaceId)
+      .then(setBilling)
+      .catch(err => console.error('Error loading billing:', err));
+  }, [workspaceId]);
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
@@ -66,8 +76,8 @@ const TeamInvites: React.FC = () => {
   const plan = planById(workspace?.plan);
   const planName = plan?.name ?? (workspace?.plan === 'custom' ? 'Custom' : 'Current');
   const billingText = [
-    workspace?.billingCycle === 'yearly' ? 'Yearly' : workspace?.billingCycle === 'monthly' ? 'Monthly' : '',
-    cardLabel(workspace?.paymentMethod),
+    billing?.billingCycle === 'yearly' ? 'Yearly' : billing?.billingCycle === 'monthly' ? 'Monthly' : '',
+    cardLabel(billing?.paymentMethod),
   ].filter(Boolean).join(' · ');
   const staffText = workspace?.staffLimit
     ? `${workspace.staffCount ?? 0} of ${workspace.staffLimit} staff`
