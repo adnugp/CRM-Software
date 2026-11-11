@@ -5,9 +5,9 @@ Between 4 and 11 November 2026 the CRM was fixed, secured and rebuilt into **Pro
 ## Go-live (11 November)
 
 - **Why it was urgent.** The old database rules let anyone on the internet, signed in or not, read, change and delete every record. That is now closed: a signed-out request is refused.
-- **Data moved.** The existing data became the company **Grow Plus Technologies**: 4 people (2 admins, 2 employees), 3 employees, 3 payments, 2 subscriptions and 1 file. Nothing was lost. The old "belongs to" (GPT / SDE) tag was dropped, as agreed.
+- **Data moved.** The existing data became the company **Grow Plus Technologies**: 4 people (2 admins, 2 employees), 3 employees, 3 payments, 2 subscriptions and 1 file. Nothing was lost in the move. The old "belongs to" (GPT / SDE) tag was dropped, as agreed.
 - **Rehearsed first.** A read-only copy of the live data was loaded on a local computer and checked screen by screen before anything changed on live. The real move matched the rehearsal exactly.
-- **Safety net.** A full backup was taken just before the move. The old records were left in place (hidden) so the old version could be restored. They can be deleted after a few weeks.
+- **Safety net.** A full backup was taken just before the move. On request, the old hidden copies and the old test records (employees, payments, subscriptions and the file) were then deleted, so Grow Plus Technologies starts clean. A copy is kept in a private backup.
 - **Deployed together.** The data move, the new database and file rules and the new app went out within minutes of each other. The live site was then checked.
 - **Two security fixes** found by an automated review were deployed the same day (see Security below).
 
@@ -95,7 +95,6 @@ In total, 85 unused files were deleted.
 
 **Next work**
 - Real card payments with Stripe. This needs the Firebase Blaze plan. It would also let the app send invite emails itself.
-- Delete the old hidden records in a few weeks, once everything has been confirmed fine.
 - Optionally a custom domain, with sign-up on the main domain and the app on `app.`.
 - Replace the fixed risk paragraph in the project's Executive Briefing PDF with real figures.
 - Set the final plan names, prices and sales email.

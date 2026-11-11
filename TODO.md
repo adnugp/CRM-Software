@@ -6,8 +6,6 @@
       database is open to everyone until then.
 
 ## After go-live
-- [ ] After a few weeks, delete the old top-level collections (`projects`, `tenders`, …,
-      not `users`) that the migration left as a fallback.
 - [ ] Two Hosting sites / a custom domain: the main domain for `/signup` (and later a landing
       page), an `app.` domain for the app. Set `VITE_APP_URL` so invite links point there.
 

@@ -134,6 +134,11 @@ On https://crm-gpt-2026.web.app (refresh with Ctrl+F5):
 
 ## 7. If something is badly wrong: roll back
 
+> **Update, 11 November 2026:** the old top-level records were deleted on request, together
+> with the old business records inside Grow Plus Technologies (copy in
+> `backups/live-before-cleanup-2026-11-11-1139.json`). Rolling back to the old app is no longer
+> possible; the steps below are kept for reference only.
+
 1. Firebase console → Hosting → release history → roll back to the previous release.
 2. Put the old rules back:
 
@@ -150,6 +155,5 @@ database to everyone**, so fix the problem and go live again as soon as you can.
 
 - Keep the `backups/live-…json` files somewhere safe and private: they hold all business data
   (they are git-ignored, so they never go into the repository).
-- After a few weeks without problems, delete the old top-level collections (`projects`,
-  `tenders`, …, not `users`). That's a separate step: ask for a script and confirm before it runs.
+- The old top-level collections were deleted on 11 November 2026 (see section 7).
 - New people join through Settings → Team invites. Anyone with a login but no profile sees no data.
