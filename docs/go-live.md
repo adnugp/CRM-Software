@@ -156,4 +156,7 @@ database to everyone**, so fix the problem and go live again as soon as you can.
 - Keep the `backups/live-…json` files somewhere safe and private: they hold all business data
   (they are git-ignored, so they never go into the repository).
 - The old top-level collections were deleted on 11 November 2026 (see section 7).
+- On 12 November 2026 the uploaded file behind the deleted "Sadeem energy files" record
+  (`documents/1787035429637_Sadeem Energy Profile.pdf`) was deleted from Storage; a copy is in
+  `backups/storage/`. Older uploads that no record points to are still in Storage.
 - New people join through Settings → Team invites. Anyone with a login but no profile sees no data.
