@@ -1,6 +1,6 @@
-# ProjectDesk progress update (4–11 November 2026)
+# ProjectDesk progress update (4–12 November 2026)
 
-Between 4 and 11 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. **It went live on 11 November** at https://crm-gpt-2026.web.app, with the existing data moved across. All the work (about 50 saved changes) is on GitHub (`main`).
+Between 4 and 12 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. **It went live on 11 November** at https://crm-gpt-2026.web.app, with the existing data moved across. All the work (about 50 saved changes) is on GitHub (`main`).
 
 ## Go-live (11 November)
 
@@ -10,6 +10,12 @@ Between 4 and 11 November 2026 the CRM was fixed, secured and rebuilt into **Pro
 - **Safety net.** A full backup was taken just before the move. On request, the old hidden copies and the old test records (employees, payments, subscriptions and the file) were then deleted, so Grow Plus Technologies starts clean. A copy is kept in a private backup.
 - **Deployed together.** The data move, the new database and file rules and the new app went out within minutes of each other. The live site was then checked.
 - **Two security fixes** found by an automated review were deployed the same day (see Security below).
+
+## Clean start and home page (12 November)
+
+- **Uploaded files deleted.** On request, all 46 files in file storage were deleted (about 140 MB). They were the Sadeem Energy Profile behind the deleted file record, plus older documents, repeat uploads, profile pictures and a task attachment. No record used any of them, so nothing in the app broke. Copies are kept in a private backup. Old download links no longer work.
+- **What is left on live.** The Grow Plus Technologies company, its 4 people and their logins. There are no business records and no files, so the company starts clean.
+- **New home page.** Signed-out visitors now see what ProjectDesk does, a "Start your 14-day free trial" button and the sign-in form, on one page. The old `/login` address still works and leads there.
 
 "ProjectDesk" is a working name and can be changed in one place.
 
@@ -32,6 +38,7 @@ In total, 85 unused files were deleted.
 
 | Feature | What it does |
 |---|---|
+| Home page | The first page signed-out visitors see: what the product does, six feature cards, a free-trial button and the sign-in form. Works on phones. |
 | Multi-company workspaces | Every customer company gets its own separate data. Staff never see another company's records. |
 | Company settings | Company name, logo, brand colour (re-themes the app in light and dark mode) and a divisions editor. Project numbers use the division code: PRJ-ENG-001, or PRJ-001 without divisions. |
 | Company sign-up (`/signup`) | A new company picks a plan by staff count, monthly or yearly billing, and enters a card. It gets a 14-day free trial, and the person signing up becomes its admin. |
@@ -82,7 +89,7 @@ In total, 85 unused files were deleted.
 
 ## Status and next steps
 
-**Where it stands.** Live at https://crm-gpt-2026.web.app since 11 November, with both security fixes. GitHub (`main`) matches the live site.
+**Where it stands.** Live at https://crm-gpt-2026.web.app since 11 November, with both security fixes and, since 12 November, the new home page. The live database and file storage hold only the company and its people. GitHub (`main`) matches the live site.
 
 **Checks.** All of these pass:
 - 67 unit tests and 72 security tests;
