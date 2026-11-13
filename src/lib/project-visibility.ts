@@ -1,4 +1,15 @@
-import { User, Project } from '@/types';
+// Type-only relative import, so `node --test` runs this file directly.
+import type { User, Project } from '../types/index.ts';
+
+/**
+ * Who may see a project's internal money figures: costs, profit and margin.
+ * Only admins and managers. Employees see the budget but not what was spent,
+ * and clients must never see what a project costs us or what we make on it.
+ * An allow-list, so a missing or new role sees nothing.
+ */
+export function canSeeProjectCosts(role?: string): boolean {
+  return role === 'admin' || role === 'manager';
+}
 
 /**
  * Determines if a user has permission to view a specific project.

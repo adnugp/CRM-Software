@@ -52,6 +52,7 @@ import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionBadge } from '@/components/divisions/DivisionBadge';
+import { canSeeProjectCosts } from '@/lib/project-visibility';
 import { PRODUCT_NAME } from '@/config/product';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -96,9 +97,11 @@ const ProjectManagement: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
 
-    const isEmployee = currentUser?.role === 'user';
     const isClient = currentUser?.role === 'client';
     const isManagerOrAdmin = currentUser?.role === 'manager' || currentUser?.role === 'admin';
+    // Costs, profit and the financial tabs all follow this one rule, so a
+    // client or employee can't reach them through a differently-worded check.
+    const canSeeCosts = canSeeProjectCosts(currentUser?.role);
 
     const project = projects.find(p => p.id === id);
 
@@ -594,7 +597,7 @@ const ProjectManagement: React.FC = () => {
                     </CardContent>
                 </Card>
 
-                {!isEmployee && (
+                {canSeeCosts && (
                     <>
                         <Card className="glass-card border-none shadow-sm">
                             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -649,10 +652,10 @@ const ProjectManagement: React.FC = () => {
                     {!isClient && (
                         <TabsTrigger value="tasks" className="data-[state=active]:bg-background">Tasks & Productivity</TabsTrigger>
                     )}
-                    {!isEmployee && !isClient && (
+                    {canSeeCosts && (
                         <TabsTrigger value="financials" className="data-[state=active]:bg-background">Financial Linkage</TabsTrigger>
                     )}
-                    {isManagerOrAdmin && (
+                    {canSeeCosts && (
                         <TabsTrigger value="executive" className="data-[state=active]:bg-background">Executive Report</TabsTrigger>
                     )}
                     {!isClient && (
@@ -725,7 +728,7 @@ const ProjectManagement: React.FC = () => {
                         </Card>
 
                         <div className="space-y-4">
-                            {!isClient && !isEmployee && (
+                            {canSeeCosts && (
                                 <Card className="shadow-sm border-none bg-card/50">
                                     <CardHeader>
                                         <CardTitle>Recent Costs</CardTitle>
@@ -981,7 +984,7 @@ const ProjectManagement: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {!isEmployee && (
+                {canSeeCosts && (
                     <TabsContent value="financials" className="space-y-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <Card className="shadow-sm border-none bg-card/50">
@@ -1134,7 +1137,7 @@ const ProjectManagement: React.FC = () => {
                     </TabsContent>
                 )}
 
-                {isManagerOrAdmin && (
+                {canSeeCosts && (
                     <TabsContent value="executive" className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <Card className="shadow-lg border-none bg-primary/5">
