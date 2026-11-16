@@ -247,7 +247,10 @@ const Projects: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium text-foreground">{project.name}</p>
+                      {/* The name opens the project for everyone, clients included. */}
+                      <Link to={`/projects/${project.id}`} className="font-medium text-foreground hover:text-primary hover:underline">
+                        {project.name}
+                      </Link>
                       <p className="text-sm text-muted-foreground">{project.company}</p>
                     </div>
                   </TableCell>

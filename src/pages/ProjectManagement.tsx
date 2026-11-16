@@ -52,7 +52,7 @@ import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionBadge } from '@/components/divisions/DivisionBadge';
-import { canSeeProjectCosts } from '@/lib/project-visibility';
+import { canSeeProjectCosts, canViewProject } from '@/lib/project-visibility';
 import { mergeCosts } from '@/lib/project-costs';
 import { PRODUCT_NAME } from '@/config/product';
 import { Link } from 'react-router-dom';
@@ -145,26 +145,13 @@ const ProjectManagement: React.FC = () => {
         return projects.filter(p => p.assignedTo === projectAssignee).length;
     }, [projects, projectAssignee]);
 
-    // Security check for clients
-    const canAccess = useMemo(() => {
-        if (!project) return false;
-        if (!isClient) return true;
-
-        // Match by organizationId if available, fallback to company name
-        const userOrgId = currentUser?.organizationId;
-        const projectOrgId = project.organizationId;
-
-        if (userOrgId && projectOrgId) {
-            return userOrgId === projectOrgId;
-        }
-
-        const userCompany = currentUser?.company?.toLowerCase().trim() || "";
-        const projectCompany = project.company?.toLowerCase()?.trim() || "";
-
-        if (!userCompany || !projectCompany) return false;
-
-        return projectCompany.includes(userCompany) || userCompany.includes(projectCompany);
-    }, [project, isClient, currentUser]);
+    // The same rule as the Projects list, so every project a client sees
+    // there also opens here. (The database rules are what actually limit
+    // which projects a client receives.)
+    const canAccess = useMemo(
+        () => !!project && canViewProject(currentUser, project),
+        [project, currentUser],
+    );
 
     // GPT-0032: Profile sync - refresh task assignee names when profile data changes.
     // Only staff may write projects, so clients never trigger this sync.
@@ -462,12 +449,14 @@ const ProjectManagement: React.FC = () => {
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const progressPercentage = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
 
-    const getDisplayName = (userId: string, defaultName: string): string => {
+    const getDisplayName = (userId: string | undefined, defaultName: string | undefined): string => {
         if (!isManagerOrAdmin) {
             const user = allUsers.find(u => u.id === userId);
             if (user?.role === 'admin') return 'Restricted';
         }
-        return defaultName;
+        // A project with nobody assigned must not blank the page (the client
+        // view shows this name and its first letter).
+        return defaultName || 'Not assigned yet';
     };
 
     const COLORS = ['#0891b2', '#8b5cf6', '#ec4899', '#f97316'];
