@@ -75,13 +75,15 @@ const cost = (id, projectId, description, amount, daysAgo, category, type = 'deb
   ({ id, projectId, description, amount, date: day(-daysAgo), category, type });
 
 async function putProjects(ws, person, projects) {
-  for (const { id, who, client, ...p } of projects) {
+  for (const { id, who, client, costs = [], ...p } of projects) {
     await putIn(ws, 'projects', id, {
       ...p,
       assignedTo: person[who].id, assignedToName: person[who].name,
       clientId: client ? person[client].id : '', clientName: client ? person[client].name : '',
       organizationId: client ? person[client].organizationId : '',
     });
+    // Costs go in their own record: clients can read the project one.
+    if (costs.length) await put(`workspaces/${ws}/projects/${id}/private`, 'costs', { costs });
   }
 }
 

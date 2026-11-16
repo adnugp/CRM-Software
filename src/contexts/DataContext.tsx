@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   getProjects, getProjectsForClient, addProject, updateProject, deleteProject,
+  getProjectCosts as fetchProjectCosts, saveProjectCosts as storeProjectCosts, moveLegacyProjectCosts,
   getTenders, addTender, updateTender, deleteTender,
   getEmployees, addEmployee, updateEmployee, deleteEmployee,
   getRegistrations, addRegistration, updateRegistration, deleteRegistration,
@@ -9,10 +10,11 @@ import {
   getPartners, addPartner, updatePartner, deletePartner,
   getFiles, addFile, updateFile, deleteFile
 } from '@/services/firestore';
-import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
+import { Project, ProjectCost, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { nextProjectNumber } from '@/lib/workspace';
+import { canSeeProjectCosts } from '@/lib/project-visibility';
 import { useWriteGuard } from '@/hooks/use-write-guard';
 
 interface DataContextType {
@@ -42,6 +44,9 @@ interface DataContextType {
   addProject: (project: Omit<Project, 'id'>) => Promise<string>;
   updateProject: (id: string, project: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  /** What a project costs us: admins and managers only (firestore.rules). */
+  getProjectCosts: (projectId: string) => Promise<ProjectCost[]>;
+  saveProjectCosts: (projectId: string, costs: ProjectCost[]) => Promise<void>;
 
   addTender: (tender: Omit<Tender, 'id'>) => Promise<string>;
   updateTender: (id: string, tender: Partial<Tender>) => Promise<void>;
@@ -84,13 +89,16 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const normalizeOptionalId = (value?: string) => value && value !== 'none' ? value : '';
 const sameText = (a?: string, b?: string) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+// A project without the costs an older version saved on it (see moveLegacyProjectCosts).
+const withoutLegacyCosts = ({ costs: _moved, ...rest }: Project): Project => rest;
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, allUsers, loading: authLoading } = useAuth();
   const userId = user?.id;
   const userRole = user?.role;
   const userOrganizationId = user?.organizationId;
-  const { workspaceId, divisionById } = useWorkspace();
+  const { workspaceId, divisionById, access } = useWorkspace();
+  const canWrite = access.canWrite;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -174,13 +182,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setPartners(partnersData as Partner[]);
       setFiles(filesData as FileRecord[]);
       setLoading(allLoaded(false));
+
+      // Older versions saved costs on the project record, which clients can
+      // read. Move any that are left into the staff-only costs record. Only
+      // admins and managers may (firestore.rules), and only while the company
+      // can be changed; until then the project page still shows them.
+      if (canSeeProjectCosts(userRole) && canWrite) {
+        for (const project of projectsData as Project[]) {
+          if (project.costs === undefined) continue;
+          moveLegacyProjectCosts(workspaceId, project.id)
+            .then(() => {
+              if (!cancelled) setProjects(prev => prev.map(p => (p.id === project.id ? withoutLegacyCosts(p) : p)));
+            })
+            .catch(error => console.error(`Could not move the costs of project ${project.id}:`, error));
+        }
+      }
     };
 
     fetchData();
     return () => {
       cancelled = true;
     };
-  }, [authLoading, userId, userRole, userOrganizationId, workspaceId]);
+  }, [authLoading, userId, userRole, userOrganizationId, workspaceId, canWrite]);
 
   const organizationIdFor = (clientId?: string) =>
     allUsers.find(u => u.id === normalizeOptionalId(clientId))?.organizationId || '';
@@ -214,6 +237,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleDeleteProject = async (id: string) => {
     await deleteProject(workspaceId, id);
     setProjects(prev => prev.filter(p => p.id !== id));
+  };
+
+  // Costs are kept apart from the project record (see services/firestore.ts).
+  const loadProjectCosts = useCallback(
+    (projectId: string) => fetchProjectCosts(workspaceId, projectId),
+    [workspaceId],
+  );
+
+  const handleSaveProjectCosts = async (projectId: string, costs: ProjectCost[]) => {
+    // A record still carrying old-style costs: fold them in first, so the
+    // list being saved replaces them instead of sitting beside them.
+    if (projects.find(p => p.id === projectId)?.costs !== undefined) {
+      await moveLegacyProjectCosts(workspaceId, projectId);
+      setProjects(prev => prev.map(p => (p.id === projectId ? withoutLegacyCosts(p) : p)));
+    }
+    await storeProjectCosts(workspaceId, projectId, costs);
   };
 
   const handleAddTender = async (tender: Omit<Tender, 'id'>) => {
@@ -437,6 +476,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addProject: guard(handleAddProject),
       updateProject: guard(handleUpdateProject),
       deleteProject: guard(handleDeleteProject),
+      getProjectCosts: loadProjectCosts,
+      saveProjectCosts: guard(handleSaveProjectCosts),
       addTender: guard(handleAddTender),
       updateTender: guard(handleUpdateTender),
       deleteTender: guard(handleDeleteTender),

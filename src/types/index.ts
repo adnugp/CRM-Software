@@ -133,6 +133,10 @@ export interface Project {
   description?: string;
   budget?: number;
   tasks?: ProjectTask[];
+  /**
+   * Older records only. Costs now live in projects/{id}/private/costs, which
+   * clients cannot read; the app moves these there (moveLegacyProjectCosts).
+   */
   costs?: ProjectCost[];
   createdAt?: Date;
 }

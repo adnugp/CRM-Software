@@ -53,7 +53,7 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers, data migration, who sees project costs) |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers, data migration, who sees project costs and where they are kept) |
 | `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
 
 ## Workspaces and divisions
@@ -121,8 +121,13 @@ these roles, which apply inside their own workspace:
 |---|---|
 | `admin` | Everything, including inviting and removing people |
 | `manager` | All business data and the employee directory |
-| `user` (employee) | All business data; read-only employee directory |
-| `client` | Only the projects linked to them (by `clientId` or `organizationId`) |
+| `user` (employee) | All business data except project costs; read-only employee directory |
+| `client` | Only the projects linked to them (by `clientId` or `organizationId`), never their costs |
+
+What a project costs is kept apart from the project record, in
+`projects/{id}/private/costs`, which only admins and managers can read. Costs that an
+older version saved on the project record are moved there the next time an admin or
+manager opens the app.
 
 People join through an invite link from **Settings → Team**, or by signing up a new
 company. A Firebase Auth account without a `users/{uid}` profile (or without a workspace)

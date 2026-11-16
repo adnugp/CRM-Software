@@ -349,7 +349,26 @@ service cloud.firestore {
                 || (me().get('organizationId', '') != ''
                     && resource.data.organizationId == me().organizationId))));
 
-        allow create, update, delete: if canWrite(ws) && isStaff();
+        // Clients can read this record, so what the project costs us is
+        // never stored on it (see private/costs below). Older records may
+        // still carry a `costs` field: it can stay as it is or be removed,
+        // but never added or changed.
+        allow create: if canWrite(ws) && isStaff()
+          && !('costs' in request.resource.data);
+        allow update: if canWrite(ws) && isStaff()
+          && (!('costs' in request.resource.data) || !changed().hasAny(['costs']));
+        allow delete: if canWrite(ws) && isStaff();
+
+        // ---- Costs (admins and managers) -------------------------------
+        // One record per project. The same people who see costs in the app
+        // (canSeeProjectCosts in src/lib/project-visibility.ts): never
+        // clients, and not employees. Any staff member who deletes a project
+        // may delete its costs with it.
+        match /private/costs {
+          allow read: if inWs(ws) && role() in ['admin', 'manager'];
+          allow create, update: if canWrite(ws) && role() in ['admin', 'manager'];
+          allow delete: if canWrite(ws) && isStaff();
+        }
       }
 
       // ---- Employee directory ------------------------------------------

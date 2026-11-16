@@ -13,10 +13,15 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
   Timestamp,
-  arrayUnion
+  arrayUnion,
+  deleteField,
+  runTransaction,
+  setDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Project, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, WorkspaceBilling, Company, Contact, Deal, Activity } from '@/types';
+import { Project, ProjectCost, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, WorkspaceBilling, Company, Contact, Deal, Activity } from '@/types';
+import { mergeCosts } from '@/lib/project-costs';
 
 // Every company's records live under workspaces/{wsId}/{collection}. Callers
 // pass the signed-in user's workspace id; firestore.rules reject any other.
@@ -111,7 +116,47 @@ export const getProjectsForClient = async (wsId: string, uid: string, organizati
 
 export const addProject = async (wsId: string, project: Omit<Project, 'id'>): Promise<string> => addDocument<Project>(wsId, 'projects', project);
 export const updateProject = async (wsId: string, id: string, project: Partial<Project>): Promise<void> => updateDocument<Project>(wsId, 'projects', id, project);
-export const deleteProject = async (wsId: string, id: string): Promise<void> => deleteDocument(wsId, 'projects', id);
+
+// What a project costs us is kept in its own record, projects/{id}/private/costs,
+// which only admins and managers can read (firestore.rules). The project record
+// itself is sent to clients, so costs are never saved on it.
+const costsDoc = (wsId: string, projectId: string) => doc(db, 'workspaces', wsId, 'projects', projectId, 'private', 'costs');
+
+// A project's costs record goes with it.
+export const deleteProject = async (wsId: string, id: string): Promise<void> => {
+  const batch = writeBatch(db);
+  batch.delete(wsDoc(wsId, 'projects', id));
+  batch.delete(costsDoc(wsId, id));
+  await batch.commit();
+};
+
+export const getProjectCosts = async (wsId: string, projectId: string): Promise<ProjectCost[]> => {
+  const costs = (await getDoc(costsDoc(wsId, projectId))).data()?.costs;
+  return Array.isArray(costs) ? costs : [];
+};
+
+export const saveProjectCosts = async (wsId: string, projectId: string, costs: ProjectCost[]): Promise<void> => {
+  await setDoc(costsDoc(wsId, projectId), { costs: removeUndefined(costs) });
+};
+
+/**
+ * Older versions saved costs on the project record. This moves them into the
+ * costs record and takes them off the project, as one step, so nothing is lost
+ * or counted twice if two people have the app open. Does nothing for a project
+ * with no old-style costs.
+ */
+export const moveLegacyProjectCosts = async (wsId: string, projectId: string): Promise<void> => {
+  const projectRef = wsDoc(wsId, 'projects', projectId);
+  await runTransaction(db, async (tx) => {
+    const legacy = (await tx.get(projectRef)).data()?.costs;
+    if (legacy === undefined) return;
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      const current = (await tx.get(costsDoc(wsId, projectId))).data()?.costs;
+      tx.set(costsDoc(wsId, projectId), { costs: mergeCosts(Array.isArray(current) ? current : [], legacy) });
+    }
+    tx.update(projectRef, { costs: deleteField() });
+  });
+};
 
 // Tenders
 export const getTenders = async (wsId: string): Promise<Tender[]> => getCollection<Tender>(wsId, 'tenders');

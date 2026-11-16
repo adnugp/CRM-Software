@@ -53,6 +53,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { canSeeProjectCosts } from '@/lib/project-visibility';
+import { mergeCosts } from '@/lib/project-costs';
 import { PRODUCT_NAME } from '@/config/product';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -83,7 +84,7 @@ import ProjectTimeline from '@/components/projects/ProjectTimeline';
 
 const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { projects, employees, updateProject, loading } = useData();
+    const { projects, employees, updateProject, getProjectCosts, saveProjectCosts, loading } = useData();
     const { user: currentUser, allUsers } = useAuth();
     const { workspace, workspaceId, divisionById } = useWorkspace();
     const [activeTab, setActiveTab] = useState('overview');
@@ -104,6 +105,39 @@ const ProjectManagement: React.FC = () => {
     const canSeeCosts = canSeeProjectCosts(currentUser?.role);
 
     const project = projects.find(p => p.id === id);
+
+    // Costs are kept apart from the project record (clients can read that one)
+    // and are loaded only for the people allowed to see them.
+    const projectId = project?.id;
+    const legacyCosts = project?.costs; // older records only, until they are moved
+    const hasLegacyCosts = legacyCosts !== undefined;
+    const [loadedCosts, setLoadedCosts] = useState<{ forId: string; list: ProjectCost[] }>({ forId: '', list: [] });
+    useEffect(() => {
+        if (!projectId || !canSeeCosts) return;
+        let cancelled = false;
+        getProjectCosts(projectId)
+            .then(list => {
+                if (!cancelled) setLoadedCosts({ forId: projectId, list });
+            })
+            .catch(error => {
+                console.error('Error loading project costs:', error);
+                if (!cancelled) {
+                    toast({
+                        title: "Couldn't load this project's costs",
+                        description: 'Refresh the page to try again.',
+                        variant: 'destructive',
+                    });
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+        // hasLegacyCosts: load again once older costs have been moved into the costs record.
+    }, [projectId, canSeeCosts, hasLegacyCosts, getProjectCosts]);
+    const costs = useMemo(() => {
+        if (!canSeeCosts) return [];
+        return mergeCosts(loadedCosts.forId === projectId ? loadedCosts.list : [], legacyCosts);
+    }, [canSeeCosts, loadedCosts, projectId, legacyCosts]);
 
     const projectAssignee = project?.assignedTo;
     const totalProjectsForAssignee = useMemo(() => {
@@ -156,7 +190,7 @@ const ProjectManagement: React.FC = () => {
 
     const costByCategory = useMemo(() => {
         const categories: Record<string, number> = {};
-        (project?.costs || []).forEach(c => {
+        costs.forEach(c => {
             const costType = c.type || 'debit';
             const amount = costType === 'credit' ? -c.amount : c.amount;
             categories[c.category] = (categories[c.category] || 0) + amount;
@@ -164,7 +198,7 @@ const ProjectManagement: React.FC = () => {
         return Object.entries(categories)
             .filter(([, value]) => value > 0)
             .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
-    }, [project?.costs]);
+    }, [costs]);
 
     // Wait for data before deciding the project doesn't exist; otherwise a page
     // refresh on /projects/:id would always bounce back to the list.
@@ -218,12 +252,17 @@ const ProjectManagement: React.FC = () => {
         });
     };
 
+    const saveCosts = async (next: ProjectCost[]) => {
+        await saveProjectCosts(project.id, next);
+        setLoadedCosts({ forId: project.id, list: next });
+    };
+
     const handleAddCost = async (data: CostFormData) => {
         if (editingCost) {
-            const updatedCosts = (project.costs || []).map(c =>
+            const updatedCosts = costs.map(c =>
                 c.id === editingCost.id ? { ...c, ...data } : c
             );
-            await updateProject(project.id, { costs: updatedCosts });
+            await saveCosts(updatedCosts);
             setEditingCost(null);
             toast({
                 title: "Expense Updated",
@@ -250,8 +289,8 @@ const ProjectManagement: React.FC = () => {
             });
         }
 
-        const updatedCosts = [...(project.costs || []), newCost];
-        await updateProject(project.id, { costs: updatedCosts });
+        const updatedCosts = [...costs, newCost];
+        await saveCosts(updatedCosts);
         toast({
             title: "Expense Added",
             description: `"${data.description}" has been recorded.`
@@ -264,8 +303,8 @@ const ProjectManagement: React.FC = () => {
     };
 
     const handleDeleteCost = async (costId: string) => {
-        const updatedCosts = (project.costs || []).filter(c => c.id !== costId);
-        await updateProject(project.id, { costs: updatedCosts });
+        const updatedCosts = costs.filter(c => c.id !== costId);
+        await saveCosts(updatedCosts);
         toast({
             title: "Expense Deleted",
             variant: "destructive",
@@ -405,7 +444,6 @@ const ProjectManagement: React.FC = () => {
     };
 
     const tasks = project.tasks || [];
-    const costs = project.costs || [];
     const budget = project.budget || 0;
     const totalCosts = costs.reduce((sum, c) => {
         const costType = c.type || 'debit';

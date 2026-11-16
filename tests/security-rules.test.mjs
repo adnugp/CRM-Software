@@ -305,6 +305,81 @@ describe('clients', () => {
   });
 });
 
+// What a project costs us lives in projects/{id}/private/costs, not on the
+// project record, because clients can read the project record.
+describe('project costs', () => {
+  const entry = { id: 'c1', description: 'Panels', amount: 500, date: '2026-01-01', category: 'Material' };
+  const project = (fs, wsId, projectId) => fs.collection('workspaces').doc(wsId).collection('projects').doc(projectId);
+  const costs = (uid, wsId = 'wsA', projectId = 'p-by-client') =>
+    project(db(uid), wsId, projectId).collection('private').doc('costs');
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore();
+      await project(fs, 'wsA', 'p-by-client').collection('private').doc('costs').set({ costs: [entry] });
+      await project(fs, 'wsT', 'p-t').collection('private').doc('costs').set({ costs: [entry] });
+      // A record from before costs moved out of the project itself.
+      await project(fs, 'wsA', 'p-legacy').set({ name: 'Old style', costs: [entry] });
+    });
+  });
+
+  it('admins and managers read and change them', async () => {
+    await assertSucceeds(costs('admin').get());
+    await assertSucceeds(costs('manager').get());
+    await assertSucceeds(costs('manager').set({ costs: [entry, { ...entry, id: 'c2' }] }));
+    await assertSucceeds(costs('admin', 'wsA', 'p-other').set({ costs: [entry] })); // a project's first cost
+  });
+
+  it('clients cannot read them, even on their own project', async () => {
+    await assertSucceeds(ws('clientA', 'wsA').collection('projects').doc('p-by-client').get());
+    await assertFails(costs('clientA').get());
+    await assertFails(costs('clientA').set({ costs: [] }));
+  });
+
+  it('employees cannot read or change them', async () => {
+    await assertFails(costs('employee').get());
+    await assertFails(costs('employee').set({ costs: [] }));
+  });
+
+  it('another company and signed-out visitors cannot read them', async () => {
+    await assertFails(costs('adminB').get());
+    await assertFails(costs(null).get());
+  });
+
+  it('nothing else can be kept beside them', async () => {
+    await assertFails(project(db('admin'), 'wsA', 'p-by-client').collection('private').doc('notes').set({ x: 1 }));
+  });
+
+  it('a read-only company can read but not change them', async () => {
+    await assertSucceeds(costs('adminT', 'wsT', 'p-t').get());
+    await assertFails(costs('adminT', 'wsT', 'p-t').set({ costs: [] }));
+  });
+
+  it('go when any staff member deletes the project', async () => {
+    const fs = db('employee');
+    const batch = fs.batch();
+    batch.delete(project(fs, 'wsA', 'p-by-client'));
+    batch.delete(project(fs, 'wsA', 'p-by-client').collection('private').doc('costs'));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('cannot be saved on the project record, which clients can read', async () => {
+    const projects = ws('admin', 'wsA').collection('projects');
+    await assertFails(projects.add({ name: 'New', costs: [entry] }));
+    await assertFails(projects.doc('p-other').update({ costs: [entry] }));
+    await assertFails(projects.doc('p-legacy').update({ costs: [entry, { ...entry, id: 'c2' }] }));
+  });
+
+  it('an older record that still carries costs can be edited, and its costs moved out', async () => {
+    await assertSucceeds(project(db('employee'), 'wsA', 'p-legacy').update({ name: 'Renamed' }));
+    const fs = db('admin');
+    const batch = fs.batch();
+    batch.set(project(fs, 'wsA', 'p-legacy').collection('private').doc('costs'), { costs: [entry] });
+    batch.set(project(fs, 'wsA', 'p-legacy'), { name: 'Renamed' }); // the record without its costs
+    await assertSucceeds(batch.commit());
+  });
+});
+
 describe('storage', () => {
   const pdf = new Uint8Array([37, 80, 68, 70]);
   const png = new Uint8Array([137, 80, 78, 71]);
