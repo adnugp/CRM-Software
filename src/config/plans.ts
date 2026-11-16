@@ -38,5 +38,5 @@ export const formatPrice = (plan: Plan, cycle: BillingCycle): string =>
 export const TRIAL_DAYS = 14;
 /** How long an invite link stays valid. */
 export const INVITE_DAYS = 7;
-/** Where "Contact us" (Enterprise, choosing a plan) goes. Placeholder. */
-export const SALES_EMAIL = 'sales@yourcompany.com';
+/** Where "Contact us" (Enterprise, choosing a plan) goes. Shown publicly. */
+export const SALES_EMAIL = 'mohamedismayil@gptechnologies.ae';

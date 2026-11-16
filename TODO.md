@@ -22,5 +22,6 @@
       Function with the Admin SDK). They can still sign in but see no data.
 - [ ] Replacing a company logo leaves the old file in Storage.
 - [ ] "Email alert" settings are stored only in the browser (localStorage) and nothing sends emails.
-- [ ] Plan names, prices and `SALES_EMAIL` in `src/config/plans.ts` are placeholders.
+- [ ] Plan names and prices in `src/config/plans.ts` are placeholders. (`SALES_EMAIL` is set to
+      the owner's address; switch it to a shared sales address once there is one.)
 - [ ] Turn on TypeScript `strict` mode gradually. Form data types are loose because it's off.
