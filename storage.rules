@@ -66,9 +66,12 @@ service firebase.storage {
       allow delete: if isAdminOf(ws) && writable(ws);
     }
 
-    // Profile pictures are stored as avatars/{uid}_{timestamp}_{name}.
+    // Profile pictures are stored as avatars/{uid}_{timestamp}_{name}. The
+    // folder is shared by every company and names start with a user id, so it
+    // can't be listed: a picture is opened only by its exact name or its
+    // download link (which carries its own token).
     match /avatars/{fileName} {
-      allow read: if registered();
+      allow get: if registered();
       allow create, update: if registered()
         && fileName.matches(request.auth.uid + '_.*')
         && isImage()

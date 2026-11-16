@@ -429,6 +429,20 @@ describe('storage', () => {
     await assertFails(put('clientA', 'avatars/employee_1_me.png', png, 'image/png'));
     await assertFails(put('clientA', 'avatars/clientA_2_x.pdf', pdf, 'application/pdf'));
   });
+
+  // File names start with the owner's uid, and the folder is shared by every
+  // company, so listing it would reveal everyone's user ids.
+  it('nobody can list the avatars folder; a known picture can still be opened', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.storage().ref('avatars/employee_1_me.png').put(png, { contentType: 'image/png' });
+    });
+    await assertFails(storage('employeeB').ref('avatars').listAll());
+    await assertFails(storage('employee').ref('avatars').listAll());
+    await assertFails(storage('admin').ref('avatars').listAll());
+    await assertSucceeds(storage('employee').ref('avatars/employee_1_me.png').getMetadata());
+    await assertSucceeds(storage('clientA').ref('avatars/employee_1_me.png').getMetadata());
+    await assertFails(storage(null).ref('avatars/employee_1_me.png').getMetadata());
+  });
 });
 
 describe('company sign-up', () => {
