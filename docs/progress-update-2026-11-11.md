@@ -1,6 +1,6 @@
-# ProjectDesk progress update (4–12 November 2026)
+# ProjectDesk progress update (4–16 November 2026)
 
-Between 4 and 12 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. **It went live on 11 November** at https://crm-gpt-2026.web.app, with the existing data moved across. All the work (about 50 saved changes) is on GitHub (`main`).
+Between 4 and 16 November 2026 the CRM was fixed, secured and rebuilt into **ProjectDesk**: one product that many companies can sign up for, now with a sales pipeline. **It went live on 11 November** at https://crm-gpt-2026.web.app, with the existing data moved across, and was handed to the Grow Plus team on 16 November. All the work (about 60 saved changes) is on GitHub (`main`).
 
 ## Go-live (11 November)
 
@@ -16,6 +16,18 @@ Between 4 and 12 November 2026 the CRM was fixed, secured and rebuilt into **Pro
 - **Uploaded files deleted.** On request, all 46 files in file storage were deleted (about 140 MB). They were the Sadeem Energy Profile behind the deleted file record, plus older documents, repeat uploads, profile pictures and a task attachment. No record used any of them, so nothing in the app broke. Copies are kept in a private backup. Old download links no longer work.
 - **What is left on live.** The Grow Plus Technologies company, its 4 people and their logins. There are no business records and no files, so the company starts clean.
 - **New home page.** Signed-out visitors now see what ProjectDesk does, a "Start your 14-day free trial" button and the sign-in form, on one page. The old `/login` address still works and leads there.
+
+## Fixes before handing over to the team (13–16 November)
+
+A full test pass (reading every source file and using the app as admin, employee, client and a read-only company, on desktop and phone) found about 90 problems, 8 of them serious. The ones that mattered before real use were fixed, tested and deployed on 16 November:
+
+- **Clients can no longer see what a project costs us.** A client's project page showed "Current Costs" and "Project Profit" with the margin. Those cards and the financial tabs are now for admins and managers only. The cost figures were also moved out of the project record a client's browser receives into a separate record that only admins and managers can read, so they can't be found with browser tools either. Employees are kept out of it too.
+- **Admins can open projects.** The open button on the Projects list was hidden for admins only, so they had no way into a project page.
+- **Clients can open their projects.** The project name in the Projects list is now a link for everyone. A client linked to a project directly no longer gets sent back to the list, and a project with nobody assigned no longer gives the client a blank page.
+- **Profile pictures can't be listed.** Any signed-in person of any company could list the shared profile-pictures folder, whose file names start with user IDs. Pictures now open only by their own link.
+- **"Contact us" reaches a real person.** The links on the sign-up page and in the trial-ended banner went to a placeholder address; they now go to the owner's email.
+
+The team was told about the remaining rough edges and how to work around them (see Status below).
 
 "ProjectDesk" is a working name and can be changed in one place.
 
@@ -56,7 +68,7 @@ In total, 85 unused files were deleted.
 | Email confirmation | Signing up a company or joining by invite sends a confirmation link. Nothing is created until it's clicked, so nobody can use an email address that isn't theirs. Existing accounts sign in as before. |
 | Live-data move tool | Backs up the live data, shows a dry run with every person and any problems, then moves it. Tested on sample data and on a copy of the real data first. |
 | Local test environment | Development runs on local copies of the database, logins and file storage, so testing never touches live data. A "Local data" badge shows on screen. One command loads 3 demo companies with sample data. |
-| Automated tests | 67 unit tests of the business rules and the data move, and 72 security tests of who can read and change what. |
+| Automated tests | 78 unit tests of the business rules and the data move, and 82 security tests of who can read and change what. |
 
 ## What was fixed and improved
 
@@ -72,6 +84,7 @@ In total, 85 unused files were deleted.
 - Pop-up messages weren't shown at all. With them restored, every form (projects, tenders, employees, costs, tasks, partners, payments, subscriptions, registrations) now waits for the save. On failure it says "Not saved" in plain words and keeps what was typed, instead of claiming success.
 - The side menu crashed, leaving a blank screen, for a person whose profile had no name.
 - Clients from the same company now share one organisation ID, so they all see their company's projects.
+- Admins and clients had no way to open a project from the Projects list (see 13–16 November).
 
 **Security**
 - Role-based database and file-storage rules: each company is isolated, and clients see only their own projects.
@@ -82,6 +95,8 @@ In total, 85 unused files were deleted.
 - **Email addresses are confirmed.** Before, anyone could sign up with an address they didn't own. Now the confirmation link must be clicked first, and the database itself enforces it.
 - People can no longer put someone else's email on their own profile.
 - The super admin for the move was taken from the login system, not from data anyone could have edited while the old database was open.
+- **Project costs are staff-only.** Clients and employees can't read them, on screen or in the data their browser receives.
+- The shared profile-pictures folder can no longer be listed.
 
 **Speed and upkeep**
 - The first download dropped from 2.5 MB to 76 KB, because pages now load when opened.
@@ -89,20 +104,29 @@ In total, 85 unused files were deleted.
 
 ## Status and next steps
 
-**Where it stands.** Live at https://crm-gpt-2026.web.app since 11 November, with both security fixes and, since 12 November, the new home page. The live database and file storage hold only the company and its people. GitHub (`main`) matches the live site.
+**Where it stands.** Live at https://crm-gpt-2026.web.app since 11 November, with the home page since 12 November and the fixes above since 16 November. The Grow Plus team can start using it. It is not yet ready to sell to other companies (see Next work). GitHub (`main`) matches the live site.
 
 **Checks.** All of these pass:
-- 67 unit tests and 72 security tests;
+- 78 unit tests and 82 security tests;
 - type check, lint (0 errors) and the production build;
-- a hand test of every flow on local data, and a rehearsal with a copy of the real data.
+- a hand test of each fix on local data as admin, manager, employee and client;
+- the live website and its database and file rules are identical to what was tested.
+
+**Workarounds given to the team**
+- Upload one file at a time: several at once keeps only one.
+- Don't edit the same project at the same moment as someone else; the last save wins.
+- Amounts on projects show "$" but mean AED.
+- The Executive Report figures and "Preview PDF" don't work yet.
+- Admins shouldn't remove themselves from the team: nothing yet stops the last admin doing it.
 
 **To check on live**
-- Sign in, and have the other three people sign in.
+- The other three people sign in (on 16 November only the owner had signed in since go-live).
 - Send a test invite to an address you can open, to confirm the email arrives (it comes from noreply@crm-gpt-2026.firebaseapp.com).
 
 **Next work**
 - Real card payments with Stripe. This needs the Firebase Blaze plan. It would also let the app send invite emails itself.
 - Optionally a custom domain, with sign-up on the main domain and the app on `app.`.
-- Replace the fixed risk paragraph in the project's Executive Briefing PDF with real figures.
-- Set the final plan names, prices and sales email.
+- Fix the Executive Briefing PDF (it fails to generate) and replace its fixed risk paragraph and the Executive Report's invented figures with real ones.
+- Work through the rest of the test findings, starting with: paid payments shown as overdue, no deadline alerts for running projects, text that can't be copied, multi-file upload, "Add Member" not saving, mixed $ and AED, and live updates when two people edit at once.
+- Before selling: real payments instead of the test card form on the public sign-up page, and the final plan names and prices.
 - Removing a user should also remove their login. This needs a server function.
