@@ -342,13 +342,11 @@ const Projects: React.FC = () => {
                   {!isClient && (
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        {user?.role !== 'admin' && (
-                          <Button variant="outline" size="sm" asChild>
-                            <Link to={`/projects/${project.id}`}>
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        )}
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to={`/projects/${project.id}`} aria-label={`Open ${project.name}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
