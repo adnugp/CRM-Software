@@ -53,7 +53,7 @@ While the app uses local data, a **Local data** badge shows at the top of the sc
 | `npm run dev:live` | Dev server using the **live** Firebase project (careful) |
 | `npm run build` | Production build into `dist/` (always uses the live project) |
 | `npm run lint` | ESLint |
-| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers, data migration, who sees project costs and where they are kept) |
+| `npm run test:unit` | Unit tests for the pure helpers (numbering, divisions, theme, plans and trials, pipeline, assistant sales answers, data migration, who sees project costs and where they are kept, which payments raise alerts) |
 | `npm run test:rules` | Test the Firestore and Storage security rules against the emulators (stop `npm run emulators` first: they share ports) |
 
 ## Workspaces and divisions

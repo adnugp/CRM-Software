@@ -19,6 +19,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useData } from "@/contexts/DataContext";
 import { cn } from "@/lib/utils";
+import { paymentAlert } from "@/lib/payment-alerts";
 
 type NotificationType = "overdue" | "expiring" | "deadline" | "billing";
 
@@ -54,9 +55,10 @@ const NotificationCenter: React.FC = () => {
       const id = `payment-${payment.id}`;
       if (dismissedIds.has(id)) return;
 
-      const daysDiff = getDaysDifference(payment.dueDate);
+      // Paid payments never raise an alert, however old their due date.
+      const alert = paymentAlert(payment, today);
 
-      if (payment.status === "overdue" || daysDiff < 0) {
+      if (alert?.kind === "overdue") {
         notifs.push({
           id,
           type: "overdue",
@@ -67,16 +69,17 @@ const NotificationCenter: React.FC = () => {
           read: false,
           urgency: "high",
         });
-      } else if (daysDiff <= 7 && payment.status === "pending") {
+      } else if (alert?.kind === "due-soon") {
+        const { days } = alert;
         notifs.push({
           id,
           type: "deadline",
           category: "payment",
           title: "Payment Due Soon",
-          message: `${payment.description} - $${payment.amount.toLocaleString()} due in ${daysDiff} day${daysDiff !== 1 ? "s" : ""}`,
+          message: `${payment.description} - $${payment.amount.toLocaleString()} ${days === 0 ? "due today" : `due in ${days} day${days !== 1 ? "s" : ""}`}`,
           timestamp: new Date(payment.dueDate),
           read: false,
-          urgency: daysDiff <= 3 ? "high" : "medium",
+          urgency: days <= 3 ? "high" : "medium",
         });
       }
     });
