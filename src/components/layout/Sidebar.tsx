@@ -11,6 +11,7 @@ import {
   UserPlus,
   Settings,
   LogOut,
+  MessageSquare,
   Menu,
   X,
   Files,
@@ -28,6 +29,7 @@ import { BrandMark } from '@/components/brand/BrandMark';
 import { useDragScroll } from '@/hooks/use-drag-scroll';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { accessLabel } from '@/lib/subscription';
+import { FEEDBACK_HREF } from '@/config/plans';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
@@ -137,6 +139,13 @@ const Sidebar: React.FC = () => {
             <p className="text-xs text-sidebar-foreground/60 capitalize">{user?.role}</p>
           </div>
         </div>
+        <a
+          href={FEEDBACK_HREF}
+          className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Send feedback
+        </a>
         <button
           onClick={logout}
           className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"

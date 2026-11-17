@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderKanban, FileText, CreditCard, TrendingUp, Layers, CheckCircle2, UserCheck, Timer, Loader2 } from 'lucide-react';
+import { FolderKanban, FileText, CreditCard, TrendingUp, Layers, CheckCircle2, UserCheck, Loader2 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
@@ -48,47 +48,8 @@ const Dashboard: React.FC = () => {
     return stats;
   }, [displayProjects, isClient, stats]);
 
-  const prevMonthProjects = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    return projects.filter(p => p.createdAt && new Date(p.createdAt) < oneMonthAgo).length;
-  }, [projects]);
-
-  const projectTrend = React.useMemo(() => {
-    if (prevMonthProjects === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.activeProjects - prevMonthProjects) / prevMonthProjects) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.activeProjects, prevMonthProjects]);
-
-  const tenderTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = tenders.filter(t => t.createdAt && new Date(t.createdAt) < oneMonthAgo).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.openTenders - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.openTenders, tenders]);
-
-  const paymentTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = payments.filter(p => p.createdAt && new Date(p.createdAt) < oneMonthAgo).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true, label: 'from last month' };
-    const change = ((displayStats.pendingPayments - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change <= 0, label: 'from last month' };
-  }, [displayStats.pendingPayments, payments]);
-
-  const totalTrend = React.useMemo(() => {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const prevMonth = [...projects, ...tenders].filter(p => {
-      const created = p.createdAt;
-      return created && new Date(created) < oneMonthAgo;
-    }).length;
-    if (prevMonth === 0) return { value: 100, isPositive: true };
-    const change = ((displayStats.totalProjectsAndTenders - prevMonth) / prevMonth) * 100;
-    return { value: Math.abs(Math.round(change)), isPositive: change >= 0 };
-  }, [displayStats.totalProjectsAndTenders, projects, tenders]);
+  // No month-on-month trends: there is no history to compare against yet, and
+  // the old figures compared different things (they showed +100% on empty data).
 
   const showFinancial = isAdmin || isManager || isUser;
   const showGeneral = true;
@@ -123,7 +84,6 @@ const Dashboard: React.FC = () => {
                 title="Running Projects"
                 value={displayStats.activeProjects}
                 icon={FolderKanban}
-                trend={projectTrend}
               />
             )}
             {showGeneral && !isClient && (
@@ -131,16 +91,14 @@ const Dashboard: React.FC = () => {
                 title="Running Tenders"
                 value={displayStats.openTenders}
                 icon={FileText}
-                trend={tenderTrend}
               />
             )}
             {isClient && (
               <>
                 <StatCard
-                  title="Execution Speed"
-                  value="On Track"
-                  icon={Timer}
-                  trend={{ value: 4, isPositive: true }}
+                  title="Projects"
+                  value={displayProjects.length}
+                  icon={FolderKanban}
                 />
                 <StatCard
                   title="Milestones Met"
@@ -159,7 +117,6 @@ const Dashboard: React.FC = () => {
                 title="Pending Payments"
                 value={displayStats.pendingPayments}
                 icon={CreditCard}
-                trend={paymentTrend}
               />
             )}
             {showGeneral && !isClient && (
@@ -167,7 +124,6 @@ const Dashboard: React.FC = () => {
                 title="Total Projects & Tenders"
                 value={isClient ? displayProjects.length : displayStats.totalProjectsAndTenders}
                 icon={Layers}
-                trend={totalTrend}
               />
             )}
           </>

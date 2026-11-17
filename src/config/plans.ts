@@ -40,3 +40,5 @@ export const TRIAL_DAYS = 60;
 export const INVITE_DAYS = 7;
 /** Where "Contact us" (Enterprise, choosing a plan) goes. Shown publicly. */
 export const SALES_EMAIL = 'mohamedismayil@gptechnologies.ae';
+/** "Send feedback" in the app (sidebar and the testing notice). */
+export const FEEDBACK_HREF = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent('ProjectDesk feedback')}`;

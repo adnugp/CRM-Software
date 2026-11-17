@@ -5,15 +5,36 @@ import Sidebar from './Sidebar';
 import { useDragScroll } from '@/hooks/use-drag-scroll';
 import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
 import ReadOnlyBanner from '@/components/subscription/ReadOnlyBanner';
+import { PRODUCT_NAME } from '@/config/product';
+import { FEEDBACK_HREF } from '@/config/plans';
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
+// Dismissing the testing notice is remembered in this browser (a convenience
+// only: if storage is unavailable it simply shows again).
+const NOTICE_KEY = 'projectdesk.testingNoticeDismissed';
+const noticeDismissed = () => {
+  try {
+    return localStorage.getItem(NOTICE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const scrollRef = useDragScroll<HTMLElement>();
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
+  const [showAnnouncement, setShowAnnouncement] = useState(() => !noticeDismissed());
+  const dismissAnnouncement = () => {
+    setShowAnnouncement(false);
+    try {
+      localStorage.setItem(NOTICE_KEY, '1');
+    } catch {
+      // Storage blocked: it just shows again next time.
+    }
+  };
 
   // Check authentication - redirect to login if not authenticated
   if (!isAuthenticated) {
@@ -30,8 +51,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <ReadOnlyBanner />
         {showAnnouncement && (
           <AnnouncementBanner
-            message="Welcome to the CRM system. Stay tuned for updates!"
-            onDismiss={() => setShowAnnouncement(false)}
+            message={`${PRODUCT_NAME} is in testing. Tell us what works, what doesn't and what's missing.`}
+            link={{ href: FEEDBACK_HREF, label: 'Send feedback' }}
+            onDismiss={dismissAnnouncement}
           />
         )}
         <div className="p-4 lg:p-6 min-h-full">
