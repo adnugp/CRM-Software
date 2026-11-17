@@ -120,38 +120,26 @@ service cloud.firestore {
       return inWs(ws) && writable(ws);
     }
 
-    // Only a summary of the card is ever stored, never the number or CVC.
-    // 'demo' until Stripe is integrated (src/services/billing.ts).
-    function validPaymentMethod(p) {
-      return p is map
-        && p.keys().hasOnly(['provider', 'brand', 'last4', 'expMonth', 'expYear'])
-        && p.keys().hasAll(['provider', 'brand', 'last4', 'expMonth', 'expYear'])
-        && p.provider == 'demo'
-        && p.brand in ['visa', 'mastercard', 'amex']
-        && p.last4 is string && p.last4.matches('^[0-9]{4}$')
-        && p.expMonth is int && p.expMonth >= 1 && p.expMonth <= 12
-        && p.expYear is int;
-    }
-
     function billingPath(ws) {
       return /databases/$(database)/documents/workspaces/$(ws)/private/billing;
     }
 
-    // The founder's contact details and card summary, kept in
+    // The founder's contact details and chosen billing period, kept in
     // workspaces/{ws}/private/billing so members and clients can't read them.
+    // While ProjectDesk is in testing the card is only checked in the browser
+    // and nothing about it is stored, so these are the only fields allowed.
     function validBilling(d) {
-      return d.keys().hasOnly(['contactName', 'contactEmail', 'billingCycle', 'paymentMethod'])
-        && d.keys().hasAll(['contactName', 'contactEmail', 'billingCycle', 'paymentMethod'])
+      return d.keys().hasOnly(['contactName', 'contactEmail', 'billingCycle'])
+        && d.keys().hasAll(['contactName', 'contactEmail', 'billingCycle'])
         && d.contactName is string && d.contactName.size() <= 100
         && d.contactEmail == authEmail()
         && emailConfirmed()
-        && d.billingCycle in ['monthly', 'yearly']
-        && validPaymentMethod(d.paymentMethod);
+        && d.billingCycle in ['monthly', 'yearly'];
     }
 
     // A new trial company written together with its founder's admin profile
-    // and its billing record. A card goes on file first; the trial then runs
-    // before any charge.
+    // and its billing record. Trials run up to 60 days (TRIAL_DAYS in
+    // src/config/plans.ts); the product owner can extend them.
     function validSignupWorkspace(ws, d) {
       return d.keys().hasOnly(['name', 'divisions', 'status', 'plan', 'staffLimit', 'staffCount',
                                'trialEndsAt', 'createdBy', 'createdAt'])
@@ -164,7 +152,7 @@ service cloud.firestore {
         && d.staffLimit == planLimits()[d.plan]
         && d.staffCount == 1
         && d.trialEndsAt > request.time
-        && d.trialEndsAt <= request.time + duration.value(15, 'd')
+        && d.trialEndsAt <= request.time + duration.value(61, 'd')
         && d.createdBy == request.auth.uid
         && meAfter().workspaceId == ws
         && meAfter().role == 'admin';

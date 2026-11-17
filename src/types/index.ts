@@ -50,7 +50,7 @@ export interface WorkspaceBilling {
   contactName?: string;
   contactEmail?: string;
   billingCycle?: BillingCycle;
-  /** Card on file: brand, last 4 and expiry only. */
+  /** Card on file, once a real payment provider is added. Not stored while in testing. */
   paymentMethod?: PaymentMethodSummary;
 }
 

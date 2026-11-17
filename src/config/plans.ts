@@ -34,8 +34,8 @@ export const planPrice = (plan: Plan, cycle: BillingCycle): number =>
 export const formatPrice = (plan: Plan, cycle: BillingCycle): string =>
   `${CURRENCY} ${planPrice(plan, cycle).toLocaleString('en-US')} / ${cycle === 'yearly' ? 'year' : 'month'}`;
 
-/** Length of the free trial a new company gets. */
-export const TRIAL_DAYS = 14;
+/** Length of the free trial a new company gets (firestore.rules allow up to 61). */
+export const TRIAL_DAYS = 60;
 /** How long an invite link stays valid. */
 export const INVITE_DAYS = 7;
 /** Where "Contact us" (Enterprise, choosing a plan) goes. Shown publicly. */

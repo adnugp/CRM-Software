@@ -70,14 +70,15 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
 ## Sign-up, plans and invites
 
 - **Sign-up.** A new company signs up at `/signup` (linked from the home page, which is also where people sign in): it picks a
-  plan and monthly or yearly billing, enters a card, and gets a 14-day trial; the person
+  plan and monthly or yearly billing, enters a card, and gets a 60-day trial; the person
   signing up becomes its admin. Plans, prices and trial length are in `src/config/plans.ts`;
   the staff limits are mirrored in `firestore.rules` (`planLimits`), and a rules test fails
   if they differ.
-- **Payment (demo for now).** The card is checked in the browser by
-  `src/services/billing.ts` and nothing is charged. Only the card type, last 4 digits and
-  expiry are stored. Use 4242 4242 4242 4242 to succeed and 4000 0000 0000 0002 to see a
-  decline (any future expiry, any CVC). Stripe will replace that one file.
+- **Payment (none while in testing).** The card is only checked for a valid format in the
+  browser by `src/services/billing.ts`: nothing is charged and nothing about the card is
+  stored (`firestore.rules` refuse card details in the billing record). Any card with a valid
+  format works, e.g. 4242 4242 4242 4242 with any future expiry and any CVC. Stripe will
+  replace that one file.
 - **Staff limit.** Admins, managers and employees count against the plan's staff limit
   (`staffCount` / `staffLimit` on the workspace). Clients are free.
 - **Read-only.** When a trial ends, or the company is suspended, it becomes read-only: people
@@ -90,7 +91,7 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
   require `email_verified`). Existing logins sign in as before. Locally no email is sent:
   the link is in the Emulator UI (http://localhost:4000 → Authentication) or at
   http://127.0.0.1:9099/emulator/v1/projects/demo-crm/oobCodes.
-- **Billing details** (contact, card summary, billing period) are kept in
+- **Billing details** (contact and billing period, no card) are kept in
   `workspaces/{id}/private/billing`, readable only by that company's admins and the super admin.
 - **Super admin.** The product owner (a login listed in `platformOwners`, set with
   `"platformOwner": true` in `local-accounts.json`) sees every company on the **Platform**

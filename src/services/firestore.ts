@@ -217,7 +217,7 @@ export const getWorkspace = async (wsId: string): Promise<Workspace | null> => {
   return snapshot.exists() ? toWorkspace(snapshot.id, snapshot.data()) : null;
 };
 
-// Billing contact and card summary (company admins and the super admin only).
+// Billing contact and period (company admins and the super admin only).
 export const getWorkspaceBilling = async (wsId: string): Promise<WorkspaceBilling | null> => {
   const snapshot = await getDoc(doc(db, 'workspaces', wsId, 'private', 'billing'));
   return snapshot.exists() ? (snapshot.data() as WorkspaceBilling) : null;

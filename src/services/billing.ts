@@ -1,28 +1,19 @@
 // The one place that talks to a payment provider.
 //
-// Today it's a DEMO: it checks the card in the browser, waits a moment like a
-// real provider would, and returns a summary (brand, last 4, expiry). Nothing is
-// charged and the full card number never leaves this function.
+// While ProjectDesk is in testing there is no provider: the card is only
+// checked for a valid format in the browser (number, expiry, CVC), nothing is
+// charged, and nothing about the card is stored or sent anywhere. firestore.rules
+// refuse card details in the billing record.
 //
-// When Stripe is added, replace the body of savePaymentMethod with Stripe
-// Elements + a SetupIntent confirmed by a Cloud Function, and return the same
-// summary (with provider: 'stripe' and its payment-method id). The sign-up page
-// and the stored data stay the same.
-import {
-  DECLINED_TEST_CARD, digitsOnly, summarizeCard, validateCard,
-  type CardInput, type PaymentMethodSummary,
-} from '@/lib/payment';
+// When Stripe is added, this becomes Stripe Elements + a SetupIntent confirmed
+// by a Cloud Function, which returns a payment-method summary to store.
+import { validateCard, type CardInput } from '@/lib/payment';
 
 /** A problem with the card that the person can fix (shown on the form). */
 export class PaymentError extends Error {}
 
-export async function savePaymentMethod(card: CardInput): Promise<PaymentMethodSummary> {
+/** Checks the card's format and keeps nothing. Any card with a valid format is accepted. */
+export async function checkCard(card: CardInput): Promise<void> {
   const problems = Object.values(validateCard(card, new Date()));
   if (problems.length) throw new PaymentError(problems[0]);
-
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  if (digitsOnly(card.number) === DECLINED_TEST_CARD) {
-    throw new PaymentError('Your card was declined. Try a different card.');
-  }
-  return summarizeCard(card);
 }

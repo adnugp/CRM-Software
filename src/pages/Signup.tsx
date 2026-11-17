@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { savePaymentMethod, PaymentError } from '@/services/billing';
+import { checkCard, PaymentError } from '@/services/billing';
+import { PRODUCT_NAME } from '@/config/product';
 import {
   PLANS, SALES_EMAIL, TRIAL_DAYS, YEARLY_MONTHS_CHARGED, formatPrice, planById,
   type BillingCycle, type PlanId,
@@ -55,7 +56,7 @@ const Signup: React.FC = () => {
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [error, setError] = useState('');
   // After the first submit: everything needed to finish once the email is
-  // confirmed (the card is already checked, so it isn't asked for again).
+  // confirmed (the card was only checked, so it isn't asked for again).
   const [pending, setPending] = useState<{ input: CompanySignup & { password: string }; email: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -71,22 +72,19 @@ const Signup: React.FC = () => {
   if (isAuthenticated) return <Navigate to="/" replace />;
 
   const chosen = planById(plan) ?? PLANS[0];
-  const firstCharge = addDays(new Date(), TRIAL_DAYS).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const trialEnds = addDays(new Date(), TRIAL_DAYS).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const onSubmit = async (values: Values) => {
     setError('');
-    // The card goes on file first, so a declined card never creates a login.
-    let paymentMethod;
+    // The card is only checked for a valid format; nothing about it is kept.
     try {
-      paymentMethod = await savePaymentMethod({
-        name: values.cardName, number: values.cardNumber, expiry: values.cardExpiry, cvc: values.cardCvc,
-      });
+      await checkCard({ name: values.cardName, number: values.cardNumber, expiry: values.cardExpiry, cvc: values.cardCvc });
     } catch (err) {
       setError(err instanceof PaymentError ? err.message : 'We could not check your card. Please try again.');
       return;
     }
     const input = {
-      plan, billingCycle: cycle, paymentMethod,
+      plan, billingCycle: cycle,
       companyName: values.companyName, name: values.name, email: values.email, password: values.password,
     };
     const result = await signUpCompany(input);
@@ -160,7 +158,7 @@ const Signup: React.FC = () => {
       <div className="mb-6 text-center">
         <h1 className="text-3xl font-bold text-foreground">Start your free trial</h1>
         <p className="mt-2 text-muted-foreground">
-          {TRIAL_DAYS} days free, cancel anytime. Pick a plan by team size; clients are always free.
+          {TRIAL_DAYS} days free while {PRODUCT_NAME} is in testing. Pick a plan by team size; clients are always free.
         </p>
       </div>
 
@@ -246,7 +244,8 @@ const Signup: React.FC = () => {
               </div>
               <p className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Test mode: no real charge, and card details are not stored (only the card type and last 4 digits).
+                {PRODUCT_NAME} is in testing: nothing is charged. Your card is only checked for a valid format and
+                is not stored anywhere.
               </p>
 
               {error && (
@@ -259,7 +258,8 @@ const Signup: React.FC = () => {
                 Start {TRIAL_DAYS}-day free trial
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                You won't be charged until {firstCharge}, then {formatPrice(chosen, cycle)} for the {chosen.name} plan.
+                Free until {trialEnds}. The {chosen.name} plan will be {formatPrice(chosen, cycle)} once billing starts;
+                you will be asked before anything is charged.
               </p>
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}

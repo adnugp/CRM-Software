@@ -74,6 +74,6 @@ test('plans config', () => {
   assert.deepEqual(PLANS.map((p) => p.staffLimit), [5, 20, 50]);
   assert.equal(planById('team')?.name, 'Team');
   assert.equal(planById('nope'), undefined);
-  assert.equal(TRIAL_DAYS, 14);
+  assert.equal(TRIAL_DAYS, 60);
   assert.equal(INVITE_DAYS, 7);
 });

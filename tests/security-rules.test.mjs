@@ -450,12 +450,13 @@ describe('company sign-up', () => {
   const card = { provider: 'demo', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2028 };
   const newCompany = (over = {}) => ({
     name: 'New Co', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1,
-    trialEndsAt: inDays(14), createdBy: 'founder', createdAt: new Date(),
+    trialEndsAt: inDays(60), createdBy: 'founder', createdAt: new Date(),
     ...over,
   });
   // Billing lives apart from the company record, so members and clients can't read it.
+  // No card details at all: the card is only checked in the browser while in testing.
   const newBilling = (over = {}) => ({
-    contactName: 'Fay', contactEmail: 'founder@new.dev', billingCycle: 'monthly', paymentMethod: card, ...over,
+    contactName: 'Fay', contactEmail: 'founder@new.dev', billingCycle: 'monthly', ...over,
   });
   const founderProfile = (over = {}) => ({ name: 'Fay', email: 'founder@new.dev', role: 'admin', workspaceId: 'wsNew', ...over });
   const signUp = (fs, { company = {}, billing = {}, profile = {}, wsId = 'wsNew', withBilling = true } = {}) => {
@@ -477,8 +478,12 @@ describe('company sign-up', () => {
     await assertFails(signUp(founder(), { company: { status: 'active' } }));
     await assertFails(signUp(founder(), { company: { staffLimit: 500 } }));
     await assertFails(signUp(founder(), { company: { plan: 'custom', staffLimit: 0 } }));
-    await assertFails(signUp(founder(), { company: { trialEndsAt: inDays(60) } }));
+    await assertFails(signUp(founder(), { company: { trialEndsAt: inDays(62) } }));
     await assertFails(signUp(founder(), { company: { staffCount: 0 } }));
+  });
+
+  it('a trial can run up to 60 days', async () => {
+    await assertSucceeds(signUp(founder(), { company: { trialEndsAt: inDays(60) } }));
   });
 
   it('must use the login email, be the creator and be the admin', async () => {
@@ -487,16 +492,15 @@ describe('company sign-up', () => {
     await assertFails(signUp(founder(), { profile: { role: 'manager' } }));
   });
 
-  it('needs a card summary and a billing period', async () => {
+  it('needs a billing record with a billing period', async () => {
     await assertSucceeds(signUp(founder(), { billing: { billingCycle: 'yearly' } }));
   });
 
-  it('rejects a missing card, a full card number or an unknown billing period', async () => {
+  it('never stores any card details, and rejects an unknown billing period', async () => {
     await assertFails(signUp(founder(), { withBilling: false }));
-    await assertFails(signUp(founder(), { billing: { paymentMethod: null } }));
+    await assertFails(signUp(founder(), { billing: { paymentMethod: card } }));
     await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, number: '4242424242424242' } } }));
-    await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, cvc: '123' } } }));
-    await assertFails(signUp(founder(), { billing: { paymentMethod: { ...card, last4: '42424242' } } }));
+    await assertFails(signUp(founder(), { billing: { cardNumber: '4242424242424242' } }));
     await assertFails(signUp(founder(), { billing: { billingCycle: 'weekly' } }));
   });
 

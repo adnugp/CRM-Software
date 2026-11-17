@@ -29,23 +29,22 @@ const day = (offset) => {
 const ago = (days) => new Date(Date.now() - days * 86400000);
 
 // A card summary as sign-up stores it (demo provider: never a full number).
-const demoCard = (brand, last4) => ({ provider: 'demo', brand, last4, expMonth: 12, expYear: 2028 });
 
 // Writes into workspaces/{ws}/{collection}/{id}.
 const putIn = (ws, collection, id, data) => put(`workspaces/${ws}/${collection}`, id, data);
 
 async function createWorkspace({ id, name, brandColor, divisions, people, billing }) {
   const founder = people.find((p) => p.role === 'admin');
-  // Plan state goes on the company record; the card and contact go in the
+  // Plan state goes on the company record; the contact and billing period go in the
   // admin-only private/billing record, as sign-up does.
-  const { billingCycle, paymentMethod, ...plan } = billing;
+  const { billingCycle, ...plan } = billing;
   await put('workspaces', id, {
     name, brandColor, divisions, createdAt: ago(400),
     ...plan,
     staffCount: people.filter((p) => p.role !== 'client').length,
   });
   await putIn(id, 'private', 'billing', {
-    contactName: founder?.name, contactEmail: founder?.email, billingCycle, paymentMethod,
+    contactName: founder?.name, contactEmail: founder?.email, billingCycle,
   });
 
   const person = {};
@@ -119,7 +118,7 @@ async function seedAcme() {
   const person = await createWorkspace({
     id: ws,
     name: 'Acme Contracting',
-    billing: { status: 'active', plan: 'business', staffLimit: 50, billingCycle: 'yearly', paymentMethod: demoCard('visa', '4242') },
+    billing: { status: 'active', plan: 'business', staffLimit: 50, billingCycle: 'yearly' },
     divisions: [
       { id: BLD, name: 'Building Systems', code: 'BLD' },
       { id: ENG, name: 'Energy', code: 'ENG' },
@@ -306,7 +305,7 @@ async function seedNoor() {
     brandColor: '#2563eb',
     billing: {
       status: 'trial', plan: 'starter', staffLimit: 5, trialEndsAt: new Date(Date.now() + 9 * 86400000),
-      billingCycle: 'monthly', paymentMethod: demoCard('mastercard', '4444'),
+      billingCycle: 'monthly',
     },
     divisions: [],
     people: [
@@ -375,7 +374,7 @@ async function seedFalcon() {
     name: 'Falcon Builders',
     brandColor: '#ea580c',
     divisions: [],
-    billing: { status: 'trial', plan: 'starter', staffLimit: 5, trialEndsAt: ago(2), billingCycle: 'monthly', paymentMethod: demoCard('visa', '1881') },
+    billing: { status: 'trial', plan: 'starter', staffLimit: 5, trialEndsAt: ago(2), billingCycle: 'monthly' },
     people: [
       { key: 'admin', email: 'admin@falcon.test', name: 'Khalid Mansour', role: 'admin', department: 'Management', position: 'Owner', phone: '+971 50 888 1000' },
       { key: 'employee', email: 'employee@falcon.test', name: 'Rana Aziz', role: 'user', department: 'Projects', position: 'Site Supervisor', phone: '+971 55 888 2000' },
