@@ -87,8 +87,10 @@ division). Admins manage the name, logo, colour and divisions in **Settings → 
   copy the one-time link (valid 7 days) and send it. The person opens it, picks a password
   and joins. The app doesn't send invite emails itself yet.
 - **Email confirmation.** Signing up a company or joining by invite creates the login, then
-  Firebase emails a confirmation link; nothing else is written until it's clicked (the rules
-  require `email_verified`). Existing logins sign in as before. Locally no email is sent:
+  Firebase emails a confirmation link; until it's clicked only `pendingSignups/{uid}` is
+  written (what they typed, no password or card), and the company or profile waits (the
+  rules require `email_verified`). The link leads to the home page: signing in there, or
+  anywhere later, finishes the sign-up or join. Existing logins sign in as before. Locally no email is sent:
   the link is in the Emulator UI (http://localhost:4000 → Authentication) or at
   http://127.0.0.1:9099/emulator/v1/projects/demo-crm/oobCodes.
 - **Billing details** (contact and billing period, no card) are kept in

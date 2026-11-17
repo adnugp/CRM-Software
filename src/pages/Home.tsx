@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { FileText, FolderKanban, ShieldCheck, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { FileText, FolderKanban, MailCheck, ShieldCheck, TrendingUp, Users, Wallet, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProductLogo } from '@/components/brand/BrandMark';
 import SignInCard from '@/components/auth/SignInCard';
@@ -17,7 +17,10 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
 ];
 
 /** The home address for signed-out visitors: what the product does, and the sign-in form. */
-const Home: React.FC = () => (
+const Home: React.FC = () => {
+  const [params] = useSearchParams();
+  const confirmed = params.get('confirmed') === '1';
+  return (
   <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-primary/5 via-background to-primary/10">
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       <div className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
@@ -54,6 +57,13 @@ const Home: React.FC = () => (
         </section>
 
         <div className="w-full max-w-md justify-self-center lg:row-span-2 lg:justify-self-end">
+          {/* Where the email-confirmation link lands. */}
+          {confirmed && (
+            <p role="status" className="mb-4 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
+              <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              Email confirmed. Sign in with your new password to finish setting up your account.
+            </p>
+          )}
           <SignInCard />
         </div>
 
@@ -75,6 +85,7 @@ const Home: React.FC = () => (
       </footer>
     </div>
   </div>
-);
+  );
+};
 
 export default Home;

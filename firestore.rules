@@ -237,6 +237,32 @@ service cloud.firestore {
             && getAfter(wsPath(myWs())).data.get('removedUid', '') == uid));
     }
 
+    // ---- Pending sign-ups ----------------------------------------------
+    // What someone typed when signing up a company or accepting an invite,
+    // saved before their email is confirmed so they can finish just by
+    // signing in after clicking the link. Only their own login can touch it,
+    // and it creates nothing by itself: the company or profile is still
+    // written by the checks above, which require a confirmed email.
+    match /pendingSignups/{uid} {
+      allow get, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && validPendingSignup(request.resource.data);
+    }
+
+    function validPendingSignup(d) {
+      return d.keys().hasOnly(['kind', 'name', 'companyName', 'plan', 'billingCycle', 'inviteId', 'createdAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && d.createdAt is timestamp
+        && ((d.kind == 'company'
+              && d.keys().hasAll(['companyName', 'plan', 'billingCycle'])
+              && d.companyName is string && d.companyName.size() > 0 && d.companyName.size() <= 100
+              && d.plan in planLimits()
+              && d.billingCycle in ['monthly', 'yearly'])
+          || (d.kind == 'invite'
+              && d.keys().hasAll(['inviteId'])
+              && d.inviteId is string && d.inviteId.size() > 0 && d.inviteId.size() <= 100));
+    }
+
     // ---- Invites -------------------------------------------------------
     match /invites/{token} {
       // The random token is the secret: whoever has the link can open that one

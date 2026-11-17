@@ -731,3 +731,37 @@ describe('plans', () => {
     assert.deepEqual(inRules, Object.fromEntries(PLANS.map((p) => [p.id, p.staffLimit])));
   });
 });
+
+// What someone typed when signing up or accepting an invite, kept until their
+// email is confirmed, so they can finish by simply signing in afterwards.
+describe('pending sign-ups', () => {
+  const pending = (fs, uid = 'newbie') => fs.collection('pendingSignups').doc(uid);
+  const company = { kind: 'company', name: 'Nia', companyName: 'Nia Co', plan: 'starter', billingCycle: 'monthly', createdAt: new Date() };
+  const invite = { kind: 'invite', name: 'Nia', inviteId: 'tok123', createdAt: new Date() };
+
+  it('an unconfirmed login can save, read and delete its own', async () => {
+    const fs = as('newbie', 'nia@new.dev', false);
+    await assertSucceeds(pending(fs).set(company));
+    await assertSucceeds(pending(fs).get());
+    await assertSucceeds(pending(fs).set(invite));
+    await assertSucceeds(pending(fs).delete());
+  });
+
+  it("nobody can read or write someone else's", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await ctx.firestore().collection('pendingSignups').doc('newbie').set(company); });
+    await assertFails(pending(as('other', 'o@new.dev', false)).get());
+    await assertFails(pending(as('other', 'o@new.dev', false)).set(company));
+    await assertFails(pending(db(null)).get());
+    await assertFails(db('admin').collection('pendingSignups').get());
+  });
+
+  it('holds only the sign-up fields, never a password or card', async () => {
+    const fs = as('newbie', 'nia@new.dev', false);
+    await assertFails(pending(fs).set({ ...company, password: 'x' }));
+    await assertFails(pending(fs).set({ ...company, cardNumber: '4242424242424242' }));
+    await assertFails(pending(fs).set({ ...company, kind: 'other' }));
+    await assertFails(pending(fs).set({ ...company, plan: 'custom' }));
+    await assertFails(pending(fs).set({ ...company, companyName: 'x'.repeat(101) }));
+    await assertFails(pending(fs).set({ kind: 'invite', name: 'Nia', createdAt: new Date() }));
+  });
+});

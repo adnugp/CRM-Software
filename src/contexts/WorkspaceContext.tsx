@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Building2, LogOut } from 'lucide-react';
+import { Building2, LogOut, MailCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorkspace, updateWorkspace as saveWorkspace } from '@/services/firestore';
 import { brandThemeCss } from '@/lib/workspace';
@@ -48,22 +48,66 @@ const applyBrandColor = (hex?: string) => {
 };
 
 // Shown to a signed-in account that isn't linked to any company, instead of
-// an empty CRM that would fail on every request.
-const NoWorkspace: React.FC<{ email?: string; onLogout: () => void }> = ({ email, onLogout }) => (
-  <div className="flex min-h-screen items-center justify-center bg-background p-6">
-    <div className="max-w-md space-y-4 rounded-xl border bg-card p-8 text-center shadow-card">
-      <Building2 className="mx-auto h-10 w-10 text-muted-foreground" />
-      <h1 className="text-xl font-semibold text-foreground">Your account isn't linked to a company</h1>
-      <p className="text-sm text-muted-foreground">
-        {email ? <><span className="font-medium text-foreground">{email}</span> is signed in, but </> : 'This account '}
-        has no company workspace yet. Ask your company's administrator to add you from Settings.
-      </p>
-      <Button variant="outline" onClick={onLogout}>
-        <LogOut className="mr-2 h-4 w-4" /> Sign out
-      </Button>
+// an empty CRM that would fail on every request. If the account signed up a
+// company or accepted an invite and has since confirmed its email, this
+// finishes that first (the person just signs in after clicking the link).
+type FinishState = 'checking' | 'none' | 'unconfirmed' | 'sent' | { error: string };
+
+const NoWorkspace: React.FC<{ email?: string; onLogout: () => void }> = ({ email, onLogout }) => {
+  const { finishPendingSignup } = useAuth();
+  const [state, setState] = useState<FinishState>('checking');
+
+  const attempt = useCallback(async (sendAgain = false) => {
+    setState('checking');
+    const result = await finishPendingSignup(sendAgain);
+    if (result === true) return; // the session reloads with the new company
+    if (result === 'unconfirmed') setState(sendAgain ? 'sent' : 'unconfirmed');
+    else if (result === 'none') setState('none');
+    else setState({ error: result });
+  }, [finishPendingSignup]);
+
+  useEffect(() => {
+    attempt();
+  }, [attempt]);
+
+  if (state === 'checking') return <FullPageLoader />;
+
+  const who = email ? <span className="font-medium text-foreground">{email}</span> : 'this address';
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="max-w-md space-y-4 rounded-xl border bg-card p-8 text-center shadow-card">
+        {state === 'unconfirmed' || state === 'sent' ? (
+          <>
+            <MailCheck className="mx-auto h-10 w-10 text-primary" />
+            <h1 className="text-xl font-semibold text-foreground">Confirm your email to finish</h1>
+            <p className="text-sm text-muted-foreground">
+              We sent a link to {who}. Click it, then come back and continue. Check your spam folder if it isn't there.
+            </p>
+            {state === 'sent' && <p className="text-sm text-primary">Sent again.</p>}
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => attempt()}>I've confirmed, continue</Button>
+              <Button variant="ghost" onClick={() => attempt(true)}>Send the email again</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Building2 className="mx-auto h-10 w-10 text-muted-foreground" />
+            <h1 className="text-xl font-semibold text-foreground">Your account isn't linked to a company</h1>
+            <p className="text-sm text-muted-foreground">
+              {typeof state === 'object'
+                ? state.error
+                : <>{email ? <>{who} is signed in, but </> : 'This account '}has no company workspace yet. Ask your company's administrator to invite you from Settings.</>}
+            </p>
+            {typeof state === 'object' && <Button onClick={() => attempt()}>Try again</Button>}
+          </>
+        )}
+        <Button variant="outline" onClick={onLogout}>
+          <LogOut className="mr-2 h-4 w-4" /> Sign out
+        </Button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading: authLoading, logout } = useAuth();

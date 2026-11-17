@@ -17,7 +17,8 @@ import {
 import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch, increment } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { createCompanyRecords, type CompanySignup } from '@/services/signup';
-import { acceptInviteRecords } from '@/services/invites';
+import { acceptInviteRecords, getInvite } from '@/services/invites';
+import { clearPendingSignup, getPendingSignup, savePendingSignup, type PendingSignup } from '@/services/pending';
 import { isStaffRole } from '@/lib/subscription';
 import type { Invite, OnboardResult } from '@/types';
 
@@ -56,6 +57,10 @@ const onboardingError = (code: string | undefined, deniedMessage: string): strin
   }
 };
 
+const COMPANY_DENIED = 'We could not create your company. Please try again.';
+const INVITE_DENIED =
+  'This invite can no longer be used: it may have expired, or the company is full or read-only. Ask your admin for a new one.';
+
 interface AuthContextType {
   user: AppUser | null;
   allUsers: (AppUser & { password?: string })[];
@@ -78,6 +83,12 @@ interface AuthContextType {
   signUpCompany: (input: CompanySignup & { password: string }, resend?: boolean) => Promise<OnboardResult>;
   /** Creates the login for an invite and, once its email is confirmed, joins its company. */
   joinWithInvite: (invite: Invite, name: string, password: string, resend?: boolean) => Promise<OnboardResult>;
+  /**
+   * For a signed-in login with no company: finishes a sign-up or invite whose
+   * email has since been confirmed. 'none' = nothing pending, 'unconfirmed' =
+   * still waiting for the email link (`sendAgain` re-sends it).
+   */
+  finishPendingSignup: (sendAgain?: boolean) => Promise<true | 'none' | 'unconfirmed' | string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,16 +172,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [applySession]);
 
   // Creates (or, after an earlier half-finished attempt, re-uses) the login.
-  // Until its email is confirmed nothing else is written: a confirmation email
-  // goes out (for a new login, or when asked to resend) and the person is signed
-  // out again; repeating the same form after clicking the link finishes the job.
-  // Then writes the records and loads the session.
+  // Until its email is confirmed only `pending` is saved (what they typed, so
+  // signing in after clicking the link finishes the job; see
+  // finishPendingSignup): a confirmation email goes out (for a new login, or
+  // when asked to resend) and the person is signed out again. Once confirmed,
+  // writes the records and loads the session.
   const onboard = useCallback(async (
     email: string,
     password: string,
     displayName: string,
     writeRecords: (uid: string) => Promise<unknown>,
     deniedMessage: string,
+    pending: PendingSignup,
     resend = false,
   ): Promise<OnboardResult> => {
     onboardingRef.current = true;
@@ -191,12 +204,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       await updateFirebaseProfile(credential.user, { displayName }).catch(() => undefined);
       if (!credential.user.emailVerified) {
-        // The link brings them back to this page to continue.
-        if (created || resend) await sendEmailVerification(credential.user, { url: window.location.href });
+        await savePendingSignup(credential.user.uid, pending);
+        // The link leads to the home page, where signing in finishes the job.
+        if (created || resend) {
+          await sendEmailVerification(credential.user, { url: `${window.location.origin}/?confirmed=1` });
+        }
         await signOut(auth);
         return { confirmEmail: email };
       }
       await writeRecords(credential.user.uid);
+      await clearPendingSignup(credential.user.uid).catch(() => undefined);
       await applySession(credential.user);
       return true;
     } catch (error) {
@@ -211,14 +228,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpCompany = useCallback((input: CompanySignup & { password: string }, resend = false) =>
     onboard(input.email.trim().toLowerCase(), input.password, input.name.trim(),
       uid => createCompanyRecords(uid, input),
-      'We could not create your company. Please try again.', resend), [onboard]);
+      COMPANY_DENIED,
+      { kind: 'company', name: input.name.trim(), companyName: input.companyName.trim(), plan: input.plan, billingCycle: input.billingCycle },
+      resend), [onboard]);
 
   const joinWithInvite = useCallback((invite: Invite, name: string, password: string, resend = false) =>
     onboard(invite.email, password, name.trim(),
       uid => acceptInviteRecords(uid, invite, name),
-      'This invite can no longer be used: it may have expired, or the company is full or read-only. Ask your admin for a new one.',
+      INVITE_DENIED,
+      { kind: 'invite', name: name.trim(), inviteId: invite.id },
       resend),
     [onboard]);
+
+  // For a signed-in login with no company yet: if it signed up or accepted an
+  // invite and has since confirmed its email, finish that now. 'none' when
+  // there is nothing to finish, 'unconfirmed' when the email still needs
+  // confirming (sendAgain re-sends the link), true when done, or a message.
+  const finishPendingSignup = useCallback(async (sendAgain = false): Promise<true | 'none' | 'unconfirmed' | string> => {
+    const current = auth.currentUser;
+    if (!current) return 'none';
+    onboardingRef.current = true;
+    try {
+      const pending = await getPendingSignup(current.uid);
+      if (!pending) return 'none';
+      // Pick up a confirmation made in another tab or on another device.
+      await current.reload();
+      if (!current.emailVerified) {
+        if (sendAgain) await sendEmailVerification(current, { url: `${window.location.origin}/?confirmed=1` });
+        return 'unconfirmed';
+      }
+      await current.getIdToken(true); // the rules read email_verified from the token
+      const email = (current.email || '').toLowerCase();
+      if (pending.kind === 'company') {
+        await createCompanyRecords(current.uid, { ...pending, email });
+      } else {
+        const invite = await getInvite(pending.inviteId);
+        if (!invite) return INVITE_DENIED;
+        await acceptInviteRecords(current.uid, invite, pending.name);
+      }
+      await clearPendingSignup(current.uid).catch(() => undefined);
+      setLoading(true);
+      await applySession(current);
+      setLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Could not finish sign-up:', error);
+      return onboardingError((error as { code?: string }).code, 'We could not finish setting up your account. Please try again.');
+    } finally {
+      onboardingRef.current = false;
+    }
+  }, [applySession]);
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; errorCode?: string }> => {
     try {
@@ -375,7 +434,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updatePassword,
       isOwner,
       signUpCompany,
-      joinWithInvite
+      joinWithInvite,
+      finishPendingSignup
     }}>
       {children}
     </AuthContext.Provider>
