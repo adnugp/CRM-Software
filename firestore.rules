@@ -230,8 +230,10 @@ service cloud.firestore {
               || (request.resource.data.email == authEmail() && emailConfirmed())));
 
       // Removing a staff member frees their place: the same batch lowers the
-      // workspace's staffCount and names them in removedUid.
-      allow delete: if isAdmin() && resource.data.workspaceId == myWs() && writable(myWs())
+      // workspace's staffCount and names them in removedUid. Admins can't
+      // remove themselves, so a company always keeps an admin.
+      allow delete: if isAdmin() && uid != request.auth.uid
+        && resource.data.workspaceId == myWs() && writable(myWs())
         && (!isStaffRole(resource.data.role)
           || (getAfter(wsPath(myWs())).data.staffCount == get(wsPath(myWs())).data.staffCount - 1
             && getAfter(wsPath(myWs())).data.get('removedUid', '') == uid));

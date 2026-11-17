@@ -30,9 +30,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from '@/contexts/DataContext';
 
 // Helper Component for User Rows
+// onRemove is left out for the signed-in person's own row: nobody can remove
+// themselves (firestore.rules), so a company always keeps an admin.
 const StaffRow: React.FC<{
     user: AppUser;
-    onRemove: () => void;
+    onRemove?: () => void;
 }> = ({ user, onRemove }) => (
     <TableRow className="hover:bg-muted/20 transition-colors">
         <TableCell className="font-medium">
@@ -60,20 +62,23 @@ const StaffRow: React.FC<{
         </TableCell>
         <TableCell className="text-muted-foreground text-sm hidden md:table-cell">{user.email}</TableCell>
         <TableCell className="text-right">
-            <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:bg-destructive/10"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    console.info(`[Settings] Row Click: Revoke Access for ${user.name} (ID: ${user.id})`);
-                    onRemove();
-                }}
-            >
-                <Trash2 className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Revoke Access</span>
-                <span className="sm:hidden text-xs">Del</span>
-            </Button>
+            {onRemove ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove();
+                    }}
+                >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Revoke Access</span>
+                    <span className="sm:hidden text-xs">Del</span>
+                </Button>
+            ) : (
+                <span className="text-xs text-muted-foreground">You</span>
+            )}
         </TableCell>
     </TableRow>
 );
@@ -327,7 +332,7 @@ const Settings: React.FC = () => {
                                                             </TableHeader>
                                                             <TableBody>
                                                                 {allUsers.filter(u => u.role !== 'client').map((u) => (
-                                                                    <StaffRow key={u.id} user={u} onRemove={() => handleRemoveUser(u.id, u.name)} />
+                                                                    <StaffRow key={u.id} user={u} onRemove={u.id === user?.id ? undefined : () => handleRemoveUser(u.id, u.name)} />
                                                                 ))}
                                                             </TableBody>
                                                         </Table>
@@ -362,7 +367,7 @@ const Settings: React.FC = () => {
                                                                     </TableRow>
                                                                 ) : (
                                                                     allUsers.filter(u => u.role === 'client').map((u) => (
-                                                                        <StaffRow key={u.id} user={u} onRemove={() => handleRemoveUser(u.id, u.name)} />
+                                                                        <StaffRow key={u.id} user={u} onRemove={u.id === user?.id ? undefined : () => handleRemoveUser(u.id, u.name)} />
                                                                     ))
                                                                 )}
                                                             </TableBody>

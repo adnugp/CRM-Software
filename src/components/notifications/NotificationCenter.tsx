@@ -179,7 +179,8 @@ const NotificationCenter: React.FC = () => {
 
       const daysDiff = getDaysDifference(project.deadline);
 
-      if (["in-progress", "pending"].includes(project.status)) {
+      // Open projects: saved as "running" (the default) or "in-progress".
+      if (["running", "in-progress"].includes(project.status)) {
         if (daysDiff < 0) {
           notifs.push({
             id,

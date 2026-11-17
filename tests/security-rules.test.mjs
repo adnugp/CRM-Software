@@ -711,6 +711,12 @@ describe('removing people and changing roles', () => {
     await assertFails(db('admin').collection('workspaces').doc('wsA').update({ staffCount: 2, removedUid: 'manager' }));
   });
 
+  // Otherwise the last admin could lock everyone out of managing the company
+  // (or, during a trial, leave and sign up again for a fresh one).
+  it("an admin can't remove themselves", async () => {
+    await assertFails(removeStaff('admin', 2));
+  });
+
   it('removing a client needs no count change', async () => {
     await assertSucceeds(db('admin').collection('users').doc('clientA').delete());
   });
