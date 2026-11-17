@@ -54,6 +54,8 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { canSeeProjectCosts, canViewProject } from '@/lib/project-visibility';
 import { mergeCosts } from '@/lib/project-costs';
+import { formatMoney } from '@/lib/money';
+import { cn } from '@/lib/utils';
 import { PRODUCT_NAME } from '@/config/product';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -461,6 +463,20 @@ const ProjectManagement: React.FC = () => {
 
     const COLORS = ['#0891b2', '#8b5cf6', '#ec4899', '#f97316'];
 
+    // Everything the Executive Report says comes from the project's own budget
+    // and recorded costs (it used to show invented figures and commentary).
+    const budgetUsedPct = budget > 0 ? (totalCosts / budget) * 100 : 0;
+    const budgetLeft = budget - totalCosts;
+    const budgetStatus: 'none' | 'over' | 'watch' | 'ok' =
+        budget <= 0 ? 'none' : totalCosts > budget ? 'over' : budgetUsedPct >= 80 ? 'watch' : 'ok';
+    const budgetCommentary = {
+        none: "No budget has been set for this project yet, so its costs can't be compared with one.",
+        over: `Costs are over the budget by ${formatMoney(totalCosts - budget)} (${budgetUsedPct.toFixed(0)}% of the budget used).`,
+        watch: `Costs have used ${budgetUsedPct.toFixed(0)}% of the budget; ${formatMoney(budgetLeft)} is left.`,
+        ok: `Costs are within budget: ${budgetUsedPct.toFixed(0)}% used, ${formatMoney(budgetLeft)} left.`,
+    }[budgetStatus];
+    const REPORT_SOURCE = `Calculated from the budget and costs recorded in ${PRODUCT_NAME}.`;
+
     const generateExecutiveReportPDF = () => {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -497,9 +513,9 @@ const ProjectManagement: React.FC = () => {
 
         doc.setFontSize(11);
         doc.setTextColor(60);
-        const formatCurrency = (val: number) => `$${val.toLocaleString()}`;
+        const formatCurrency = (val: number) => formatMoney(val);
 
-        doc.text(`Gross Revenue:  ${formatCurrency(budget)}`, 14, y);
+        doc.text(`Budget:  ${formatCurrency(budget)}`, 14, y);
         y += 7;
         doc.text(`Operating Costs:  ${formatCurrency(totalCosts)}`, 14, y);
         y += 7;
@@ -507,11 +523,11 @@ const ProjectManagement: React.FC = () => {
         // jsPDF takes three numbers; a "0,150,0" string threw and no PDF was made.
         if (profit >= 0) doc.setTextColor(0, 150, 0);
         else doc.setTextColor(200, 0, 0);
-        doc.text(`Net Earnings:  ${formatCurrency(profit)}`, 14, y);
+        doc.text(`Budget minus costs:  ${formatCurrency(profit)}`, 14, y);
         y += 7;
         doc.setFontSize(11);
         doc.setTextColor(60);
-        doc.text(`Yield Margin:  ${profitMargin.toFixed(1)}%`, 14, y);
+        doc.text(`Margin:  ${profitMargin.toFixed(1)}%`, 14, y);
         y += 10;
 
         // Performance Metrics
@@ -521,9 +537,9 @@ const ProjectManagement: React.FC = () => {
         y += 10;
         doc.setFontSize(11);
         doc.setTextColor(60);
-        doc.text(`Capital Efficiency Ratio:  ${(budget / (totalCosts || 1)).toFixed(2)}`, 14, y);
+        doc.text(`Budget used:  ${budgetUsedPct.toFixed(0)}%`, 14, y);
         y += 7;
-        doc.text(`Daily Burn Rate:  $${burnRate.toFixed(0)}/day`, 14, y);
+        doc.text(`Average spend:  ${formatMoney(burnRate)}/day`, 14, y);
         y += 7;
         doc.text(`Elapsed Days:  ${elapsedDays}`, 14, y);
         y += 7;
@@ -549,19 +565,18 @@ const ProjectManagement: React.FC = () => {
         // Risk Commentary
         doc.setFontSize(14);
         doc.setTextColor(0, 122, 255);
-        doc.text('Executive Risk Commentary', 14, y);
+        doc.text('Budget Status', 14, y);
         y += 10;
         doc.setFontSize(10);
         doc.setTextColor(80);
-        const riskText = 'The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately 1.8%. We anticipate no additional funding requirements from high-level capital reserves. Recommended action: Proceed with secondary phase scaling as project remains self-fundable.';
-        const splitRisk = doc.splitTextToSize(riskText, pageWidth - 28);
+        const splitRisk = doc.splitTextToSize(budgetCommentary, pageWidth - 28);
         doc.text(splitRisk, 14, y);
         y += splitRisk.length * 5 + 10;
 
         // Footer
         doc.setFontSize(9);
         doc.setTextColor(150);
-        doc.text('System Auditor - Certified Financial Appraisal', 14, y);
+        doc.text(REPORT_SOURCE, 14, y);
         doc.text([workspace?.name, PRODUCT_NAME].filter(Boolean).join(' | '), pageWidth - 14, y, { align: 'right' });
 
         // Save
@@ -621,7 +636,7 @@ const ProjectManagement: React.FC = () => {
                         <DollarSign className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${budget.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">{formatMoney(budget)}</div>
                         <p className="text-xs text-muted-foreground mt-1">Allocated project funds</p>
                     </CardContent>
                 </Card>
@@ -634,7 +649,7 @@ const ProjectManagement: React.FC = () => {
                                 <TrendingUp className="h-4 w-4 text-warning" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">${totalCosts.toLocaleString()}</div>
+                                <div className="text-2xl font-bold">{formatMoney(totalCosts)}</div>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     {((totalCosts / budget) * 100).toFixed(1)}% of budget used
                                 </p>
@@ -647,7 +662,7 @@ const ProjectManagement: React.FC = () => {
                             </CardHeader>
                             <CardContent>
                                 <div className={`text-2xl font-bold ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                    ${profit.toLocaleString()}
+                                    {formatMoney(profit)}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     {profitMargin.toFixed(1)}% current margin
@@ -774,7 +789,7 @@ const ProjectManagement: React.FC = () => {
                                                             <p className="text-xs text-muted-foreground">{new Date(cost.date).toLocaleDateString()}</p>
                                                         </div>
                                                         <p className={`font-semibold text-sm ${isCredit ? 'text-success' : ''}`}>
-                                                            {isCredit ? '+' : '-'}${cost.amount.toLocaleString()}
+                                                            {isCredit ? '+' : '-'}{formatMoney(cost.amount)}
                                                         </p>
                                                     </div>
                                                 );
@@ -1077,11 +1092,11 @@ const ProjectManagement: React.FC = () => {
                                     <div className="grid grid-cols-2 gap-8">
                                         <div className="space-y-1">
                                             <p className="text-sm text-muted-foreground">Expected Profit</p>
-                                            <p className="text-2xl font-bold text-success">${profit.toLocaleString()}</p>
+                                            <p className="text-2xl font-bold text-success">{formatMoney(profit)}</p>
                                         </div>
                                         <div className="space-y-1">
                                             <p className="text-sm text-muted-foreground">Burn Rate</p>
-                                            <p className="text-2xl font-bold text-warning">${burnRate.toFixed(0)} /day</p>
+                                            <p className="text-2xl font-bold text-warning">{formatMoney(burnRate)} /day</p>
                                             <p className="text-[10px] text-muted-foreground">{totalProjectDays} day project duration</p>
                                         </div>
                                     </div>
@@ -1137,7 +1152,7 @@ const ProjectManagement: React.FC = () => {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className={`text-right font-semibold ${isCredit ? 'text-success' : 'text-destructive'}`}>
-                                                        {isCredit ? '+' : '-'}${cost.amount.toLocaleString()}
+                                                        {isCredit ? '+' : '-'}{formatMoney(cost.amount)}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1">
@@ -1177,10 +1192,10 @@ const ProjectManagement: React.FC = () => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold text-primary">
-                                        {profitMargin > 15 ? 'Excellent' : 'Stable'}
+                                    <div className={cn('text-2xl font-bold', budgetStatus === 'over' ? 'text-destructive' : budgetStatus === 'watch' ? 'text-warning' : 'text-primary')}>
+                                        {{ none: 'No budget', over: 'Over budget', watch: 'Watch', ok: 'On budget' }[budgetStatus]}
                                     </div>
-                                    <Progress value={profitMargin > 15 ? 95 : 75} className="h-1.5 mt-3 bg-primary/20" />
+                                    <Progress value={Math.min(100, budgetUsedPct)} className="h-1.5 mt-3 bg-primary/20" />
                                 </CardContent>
                             </Card>
 
@@ -1188,12 +1203,14 @@ const ProjectManagement: React.FC = () => {
                                 <CardHeader className="pb-2">
                                     <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <Coins className="h-3 w-3 text-success" />
-                                        Estimated ROI
+                                        Budget Used
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{(profitMargin * 1.2).toFixed(1)}%</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1 text-success font-medium">↑ 2.4% vs forecast</p>
+                                    <div className="text-2xl font-bold">{budget > 0 ? `${budgetUsedPct.toFixed(0)}%` : '—'}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                        {budget > 0 ? (budgetLeft >= 0 ? `${formatMoney(budgetLeft)} left` : `${formatMoney(-budgetLeft)} over`) : 'No budget set'}
+                                    </p>
                                 </CardContent>
                             </Card>
 
@@ -1205,8 +1222,8 @@ const ProjectManagement: React.FC = () => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">Cost-Benefit Index</p>
+                                    <div className="text-2xl font-bold">{totalCosts > 0 ? (budget / totalCosts).toFixed(2) : '—'}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">Budget ÷ costs so far</p>
                                 </CardContent>
                             </Card>
 
@@ -1218,8 +1235,8 @@ const ProjectManagement: React.FC = () => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{totalCosts > budget * 0.8 ? 'Moderate' : 'Low'}</div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">Zero anomalies</p>
+                                    <div className="text-2xl font-bold">{{ none: '—', over: 'High', watch: 'Moderate', ok: 'Low' }[budgetStatus]}</div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">From costs recorded so far</p>
                                 </CardContent>
                             </Card>
                         </div>
@@ -1239,43 +1256,34 @@ const ProjectManagement: React.FC = () => {
                                         <FileText className="h-4 w-4 mr-2" />
                                         Preview PDF
                                     </Button>
-                                    <Button size="sm" className="gradient-primary px-6 font-bold shadow-lg shadow-primary/20" onClick={() => {
-                                        toast({
-                                            title: "Report Submitted",
-                                            description: "Executive report has been submitted for review."
-                                        });
-                                    }}>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Submit Report
-                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-10 py-8 relative z-10">
                                 {/* Summary Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Gross Revenue</p>
-                                        <p className="text-3xl font-black text-foreground">${budget.toLocaleString()}</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Budget</p>
+                                        <p className="text-3xl font-black text-foreground">{formatMoney(budget)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-primary" style={{ width: '100%' }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
                                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Operating Costs</p>
-                                        <p className="text-3xl font-black text-orange-500">${totalCosts.toLocaleString()}</p>
+                                        <p className="text-3xl font-black text-orange-500">{formatMoney(totalCosts)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-orange-500" style={{ width: `${budget > 0 ? (totalCosts / budget) * 100 : 0}%` }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Net Earnings</p>
-                                        <p className="text-3xl font-black text-success">${profit.toLocaleString()}</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Budget minus costs</p>
+                                        <p className={cn('text-3xl font-black', profit >= 0 ? 'text-success' : 'text-destructive')}>{formatMoney(profit)}</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-success" style={{ width: `${Math.max(0, Math.min(100, (profit / budget) * 100))}%` }} />
                                         </div>
                                     </div>
                                     <div className="space-y-2 p-4 rounded-2xl bg-muted/30 border border-muted/20">
-                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Yield Margin</p>
+                                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Margin</p>
                                         <p className="text-3xl font-black text-primary">{profitMargin.toFixed(1)}%</p>
                                         <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, profitMargin))}%` }} />
@@ -1296,10 +1304,15 @@ const ProjectManagement: React.FC = () => {
                                                     <Coins className="h-5 w-5" />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="font-bold text-foreground">Capital Efficiency</p>
+                                                    <p className="font-bold text-foreground">Budget Use</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        With an efficiency ratio of <span className="text-foreground font-bold">{(budget / (totalCosts || 1)).toFixed(2)}</span>, the project is delivering
-                                                        maximum value per dollar spent. Resource optimization has resulted in a <span className="text-success font-bold">12% reduction</span> in projected overhead.
+                                                        {budget > 0 ? (
+                                                            <>Recorded costs of <span className="text-foreground font-bold">{formatMoney(totalCosts)}</span> are{' '}
+                                                            <span className="text-foreground font-bold">{budgetUsedPct.toFixed(0)}%</span> of the{' '}
+                                                            <span className="text-foreground font-bold">{formatMoney(budget)}</span> budget.</>
+                                                        ) : (
+                                                            <>No budget is set for this project. Add one in the project details to track costs against it.</>
+                                                        )}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1308,10 +1321,10 @@ const ProjectManagement: React.FC = () => {
                                                     <TrendingUp className="h-5 w-5" />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="font-bold text-foreground">Revenue Trajectory</p>
+                                                    <p className="font-bold text-foreground">Spending Pace</p>
                                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        The project is tracking <span className="text-primary font-bold">8% ahead of the financial roadmap</span>. Current burn rate of
-                                                        <span className="text-foreground font-bold">${burnRate.toFixed(0)}/day</span> is sustainable throughout the project lifecycle.
+                                                        Costs average <span className="text-foreground font-bold">{formatMoney(burnRate)} a day</span> over the{' '}
+                                                        {elapsedDays} day{elapsedDays === 1 ? '' : 's'} since the project started.
                                                     </p>
                                                 </div>
                                             </div>
@@ -1321,21 +1334,11 @@ const ProjectManagement: React.FC = () => {
                                     <div className="space-y-6">
                                         <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                                             <ShieldCheck className="h-4 w-4" />
-                                            Executive Risk Commentary
+                                            Budget Status
                                         </h3>
                                         <div className="p-6 rounded-2xl bg-card border border-border shadow-inner space-y-4">
-                                            <p className="text-sm text-muted-foreground leading-relaxed italic">
-                                                "The project maintains a robust financial buffer. Financial leakage (unallocated overhead) is remarkably low at approximately
-                                                <span className="text-foreground font-bold font-mono">1.8%</span>. We anticipate no additional funding requirements from high-level capital reserves.
-                                                Recommended action: Proceed with secondary phase scaling as project remains self-fundable."
-                                            </p>
-                                            <div className="pt-4 border-t flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-white">SA</div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-foreground">System Auditor</p>
-                                                    <p className="text-[10px] text-muted-foreground">Certified Financial Appraisal</p>
-                                                </div>
-                                            </div>
+                                            <p className="text-sm text-foreground leading-relaxed">{budgetCommentary}</p>
+                                            <p className="pt-4 border-t text-[11px] text-muted-foreground">{REPORT_SOURCE}</p>
                                         </div>
                                     </div>
                                 </div>

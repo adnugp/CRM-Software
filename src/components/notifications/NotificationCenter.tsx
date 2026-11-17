@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useData } from "@/contexts/DataContext";
 import { cn } from "@/lib/utils";
 import { paymentAlert } from "@/lib/payment-alerts";
+import { formatMoney } from "@/lib/money";
 
 type NotificationType = "overdue" | "expiring" | "deadline" | "billing";
 
@@ -64,7 +65,7 @@ const NotificationCenter: React.FC = () => {
           type: "overdue",
           category: "payment",
           title: "Overdue Payment",
-          message: `${payment.description} - $${payment.amount.toLocaleString()} is overdue`,
+          message: `${payment.description} - ${formatMoney(payment.amount)} is overdue`,
           timestamp: new Date(payment.dueDate),
           read: false,
           urgency: "high",
@@ -76,7 +77,7 @@ const NotificationCenter: React.FC = () => {
           type: "deadline",
           category: "payment",
           title: "Payment Due Soon",
-          message: `${payment.description} - $${payment.amount.toLocaleString()} ${days === 0 ? "due today" : `due in ${days} day${days !== 1 ? "s" : ""}`}`,
+          message: `${payment.description} - ${formatMoney(payment.amount)} ${days === 0 ? "due today" : `due in ${days} day${days !== 1 ? "s" : ""}`}`,
           timestamp: new Date(payment.dueDate),
           read: false,
           urgency: days <= 3 ? "high" : "medium",
@@ -98,7 +99,7 @@ const NotificationCenter: React.FC = () => {
           type: "billing",
           category: "subscription",
           title: "Upcoming Billing",
-          message: `${subscription.name} - $${subscription.amount.toLocaleString()} billing in ${daysDiff} day${daysDiff !== 1 ? "s" : ""}`,
+          message: `${subscription.name} - ${formatMoney(subscription.amount)} billing in ${daysDiff} day${daysDiff !== 1 ? "s" : ""}`,
           timestamp: new Date(subscription.nextBillingDate),
           read: false,
           urgency: daysDiff <= 3 ? "medium" : "low",

@@ -297,7 +297,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
                   name="budget"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Budget ($)</FormLabel>
+                      <FormLabel>Total Budget (AED)</FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="Enter total project budget" {...field} />
                       </FormControl>

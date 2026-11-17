@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/money';
 /**
  * In-browser CRM chat engine.
  *
@@ -80,8 +81,7 @@ const startOfToday = (): Date => {
   return d;
 };
 
-const money = (n: number): string =>
-  '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const money = (n: number): string => formatMoney(n, 2);
 
 const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 

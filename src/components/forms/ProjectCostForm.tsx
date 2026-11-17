@@ -123,7 +123,7 @@ const ProjectCostForm: React.FC<ProjectCostFormProps> = ({
                                 name="amount"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Amount ($)</FormLabel>
+                                        <FormLabel>Amount (AED)</FormLabel>
                                         <FormControl>
                                             <Input type="number" step="0.01" {...field} />
                                         </FormControl>
