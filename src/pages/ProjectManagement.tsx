@@ -504,7 +504,9 @@ const ProjectManagement: React.FC = () => {
         doc.text(`Operating Costs:  ${formatCurrency(totalCosts)}`, 14, y);
         y += 7;
         doc.setFontSize(12);
-        doc.setTextColor(profit >= 0 ? '0,150,0' : '200,0,0');
+        // jsPDF takes three numbers; a "0,150,0" string threw and no PDF was made.
+        if (profit >= 0) doc.setTextColor(0, 150, 0);
+        else doc.setTextColor(200, 0, 0);
         doc.text(`Net Earnings:  ${formatCurrency(profit)}`, 14, y);
         y += 7;
         doc.setFontSize(11);

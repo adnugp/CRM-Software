@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from './Sidebar';
-import { useDragScroll } from '@/hooks/use-drag-scroll';
 import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
 import ReadOnlyBanner from '@/components/subscription/ReadOnlyBanner';
 import { PRODUCT_NAME } from '@/config/product';
@@ -25,7 +24,6 @@ const noticeDismissed = () => {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { isAuthenticated } = useAuth();
-  const scrollRef = useDragScroll<HTMLElement>();
   const [showAnnouncement, setShowAnnouncement] = useState(() => !noticeDismissed());
   const dismissAnnouncement = () => {
     setShowAnnouncement(false);
@@ -44,8 +42,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-background flex overflow-hidden">
       <Sidebar />
-      <main 
-        ref={scrollRef} 
+      <main
         className="flex-1 lg:pl-64 pt-16 lg:pt-0 overflow-auto h-screen scroll-smooth"
       >
         <ReadOnlyBanner />

@@ -26,7 +26,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { BrandMark } from '@/components/brand/BrandMark';
-import { useDragScroll } from '@/hooks/use-drag-scroll';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { accessLabel } from '@/lib/subscription';
 import { FEEDBACK_HREF } from '@/config/plans';
@@ -36,7 +35,6 @@ const Sidebar: React.FC = () => {
   const { user, logout, isOwner } = useAuth();
   const { access } = useWorkspace();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const scrollRef = useDragScroll<HTMLElement>();
   // Admins see their trial / read-only state at a glance.
   const planNote = user?.role === 'admin' && access.state !== 'active' ? accessLabel(access) : null;
 
@@ -91,8 +89,7 @@ const Sidebar: React.FC = () => {
       )}
 
       {/* Navigation */}
-      <nav 
-        ref={scrollRef}
+      <nav
         className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none"
       >
         {visibleItems.map((item, i) => {
