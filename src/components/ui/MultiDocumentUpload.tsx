@@ -34,104 +34,83 @@ const MultiDocumentUpload: React.FC<MultiDocumentUploadProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleFileSelect = async (file: File) => {
-    if (file.size > 50 * 1024 * 1024) {
-      toast({
-        title: 'File too large',
-        description: 'Please select a file smaller than 50MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  // Why a file can't be uploaded, or null if it can.
+  const problemWith = (file: File): string | null => {
+    if (file.size > 50 * 1024 * 1024) return `"${file.name}" is larger than 50MB.`;
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (blockedExtensions.includes(ext)) {
-      toast({
-        title: 'File type not allowed',
-        description: 'Executable files (.exe, .bat, .sh) are not allowed.',
-        variant: 'destructive',
-      });
-      return;
+    if (blockedExtensions.includes(ext)) return `"${file.name}": executable files (.exe, .bat, .sh) are not allowed.`;
+    if (!allowedExtensions.includes(ext)) return `"${file.name}": allowed types are PDF, DOCX, XLSX, JPG, PNG, MP4.`;
+    return null;
+  };
+
+  // Uploads one file and returns its record, or null if it failed. It doesn't
+  // change the list itself: handleFiles adds all finished files at once.
+  const uploadOne = (file: File, onProgress: (bytes: number) => void): Promise<DocumentFile | null> => {
+    const storageRef = ref(storage, `workspaces/${workspaceId}/documents/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    return new Promise((resolve) => {
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => onProgress(snapshot.bytesTransferred),
+        (error) => {
+          console.error('Firebase upload error:', error);
+          resolve(null);
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve({ name: file.name, size: file.size, type: file.type, data: downloadURL });
+          } catch (urlError) {
+            console.error('Error getting download URL:', urlError);
+            resolve(null);
+          }
+        }
+      );
+    });
+  };
+
+  // Several files upload together and are added to the list in one change.
+  // (Each used to add itself to an out-of-date copy of the list, so only the
+  // last one to finish was kept.)
+  const handleFiles = async (files: File[]) => {
+    const accepted: File[] = [];
+    for (const file of files) {
+      const problem = problemWith(file);
+      if (problem) toast({ title: 'File not added', description: problem, variant: 'destructive' });
+      else accepted.push(file);
     }
-    if (!allowedExtensions.includes(ext)) {
-      toast({
-        title: 'File type not supported',
-        description: 'Allowed types: PDF, DOCX, XLSX, JPG, PNG, MP4.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!accepted.length) return;
 
     setIsUploading(true);
+    const total = accepted.reduce((sum, f) => sum + f.size, 0) || 1;
+    const sent = accepted.map(() => 0);
+    const results = await Promise.all(accepted.map((file, i) => uploadOne(file, (bytes) => {
+      sent[i] = bytes;
+      setUploadProgress(Math.round((sent.reduce((a, b) => a + b, 0) / total) * 100));
+    })));
+    setIsUploading(false);
+    setUploadProgress(0);
 
-    try {
-      const uniqueFileName = `${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, `workspaces/${workspaceId}/documents/${uniqueFileName}`);
-
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      await new Promise<void>((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(Math.round(progress));
-          },
-          (error) => {
-            console.error('Firebase upload error:', error);
-            setIsUploading(false);
-            toast({
-              title: 'Upload failed',
-              description: 'There was an error uploading your file.',
-              variant: 'destructive',
-            });
-            reject(error);
-          },
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              const newDoc: DocumentFile = {
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                data: downloadURL,
-              };
-              onChange([...documents, newDoc]);
-              toast({
-                title: 'Document uploaded',
-                description: `"${file.name}" has been attached successfully.`,
-              });
-              resolve();
-            } catch (urlError) {
-              console.error('Error getting download URL:', urlError);
-              toast({
-                title: 'Upload failed',
-                description: 'Failed to retrieve the file link.',
-                variant: 'destructive',
-              });
-              reject(urlError);
-            } finally {
-              setIsUploading(false);
-              setUploadProgress(0);
-            }
-          }
-        );
+    const uploaded = results.filter((d): d is DocumentFile => d !== null);
+    const failed = accepted.filter((_, i) => results[i] === null).map(f => f.name);
+    if (uploaded.length) {
+      onChange([...documents, ...uploaded]);
+      toast({
+        title: uploaded.length === 1 ? 'Document uploaded' : `${uploaded.length} documents uploaded`,
+        description: uploaded.map(d => d.name).join(', '),
       });
-    } catch (error) {
-      console.error('Upload initiation error:', error);
-      setIsUploading(false);
-      setUploadProgress(0);
+    }
+    if (failed.length) {
+      toast({ title: 'Upload failed', description: `Could not upload: ${failed.join(', ')}`, variant: 'destructive' });
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => handleFileSelect(file));
-    }
+    const files = e.target.files ? Array.from(e.target.files) : [];
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    if (files.length) handleFiles(files);
   };
 
   const handleDownload = (doc: DocumentFile) => {
