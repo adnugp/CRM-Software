@@ -138,6 +138,8 @@ export interface Project {
    * clients cannot read; the app moves these there (moveLegacyProjectCosts).
    */
   costs?: ProjectCost[];
+  /** Employee ids added to the team by hand (Team & HR). */
+  teamMembers?: string[];
   createdAt?: Date;
 }
 
@@ -176,6 +178,8 @@ export interface Employee {
   phone: string;
   joinDate: string;
   status: 'active' | 'inactive';
+  /** Set when this record belongs to a login (same id as the login). Name and email then follow the login. */
+  userId?: string;
   createdAt?: Date;
 }
 

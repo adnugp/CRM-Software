@@ -54,6 +54,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { canSeeProjectCosts, canViewProject } from '@/lib/project-visibility';
 import { mergeCosts } from '@/lib/project-costs';
+import { addItem, updateItem, removeItem, addId } from '@/lib/project-lists';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { PRODUCT_NAME } from '@/config/product';
@@ -86,7 +87,7 @@ import ProjectTimeline from '@/components/projects/ProjectTimeline';
 
 const ProjectManagement: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { projects, employees, updateProject, getProjectCosts, saveProjectCosts, loading } = useData();
+    const { projects, employees, loading, changeRecordList, watchProjectCosts, changeProjectCosts } = useData();
     const { user: currentUser, allUsers } = useAuth();
     const { workspace, workspaceId, divisionById } = useWorkspace();
     const [activeTab, setActiveTab] = useState('overview');
@@ -95,7 +96,6 @@ const ProjectManagement: React.FC = () => {
     const [showAssigneeCount, setShowAssigneeCount] = useState(false);
     const [editingCost, setEditingCost] = useState<ProjectCost | null>(null);
     const [memberFormOpen, setMemberFormOpen] = useState(false);
-    const [teamMembers, setTeamMembers] = useState<string[]>([]);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
@@ -112,30 +112,18 @@ const ProjectManagement: React.FC = () => {
     // and are loaded only for the people allowed to see them.
     const projectId = project?.id;
     const legacyCosts = project?.costs; // older records only, until they are moved
-    const hasLegacyCosts = legacyCosts !== undefined;
     const [loadedCosts, setLoadedCosts] = useState<{ forId: string; list: ProjectCost[] }>({ forId: '', list: [] });
     useEffect(() => {
         if (!projectId || !canSeeCosts) return;
-        let cancelled = false;
-        getProjectCosts(projectId)
-            .then(list => {
-                if (!cancelled) setLoadedCosts({ forId: projectId, list });
-            })
-            .catch(error => {
+        return watchProjectCosts(
+            projectId,
+            list => setLoadedCosts({ forId: projectId, list }),
+            error => {
                 console.error('Error loading project costs:', error);
-                if (!cancelled) {
-                    toast({
-                        title: "Couldn't load this project's costs",
-                        description: 'Refresh the page to try again.',
-                        variant: 'destructive',
-                    });
-                }
-            });
-        return () => {
-            cancelled = true;
-        };
-        // hasLegacyCosts: load again once older costs have been moved into the costs record.
-    }, [projectId, canSeeCosts, hasLegacyCosts, getProjectCosts]);
+                toast({ title: "Couldn't load this project's costs", description: 'Refresh the page to try again.', variant: 'destructive' });
+            },
+        );
+    }, [projectId, canSeeCosts, watchProjectCosts]);
     const costs = useMemo(() => {
         if (!canSeeCosts) return [];
         return mergeCosts(loadedCosts.forId === projectId ? loadedCosts.list : [], legacyCosts);
@@ -154,28 +142,6 @@ const ProjectManagement: React.FC = () => {
         () => !!project && canViewProject(currentUser, project),
         [project, currentUser],
     );
-
-    // GPT-0032: Profile sync - refresh task assignee names when profile data changes.
-    // Only staff may write projects, so clients never trigger this sync.
-    // All hooks must sit above the early returns below (Rules of Hooks).
-    useEffect(() => {
-        if (!project || isClient) return;
-        const tasksBefore = project.tasks || [];
-        const updatedTasks = tasksBefore.map(task => {
-            const assignee = employees.find(e => e.id === task.assignedTo) || allUsers.find(u => u.id === task.assignedTo);
-            if (assignee && assignee.name !== task.assignedToName) {
-                return { ...task, assignedToName: assignee.name };
-            }
-            return task;
-        });
-        const hasChanges = updatedTasks.some((t, i) => t.assignedToName !== tasksBefore[i]?.assignedToName);
-        if (hasChanges) {
-            updateProject(project.id, { tasks: updatedTasks }).catch(err =>
-                console.error('Failed to sync task assignee names:', err)
-            );
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when people data or the project changes
-    }, [employees, allUsers, project?.id, isClient]);
 
     const costByCategory = useMemo(() => {
         const categories: Record<string, number> = {};
@@ -233,25 +199,16 @@ const ProjectManagement: React.FC = () => {
             assignedToName: assignee?.name || 'Unknown'
         };
 
-        const updatedTasks = [...(project.tasks || []), newTask];
-        await updateProject(project.id, { tasks: updatedTasks });
+        await changeRecordList<ProjectTask>('projects', project.id, 'tasks', list => addItem(list, newTask));
         toast({
             title: "Task Added",
             description: `"${data.name}" has been added to the project.`
         });
     };
 
-    const saveCosts = async (next: ProjectCost[]) => {
-        await saveProjectCosts(project.id, next);
-        setLoadedCosts({ forId: project.id, list: next });
-    };
-
     const handleAddCost = async (data: CostFormData) => {
         if (editingCost) {
-            const updatedCosts = costs.map(c =>
-                c.id === editingCost.id ? { ...c, ...data } : c
-            );
-            await saveCosts(updatedCosts);
+            await changeProjectCosts(project.id, list => updateItem(list, editingCost.id, data as Partial<ProjectCost>));
             setEditingCost(null);
             toast({
                 title: "Expense Updated",
@@ -278,8 +235,7 @@ const ProjectManagement: React.FC = () => {
             });
         }
 
-        const updatedCosts = [...costs, newCost];
-        await saveCosts(updatedCosts);
+        await changeProjectCosts(project.id, list => addItem(list, newCost));
         toast({
             title: "Expense Added",
             description: `"${data.description}" has been recorded.`
@@ -292,8 +248,7 @@ const ProjectManagement: React.FC = () => {
     };
 
     const handleDeleteCost = async (costId: string) => {
-        const updatedCosts = costs.filter(c => c.id !== costId);
-        await saveCosts(updatedCosts);
+        await changeProjectCosts(project.id, list => removeItem(list, costId));
         toast({
             title: "Expense Deleted",
             variant: "destructive",
@@ -310,10 +265,7 @@ const ProjectManagement: React.FC = () => {
     };
 
     const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
-        const updatedTasks = (project.tasks || []).map(t =>
-            t.id === taskId ? { ...t, status: newStatus as ProjectTask['status'] } : t
-        );
-        await updateProject(project.id, { tasks: updatedTasks });
+        await changeRecordList<ProjectTask>('projects', project.id, 'tasks', list => updateItem(list, taskId, { status: newStatus as ProjectTask['status'] }));
         toast({
             title: "Task Updated",
             description: `Task status changed to ${newStatus}.`
@@ -321,11 +273,7 @@ const ProjectManagement: React.FC = () => {
     };
 
     const handleDeleteTask = async (taskId: string) => {
-        const updatedTasks = (project.tasks || []).map(t =>
-            t.id === taskId ? { ...t, isDeleted: true } : t // Or actual filter
-        ).filter(t => t.id !== taskId);
-
-        await updateProject(project.id, { tasks: updatedTasks });
+        await changeRecordList<ProjectTask>('projects', project.id, 'tasks', list => removeItem(list, taskId));
         toast({
             title: "Task Deleted",
             variant: "destructive"
@@ -340,6 +288,7 @@ const ProjectManagement: React.FC = () => {
     const handleTaskAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !pendingTaskId) return;
+        const taskId = pendingTaskId;
 
         const allowedExtensions = ['.pdf', '.docx', '.xlsx', '.jpg', '.jpeg', '.png', '.mp4'];
         const blockedExtensions = ['.exe', '.bat', '.sh'];
@@ -380,10 +329,7 @@ const ProjectManagement: React.FC = () => {
                             type: file.type,
                             data: downloadURL,
                         };
-                        const updatedTasks = (project?.tasks || []).map(t =>
-                            t.id === pendingTaskId ? { ...t, fileAttachment } : t
-                        );
-                        await updateProject(project.id, { tasks: updatedTasks });
+                        await changeRecordList<ProjectTask>('projects', project.id, 'tasks', list => updateItem(list, taskId, { fileAttachment }));
                         toast({ title: 'File attached', description: `"${file.name}" attached to task.` });
                         resolve();
                     }
@@ -399,10 +345,7 @@ const ProjectManagement: React.FC = () => {
     };
 
     const handleTaskAttachmentRemove = async (taskId: string) => {
-        const updatedTasks = (project?.tasks || []).map(t =>
-            t.id === taskId ? { ...t, fileAttachment: undefined } : t
-        );
-        await updateProject(project.id, { tasks: updatedTasks });
+        await changeRecordList<ProjectTask>('projects', project.id, 'tasks', list => updateItem(list, taskId, { fileAttachment: undefined }));
         toast({ title: 'File removed', description: 'Attachment has been removed from the task.' });
     };
 
@@ -422,17 +365,12 @@ const ProjectManagement: React.FC = () => {
         }
     };
 
-    const handleAddMember = (employeeId: string) => {
-        if (!teamMembers.includes(employeeId)) {
-            setTeamMembers(prev => [...prev, employeeId]);
-        }
-    };
-
-    const handleRemoveMember = (employeeId: string) => {
-        setTeamMembers(prev => prev.filter(id => id !== employeeId));
+    const handleAddMember = async (employeeId: string) => {
+        await changeRecordList<string>('projects', project.id, 'teamMembers', list => addId(list, employeeId));
     };
 
     const tasks = project.tasks || [];
+    const teamMembers = project.teamMembers ?? [];
     const budget = project.budget || 0;
     const totalCosts = costs.reduce((sum, c) => {
         const costType = c.type || 'debit';
@@ -456,9 +394,13 @@ const ProjectManagement: React.FC = () => {
             const user = allUsers.find(u => u.id === userId);
             if (user?.role === 'admin') return 'Restricted';
         }
-        // A project with nobody assigned must not blank the page (the client
-        // view shows this name and its first letter).
-        return defaultName || 'Not assigned yet';
+        // The person's current name (people can rename themselves), else the
+        // name stored on the task or project. A project with nobody assigned
+        // must not blank the page (the client view shows the first letter).
+        const current = userId
+            ? allUsers.find(u => u.id === userId)?.name || employees.find(e => e.id === userId)?.name
+            : undefined;
+        return current || defaultName || 'Not assigned yet';
     };
 
     const COLORS = ['#0891b2', '#8b5cf6', '#ec4899', '#f97316'];

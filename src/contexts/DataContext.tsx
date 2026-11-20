@@ -1,21 +1,25 @@
-import React, { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
-  getProjects, getProjectsForClient, addProject, updateProject, deleteProject,
-  getProjectCosts as fetchProjectCosts, saveProjectCosts as storeProjectCosts, moveLegacyProjectCosts,
-  getTenders, addTender, updateTender, deleteTender,
-  getEmployees, addEmployee, updateEmployee, deleteEmployee,
-  getRegistrations, addRegistration, updateRegistration, deleteRegistration,
-  getPayments, addPayment, updatePayment, deletePayment,
-  getSubscriptions, addSubscription, updateSubscription, deleteSubscription,
-  getPartners, addPartner, updatePartner, deletePartner,
-  getFiles, addFile, updateFile, deleteFile
+  listenCollection, listenProjectsForClient, listenProjectCosts,
+  changeRecordList as changeListOnRecord, changeProjectCosts as changeCostsOnProject, type Unsubscribe,
+  addProject, updateProject, deleteProject, moveLegacyProjectCosts,
+  addTender, updateTender, deleteTender,
+  addEmployee, updateEmployee, deleteEmployee,
+  addRegistration, updateRegistration, deleteRegistration,
+  addPayment, updatePayment, deletePayment,
+  addSubscription, updateSubscription, deleteSubscription,
+  addPartner, updatePartner, deletePartner,
+  addFile, updateFile, deleteFile
 } from '@/services/firestore';
+import type { ListChange } from '@/lib/project-lists';
 import { Project, ProjectCost, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { nextProjectNumber } from '@/lib/workspace';
 import { canSeeProjectCosts } from '@/lib/project-visibility';
 import { useWriteGuard } from '@/hooks/use-write-guard';
+
+type CollectionKey = 'projects' | 'tenders' | 'employees' | 'registrations' | 'payments' | 'subscriptions' | 'partners' | 'files';
 
 interface DataContextType {
   // Data
@@ -44,9 +48,14 @@ interface DataContextType {
   addProject: (project: Omit<Project, 'id'>) => Promise<string>;
   updateProject: (id: string, project: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
-  /** What a project costs us: admins and managers only (firestore.rules). */
-  getProjectCosts: (projectId: string) => Promise<ProjectCost[]>;
-  saveProjectCosts: (projectId: string, costs: ProjectCost[]) => Promise<void>;
+  /** Collections that failed to load (connection or permission problem). */
+  loadErrors: Partial<Record<CollectionKey, true>>;
+  /** Changes one list field (tasks, documents, team members) on the newest copy of a record. */
+  changeRecordList: <T>(collectionName: 'projects' | 'tenders' | 'files', id: string, field: 'tasks' | 'documents' | 'teamMembers', change: ListChange<T>) => Promise<void>;
+  /** Live costs of one project: admins and managers only (firestore.rules). */
+  watchProjectCosts: (projectId: string, onData: (costs: ProjectCost[]) => void, onError: (e: unknown) => void) => Unsubscribe;
+  /** Changes a project's costs on the newest copy. */
+  changeProjectCosts: (projectId: string, change: ListChange<ProjectCost>) => Promise<void>;
 
   addTender: (tender: Omit<Tender, 'id'>) => Promise<string>;
   updateTender: (id: string, tender: Partial<Tender>) => Promise<void>;
@@ -89,8 +98,6 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const normalizeOptionalId = (value?: string) => value && value !== 'none' ? value : '';
 const sameText = (a?: string, b?: string) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
-// A project without the costs an older version saved on it (see moveLegacyProjectCosts).
-const withoutLegacyCosts = ({ costs: _moved, ...rest }: Project): Project => rest;
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, allUsers, loading: authLoading } = useAuth();
@@ -131,79 +138,85 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     files: value,
   });
 
-  // Fetch data whenever the signed-in user changes. Firestore rules require a
-  // signed-in user, so fetching before login would just return nothing, and
-  // data from a previous session must not linger after logout.
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<CollectionKey, true>>>({});
+  const movedLegacyCosts = useRef(false);
+
+  // Live lists while signed in. Firestore rules require a signed-in user, and
+  // data from a previous session must not linger after logout. Every change
+  // (other people's, and this browser's own writes) arrives through these.
   useEffect(() => {
     if (authLoading) return;
-
     if (!userId || !workspaceId) {
-      setProjects([]);
-      setTenders([]);
-      setEmployees([]);
-      setRegistrations([]);
-      setPayments([]);
-      setSubscriptions([]);
-      setPartners([]);
-      setFiles([]);
+      setProjects([]); setTenders([]); setEmployees([]); setRegistrations([]);
+      setPayments([]); setSubscriptions([]); setPartners([]); setFiles([]);
       setLoading(allLoaded(false));
+      setLoadErrors({});
       return;
     }
 
-    let cancelled = false;
     setLoading(allLoaded(true));
+    setLoadErrors({});
+    movedLegacyCosts.current = false;
+    const isClient = userRole === 'client';
 
-    const logAndEmpty = (name: string) => (error: unknown) => {
-      console.error(`Error fetching ${name}:`, error);
-      return [];
+    const handlers = <T,>(key: CollectionKey, set: (items: T[]) => void) => ({
+      onData: (items: T[]) => {
+        set(items);
+        setLoading(prev => ({ ...prev, [key]: false }));
+        setLoadErrors(prev => {
+          if (!prev[key]) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      },
+      onError: (error: unknown) => {
+        console.error(`Error loading ${key}:`, error);
+        setLoading(prev => ({ ...prev, [key]: false }));
+        setLoadErrors(prev => ({ ...prev, [key]: true }));
+      },
+    });
+
+    const live = <T,>(key: CollectionKey, set: (items: T[]) => void): Unsubscribe => {
+      const h = handlers<T>(key, set);
+      return listenCollection<T>(workspaceId, key, h.onData, h.onError);
     };
 
-    const fetchData = async () => {
-      // Clients can only read their own projects; every other collection is staff-only.
-      const isClient = userRole === 'client';
-      const [projectsData, tendersData, employeesData, registrationsData, paymentsData, subscriptionsData, partnersData, filesData] = await Promise.all([
-        (isClient ? getProjectsForClient(workspaceId, userId, userOrganizationId) : getProjects(workspaceId)).catch(logAndEmpty('projects')),
-        isClient ? [] : getTenders(workspaceId).catch(logAndEmpty('tenders')),
-        isClient ? [] : getEmployees(workspaceId).catch(logAndEmpty('employees')),
-        isClient ? [] : getRegistrations(workspaceId).catch(logAndEmpty('registrations')),
-        isClient ? [] : getPayments(workspaceId).catch(logAndEmpty('payments')),
-        isClient ? [] : getSubscriptions(workspaceId).catch(logAndEmpty('subscriptions')),
-        isClient ? [] : getPartners(workspaceId).catch(logAndEmpty('partners')),
-        isClient ? [] : getFiles(workspaceId).catch(logAndEmpty('files')),
-      ]);
-      if (cancelled) return;
+    const stops: Unsubscribe[] = [];
+    if (isClient) {
+      const h = handlers<Project>('projects', setProjects);
+      stops.push(listenProjectsForClient(workspaceId, userId, userOrganizationId, h.onData, h.onError));
+      // Clients read nothing else.
+      setTenders([]); setEmployees([]); setRegistrations([]); setPayments([]);
+      setSubscriptions([]); setPartners([]); setFiles([]);
+      setLoading(prev => ({ ...allLoaded(false), projects: prev.projects }));
+    } else {
+      stops.push(
+        live<Project>('projects', setProjects),
+        live<Tender>('tenders', setTenders),
+        live<Employee>('employees', setEmployees),
+        live<Registration>('registrations', setRegistrations),
+        live<Payment>('payments', setPayments),
+        live<Subscription>('subscriptions', setSubscriptions),
+        live<Partner>('partners', setPartners),
+        live<FileRecord>('files', setFiles),
+      );
+    }
+    return () => stops.forEach(stop => stop());
+  }, [authLoading, userId, userRole, userOrganizationId, workspaceId]);
 
-      setProjects(projectsData as Project[]);
-      setTenders(tendersData as Tender[]);
-      setEmployees(employeesData as Employee[]);
-      setRegistrations(registrationsData as Registration[]);
-      setPayments(paymentsData as Payment[]);
-      setSubscriptions(subscriptionsData as Subscription[]);
-      setPartners(partnersData as Partner[]);
-      setFiles(filesData as FileRecord[]);
-      setLoading(allLoaded(false));
-
-      // Older versions saved costs on the project record, which clients can
-      // read. Move any that are left into the staff-only costs record. Only
-      // admins and managers may (firestore.rules), and only while the company
-      // can be changed; until then the project page still shows them.
-      if (canSeeProjectCosts(userRole) && canWrite) {
-        for (const project of projectsData as Project[]) {
-          if (project.costs === undefined) continue;
-          moveLegacyProjectCosts(workspaceId, project.id)
-            .then(() => {
-              if (!cancelled) setProjects(prev => prev.map(p => (p.id === project.id ? withoutLegacyCosts(p) : p)));
-            })
-            .catch(error => console.error(`Could not move the costs of project ${project.id}:`, error));
-        }
-      }
-    };
-
-    fetchData();
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, userId, userRole, userOrganizationId, workspaceId, canWrite]);
+  // Older versions saved costs on the project record, which clients can read.
+  // Once per session, an admin or manager moves any that are left into the
+  // staff-only costs record (only while the company can be changed).
+  useEffect(() => {
+    if (movedLegacyCosts.current || loading.projects || !canSeeProjectCosts(userRole) || !canWrite || !workspaceId) return;
+    movedLegacyCosts.current = true;
+    for (const project of projects) {
+      if (project.costs === undefined) continue;
+      moveLegacyProjectCosts(workspaceId, project.id)
+        .catch(error => console.error(`Could not move the costs of project ${project.id}:`, error));
+    }
+  }, [projects, loading.projects, userRole, canWrite, workspaceId]);
 
   const organizationIdFor = (clientId?: string) =>
     allUsers.find(u => u.id === normalizeOptionalId(clientId))?.organizationId || '';
@@ -224,41 +237,42 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const clientId = normalizeOptionalId(project.clientId);
     const projectWithIds = { ...project, projectId, clientId };
     const id = await addProject(workspaceId, projectWithIds);
-    const newProject = { createdAt: new Date(), ...projectWithIds, id };
-    setProjects(prev => [newProject, ...prev]);
     return id;
   };
 
   const handleUpdateProject = async (id: string, project: Partial<Project>) => {
     await updateProject(workspaceId, id, project);
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...project } : p));
   };
 
   const handleDeleteProject = async (id: string) => {
     await deleteProject(workspaceId, id);
-    setProjects(prev => prev.filter(p => p.id !== id));
   };
 
   // Costs are kept apart from the project record (see services/firestore.ts).
-  const loadProjectCosts = useCallback(
-    (projectId: string) => fetchProjectCosts(workspaceId, projectId),
+  const watchProjectCosts = useCallback(
+    (projectId: string, onData: (costs: ProjectCost[]) => void, onError: (e: unknown) => void) =>
+      listenProjectCosts(workspaceId, projectId, onData, onError),
     [workspaceId],
   );
 
-  const handleSaveProjectCosts = async (projectId: string, costs: ProjectCost[]) => {
+  const handleChangeProjectCosts = async (projectId: string, change: ListChange<ProjectCost>) => {
     // A record still carrying old-style costs: fold them in first, so the
-    // list being saved replaces them instead of sitting beside them.
+    // change applies to the full list.
     if (projects.find(p => p.id === projectId)?.costs !== undefined) {
       await moveLegacyProjectCosts(workspaceId, projectId);
-      setProjects(prev => prev.map(p => (p.id === projectId ? withoutLegacyCosts(p) : p)));
     }
-    await storeProjectCosts(workspaceId, projectId, costs);
+    await changeCostsOnProject(workspaceId, projectId, change);
   };
+
+  // Tasks, documents and team members change one item at a time on the newest
+  // copy of the record, so two people editing at once both keep their work.
+  const handleChangeRecordList = <T,>(
+    collectionName: 'projects' | 'tenders' | 'files', id: string,
+    field: 'tasks' | 'documents' | 'teamMembers', change: ListChange<T>,
+  ) => changeListOnRecord<T>(workspaceId, collectionName, id, field, change);
 
   const handleAddTender = async (tender: Omit<Tender, 'id'>) => {
     const id = await addTender(workspaceId, tender);
-    const newTender = { createdAt: new Date(), ...tender, id };
-    setTenders(prev => [newTender, ...prev]);
 
     // Auto-create Project if Tender is Awarded on creation
     if (tender.status === 'awarded') {
@@ -301,14 +315,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const existingTender = tenders.find(t => t.id === id);
     if (!existingTender) {
       await updateTender(workspaceId, id, tender);
-      setTenders(prev => prev.map(t => t.id === id ? { ...t, ...tender } : t));
       return;
     }
 
     const updatedTenderData = { ...existingTender, ...tender };
 
     await updateTender(workspaceId, id, tender);
-    setTenders(prev => prev.map(t => t.id === id ? updatedTenderData : t));
 
     // Auto-create Project if Tender is Awarded
     if (tender.status === 'awarded') {
@@ -347,7 +359,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleDeleteTender = async (id: string) => {
     await deleteTender(workspaceId, id);
-    setTenders(prev => prev.filter(t => t.id !== id));
   };
 
   // GPT-0071: The employees collection in Firestore is the single source of truth.
@@ -355,104 +366,80 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // must be managed through the Employees page. Avoid syncing from external auth providers.
   const handleAddEmployee = async (employee: Omit<Employee, 'id'>) => {
     const id = await addEmployee(workspaceId, employee);
-    const newEmployee = { createdAt: new Date(), ...employee, id };
-    setEmployees(prev => [newEmployee, ...prev]);
     return id;
   };
 
   const handleUpdateEmployee = async (id: string, employee: Partial<Employee>) => {
     await updateEmployee(workspaceId, id, employee);
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...employee } : e));
   };
 
   const handleDeleteEmployee = async (id: string) => {
     await deleteEmployee(workspaceId, id);
-    setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
   const handleAddRegistration = async (registration: Omit<Registration, 'id'>) => {
     const id = await addRegistration(workspaceId, registration);
-    const newRegistration = { createdAt: new Date(), ...registration, id };
-    setRegistrations(prev => [newRegistration, ...prev]);
     return id;
   };
 
   const handleUpdateRegistration = async (id: string, registration: Partial<Registration>) => {
     await updateRegistration(workspaceId, id, registration);
-    setRegistrations(prev => prev.map(r => r.id === id ? { ...r, ...registration } : r));
   };
 
   const handleDeleteRegistration = async (id: string) => {
     await deleteRegistration(workspaceId, id);
-    setRegistrations(prev => prev.filter(r => r.id !== id));
   };
 
   const handleAddPayment = async (payment: Omit<Payment, 'id'>) => {
     const id = await addPayment(workspaceId, payment);
-    const newPayment = { createdAt: new Date(), ...payment, id };
-    setPayments(prev => [newPayment, ...prev]);
     return id;
   };
 
   const handleUpdatePayment = async (id: string, payment: Partial<Payment>) => {
     await updatePayment(workspaceId, id, payment);
-    setPayments(prev => prev.map(p => p.id === id ? { ...p, ...payment } : p));
   };
 
   const handleDeletePayment = async (id: string) => {
     await deletePayment(workspaceId, id);
-    setPayments(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddSubscription = async (subscription: Omit<Subscription, 'id'>) => {
     const id = await addSubscription(workspaceId, subscription);
-    const newSubscription = { createdAt: new Date(), ...subscription, id };
-    setSubscriptions(prev => [newSubscription, ...prev]);
     return id;
   };
 
   const handleUpdateSubscription = async (id: string, subscription: Partial<Subscription>) => {
     await updateSubscription(workspaceId, id, subscription);
-    setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, ...subscription } : s));
   };
 
   const handleDeleteSubscription = async (id: string) => {
     await deleteSubscription(workspaceId, id);
-    setSubscriptions(prev => prev.filter(s => s.id !== id));
   };
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
     const id = await addPartner(workspaceId, partner);
-    const newPartner = { createdAt: new Date(), ...partner, id };
-    setPartners(prev => [newPartner, ...prev]);
     return id;
   };
 
   const handleUpdatePartner = async (id: string, partner: Partial<Partner>) => {
     await updatePartner(workspaceId, id, partner);
-    setPartners(prev => prev.map(p => p.id === id ? { ...p, ...partner } : p));
   };
 
   const handleDeletePartner = async (id: string) => {
     await deletePartner(workspaceId, id);
-    setPartners(prev => prev.filter(p => p.id !== id));
   };
 
   const handleAddFile = async (file: Omit<FileRecord, 'id'>) => {
     const id = await addFile(workspaceId, file);
-    const newFile = { createdAt: new Date(), ...file, id };
-    setFiles(prev => [newFile, ...prev]);
     return id;
   };
 
   const handleUpdateFile = async (id: string, file: Partial<FileRecord>) => {
     await updateFile(workspaceId, id, file);
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, ...file } : f));
   };
 
   const handleDeleteFile = async (id: string) => {
     await deleteFile(workspaceId, id);
-    setFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const stats = {
@@ -476,8 +463,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addProject: guard(handleAddProject),
       updateProject: guard(handleUpdateProject),
       deleteProject: guard(handleDeleteProject),
-      getProjectCosts: loadProjectCosts,
-      saveProjectCosts: guard(handleSaveProjectCosts),
+      loadErrors,
+      watchProjectCosts,
+      changeProjectCosts: guard(handleChangeProjectCosts),
+      changeRecordList: guard(handleChangeRecordList) as DataContextType['changeRecordList'],
       addTender: guard(handleAddTender),
       updateTender: guard(handleUpdateTender),
       deleteTender: guard(handleDeleteTender),

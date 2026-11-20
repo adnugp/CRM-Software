@@ -17,11 +17,13 @@ import {
   deleteField,
   runTransaction,
   setDoc,
-  writeBatch
+  writeBatch,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Project, ProjectCost, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord, Workspace, WorkspaceBilling, Company, Contact, Deal, Activity } from '@/types';
 import { mergeCosts } from '@/lib/project-costs';
+import type { ListChange } from '@/lib/project-lists';
 
 // Every company's records live under workspaces/{wsId}/{collection}. Callers
 // pass the signed-in user's workspace id; firestore.rules reject any other.
@@ -52,6 +54,54 @@ const getCollection = async <T>(wsId: string, collectionName: string): Promise<T
     const snapshot = await getDocs(wsCollection(wsId, collectionName));
     return snapshot.docs.map(d => fromDoc<T>(d));
   }
+};
+
+export type Unsubscribe = () => void;
+
+// Live version of getCollection: calls onData with the whole list now and on
+// every change (including this browser's own writes, at once). Ordered newest
+// first; records without createdAt are kept (sorted last) instead of dropped.
+export const listenCollection = <T>(
+  wsId: string,
+  collectionName: string,
+  onData: (items: T[]) => void,
+  onError: (e: unknown) => void,
+): Unsubscribe =>
+  onSnapshot(
+    wsCollection(wsId, collectionName),
+    snapshot => {
+      const items = snapshot.docs.map(d => fromDoc<T & { createdAt?: Date }>(d));
+      const time = (x: { createdAt?: Date }) => (x.createdAt instanceof Date ? x.createdAt.getTime() : 0);
+      items.sort((x, y) => time(y) - time(x));
+      onData(items as T[]);
+    },
+    onError,
+  );
+
+// Clients may only read projects linked to them (firestore.rules), so they
+// listen to two queries (by uid, by organization) and the results are merged.
+export const listenProjectsForClient = (
+  wsId: string,
+  uid: string,
+  organizationId: string | undefined,
+  onData: (items: Project[]) => void,
+  onError: (e: unknown) => void,
+): Unsubscribe => {
+  const queries = [query(wsCollection(wsId, 'projects'), where('clientId', '==', uid))];
+  if (organizationId) queries.push(query(wsCollection(wsId, 'projects'), where('organizationId', '==', organizationId)));
+  const results: Map<string, Project>[] = queries.map(() => new Map());
+  const emit = () => {
+    const merged = new Map<string, Project>();
+    results.forEach(r => r.forEach((p, id) => merged.set(id, p)));
+    onData([...merged.values()]);
+  };
+  const stops = queries.map((q, i) =>
+    onSnapshot(q, snapshot => {
+      results[i] = new Map(snapshot.docs.map(d => [d.id, fromDoc<Project>(d)]));
+      emit();
+    }, onError),
+  );
+  return () => stops.forEach(stop => stop());
 };
 
 // Firestore rejects undefined values anywhere in a document payload.
@@ -130,14 +180,63 @@ export const deleteProject = async (wsId: string, id: string): Promise<void> => 
   await batch.commit();
 };
 
-export const getProjectCosts = async (wsId: string, projectId: string): Promise<ProjectCost[]> => {
-  const costs = (await getDoc(costsDoc(wsId, projectId))).data()?.costs;
-  return Array.isArray(costs) ? costs : [];
+/** Live costs of one project (admins and managers only, see firestore.rules). */
+export const listenProjectCosts = (
+  wsId: string,
+  projectId: string,
+  onData: (costs: ProjectCost[]) => void,
+  onError: (e: unknown) => void,
+): Unsubscribe =>
+  onSnapshot(costsDoc(wsId, projectId), snapshot => {
+    const costs = snapshot.data()?.costs;
+    onData(Array.isArray(costs) ? costs : []);
+  }, onError);
+
+// The first document is also kept in older single-document fields that some
+// screens still read: documentFile + document (its name) on projects and
+// tenders, document (the file itself) on files.
+const firstDocumentFields = (collectionName: string, docs: unknown[]): Record<string, unknown> => {
+  const first = docs[0] as { name?: string } | undefined;
+  if (collectionName === 'files') return { document: first ?? deleteField() };
+  return { documentFile: first ?? deleteField(), document: first?.name ?? deleteField() };
 };
 
-export const saveProjectCosts = async (wsId: string, projectId: string, costs: ProjectCost[]): Promise<void> => {
-  await setDoc(costsDoc(wsId, projectId), { costs: removeUndefined(costs) });
+/**
+ * Changes one list field on a record (project tasks, documents or team
+ * members; tender and file documents) by applying `change` to the newest
+ * copy in a transaction, so two people editing at once both keep their work.
+ */
+export const changeRecordList = async <T>(
+  wsId: string,
+  collectionName: 'projects' | 'tenders' | 'files',
+  id: string,
+  field: 'tasks' | 'documents' | 'teamMembers',
+  change: ListChange<T>,
+): Promise<void> => {
+  const ref = wsDoc(wsId, collectionName, id);
+  await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists()) throw new Error(`${collectionName}/${id} no longer exists`);
+    const current = snapshot.data()[field];
+    const next = change(Array.isArray(current) ? (current as T[]) : []);
+    const update: Record<string, unknown> = { [field]: removeUndefined(next) };
+    if (field === 'documents') Object.assign(update, firstDocumentFields(collectionName, next as unknown[]));
+    tx.update(ref, update);
+  });
 };
+
+/** Same as changeRecordList, for a project's staff-only costs record. */
+export const changeProjectCosts = async (wsId: string, projectId: string, change: ListChange<ProjectCost>): Promise<void> => {
+  const ref = costsDoc(wsId, projectId);
+  await runTransaction(db, async (tx) => {
+    const current = (await tx.get(ref)).data()?.costs;
+    tx.set(ref, { costs: removeUndefined(change(Array.isArray(current) ? current : [])) });
+  });
+};
+
+/** Writes an employee record with a chosen id (a login's uid). */
+export const setEmployee = (wsId: string, id: string, data: Record<string, unknown>) =>
+  setDoc(wsDoc(wsId, 'employees', id), { ...data, createdAt: serverTimestamp() });
 
 /**
  * Older versions saved costs on the project record. This moves them into the
