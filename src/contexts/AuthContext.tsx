@@ -14,7 +14,7 @@ import {
   reauthenticateWithCredential,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch, increment, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { createCompanyRecords, type CompanySignup } from '@/services/signup';
 import { acceptInviteRecords, getInvite } from '@/services/invites';
@@ -170,6 +170,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return () => unsubscribe();
   }, [applySession]);
+
+  // Staff see their company's people live, so someone who joins (or changes
+  // their name) shows up without a reload. Clients keep reading only their
+  // own profile (firestore.rules).
+  const staffWorkspace = user && user.role !== 'client' ? user.workspaceId || '' : '';
+  useEffect(() => {
+    if (!staffWorkspace) return;
+    return onSnapshot(
+      query(collection(db, 'users'), where('workspaceId', '==', staffWorkspace)),
+      snapshot => setAllUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as AppUser[]),
+      error => console.error('Error loading people:', error),
+    );
+  }, [staffWorkspace]);
 
   // Creates (or, after an earlier half-finished attempt, re-uses) the login.
   // Until its email is confirmed only `pending` is saved (what they typed, so
