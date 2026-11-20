@@ -55,6 +55,7 @@ import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 import { canSeeProjectCosts, canViewProject } from '@/lib/project-visibility';
 import { mergeCosts } from '@/lib/project-costs';
 import { addItem, updateItem, removeItem, addId } from '@/lib/project-lists';
+import { projectTeamIds } from '@/lib/team';
 import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { PRODUCT_NAME } from '@/config/product';
@@ -370,7 +371,14 @@ const ProjectManagement: React.FC = () => {
     };
 
     const tasks = project.tasks || [];
-    const teamMembers = project.teamMembers ?? [];
+    // Lead, task assignees and members added by hand. Ids match employee
+    // records because every login's employee record shares its id.
+    const teamIds = projectTeamIds(project);
+    const teamEmployees = teamIds
+        .map(employeeId => employees.find(e => e.id === employeeId))
+        .filter((e): e is Employee => !!e);
+    // People who can still be added: active and not on the team yet.
+    const addableEmployees = employees.filter(e => e.status !== 'inactive' && !teamIds.includes(e.id));
     const budget = project.budget || 0;
     const totalCosts = costs.reduce((sum, c) => {
         const costType = c.type || 'debit';
@@ -1305,11 +1313,7 @@ const ProjectManagement: React.FC = () => {
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {[...new Set([...employees.filter(e =>
-                                    tasks.some(t => t.assignedTo === e.id) ||
-                                    project.assignedTo === e.id ||
-                                    teamMembers.includes(e.id)
-                                ), ...teamMembers.map(id => employees.find(e => e.id === id)).filter(Boolean)])]
+                                {teamEmployees
                                     .map((employee: Employee) => (
                                         <div key={employee.id} className="p-4 rounded-xl border border-muted/20 bg-muted/10 flex items-center gap-4">
                                             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
@@ -1331,11 +1335,7 @@ const ProjectManagement: React.FC = () => {
                                             </div>
                                         </div>
                                     ))}
-                                {[...new Set([...employees.filter(e =>
-                                    tasks.some(t => t.assignedTo === e.id) ||
-                                    project.assignedTo === e.id ||
-                                    teamMembers.includes(e.id)
-                                ), ...teamMembers.map(id => employees.find(e => e.id === id)).filter(Boolean)])].length === 0 && (
+                                {teamEmployees.length === 0 && (
                                         <div className="col-span-3 text-center py-8 text-muted-foreground">
                                             No team members found. Click "Add Member" to add people to this project.
                                         </div>
@@ -1373,18 +1373,22 @@ const ProjectManagement: React.FC = () => {
                     </DialogHeader>
                     <ScrollArea className="max-h-[300px] pr-4">
                         <div className="space-y-2">
-                            {employees
-                                .filter(e => !teamMembers.includes(e.id))
+                            {addableEmployees
                                 .map((employee) => (
                                     <div
                                         key={employee.id}
                                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                                        onClick={() => {
-                                            handleAddMember(employee.id);
-                                            toast({
-                                                title: "Member Added",
-                                                description: `${employee.name} added to project team.`
-                                            });
+                                        onClick={async () => {
+                                            try {
+                                                await handleAddMember(employee.id);
+                                                toast({
+                                                    title: "Member Added",
+                                                    description: `${employee.name} added to project team.`
+                                                });
+                                            } catch (error) {
+                                                console.error('Could not add team member:', error);
+                                                toast({ title: 'Not saved', description: 'Could not add them to the team. Please try again.', variant: 'destructive' });
+                                            }
                                         }}
                                     >
                                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
@@ -1399,7 +1403,7 @@ const ProjectManagement: React.FC = () => {
                                         </Button>
                                     </div>
                                 ))}
-                            {employees.filter(e => !teamMembers.includes(e.id)).length === 0 && (
+                            {addableEmployees.length === 0 && (
                                 <p className="text-center py-6 text-muted-foreground text-sm">
                                     All employees are already in the team.
                                 </p>
