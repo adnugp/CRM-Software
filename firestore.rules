@@ -98,6 +98,26 @@ service cloud.firestore {
       return request.auth.token.get('email_verified', false) == true;
     }
 
+    // A person signing up a company or accepting a staff invite writes their
+    // own employee record (same id as their login) in the same batch that
+    // creates their profile. Only the basic fields, only for themselves.
+    function ownEmployeeRecordOnJoining(ws, employeeId) {
+      let uid = request.auth.uid;
+      let profilePath = /databases/$(database)/documents/users/$(uid);
+      let d = request.resource.data;
+      return request.auth != null && employeeId == uid
+        && emailConfirmed()
+        && !exists(profilePath)
+        && existsAfter(profilePath)
+        && getAfter(profilePath).data.workspaceId == ws
+        && isStaffRole(getAfter(profilePath).data.role)
+        && d.keys().hasOnly(['userId', 'name', 'email', 'department', 'position', 'phone', 'joinDate', 'status', 'createdAt'])
+        && d.userId == uid
+        && d.email == authEmail()
+        && d.name is string && d.name.size() <= 100
+        && d.status == 'active';
+    }
+
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -390,7 +410,9 @@ service cloud.firestore {
       // ---- Employee directory ------------------------------------------
       match /employees/{employeeId} {
         allow read: if inWs(ws) && isStaff();
-        allow create, update, delete: if canWrite(ws) && role() in ['admin', 'manager'];
+        allow create: if (canWrite(ws) && role() in ['admin', 'manager'])
+          || ownEmployeeRecordOnJoining(ws, employeeId);
+        allow update, delete: if canWrite(ws) && role() in ['admin', 'manager'];
       }
 
       // ---- Other business data (staff only) ----------------------------

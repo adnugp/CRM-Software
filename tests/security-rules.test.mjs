@@ -771,3 +771,56 @@ describe('pending sign-ups', () => {
     await assertFails(pending(fs).set({ kind: 'invite', name: 'Nia', createdAt: new Date() }));
   });
 });
+
+// Every staff login is also an employee record with the same id. A founder or
+// a new staff member writes their own in the batch that creates their profile.
+describe('employee record on joining', () => {
+  const today = '2026-11-20';
+  const record = (uid, email, over = {}) => ({
+    userId: uid, name: 'New', email, department: '', position: '', phone: '', joinDate: today, status: 'active', ...over,
+  });
+  const signUpWith = (uid, email, wsId, empId, rec) => {
+    const fs = as(uid, email);
+    const batch = fs.batch();
+    const ws = fs.collection('workspaces').doc(wsId);
+    batch.set(ws, { name: 'New Co', divisions: [], status: 'trial', plan: 'starter', staffLimit: 5, staffCount: 1, trialEndsAt: inDays(60), createdBy: uid, createdAt: new Date() });
+    batch.set(ws.collection('private').doc('billing'), { contactName: 'F', contactEmail: email, billingCycle: 'monthly' });
+    batch.set(fs.collection('users').doc(uid), { name: 'F', email, role: 'admin', workspaceId: wsId });
+    batch.set(ws.collection('employees').doc(empId), rec);
+    return batch.commit();
+  };
+
+  it('a founder writes their own employee record in the sign-up batch', async () => {
+    await assertSucceeds(signUpWith('founder2', 'f2@new.dev', 'wsNew2', 'founder2', record('founder2', 'f2@new.dev')));
+  });
+
+  it('only for yourself, only with the allowed fields, only with your own email', async () => {
+    await assertFails(signUpWith('founder3', 'f3@new.dev', 'wsNew3', 'someoneElse', record('someoneElse', 'f3@new.dev')));
+    await assertFails(signUpWith('founder3', 'f3@new.dev', 'wsNew3', 'founder3', record('founder3', 'f3@new.dev', { salary: 1 })));
+    await assertFails(signUpWith('founder3', 'f3@new.dev', 'wsNew3', 'founder3', record('founder3', 'other@new.dev')));
+  });
+
+  it('a new staff invitee writes their own record when joining', async () => {
+    const fs = as('newMgr', 'new@a.dev');
+    const batch = fs.batch();
+    batch.set(fs.collection('users').doc('newMgr'), { name: 'New Manager', email: 'new@a.dev', role: 'manager', workspaceId: 'wsA', inviteId: 'inv-mgr' });
+    batch.update(fs.collection('invites').doc('inv-mgr'), { status: 'accepted', acceptedBy: 'newMgr', acceptedAt: new Date() });
+    batch.update(fs.collection('workspaces').doc('wsA'), { staffCount: 4 });
+    batch.set(fs.collection('workspaces').doc('wsA').collection('employees').doc('newMgr'), record('newMgr', 'new@a.dev', { name: 'New Manager' }));
+    await assertSucceeds(batch.commit());
+  });
+
+  it("an existing employee can't write their own employee record", async () => {
+    await assertFails(as('employee', 'employee@a.dev').collection('workspaces').doc('wsA').collection('employees').doc('employee').set(record('employee', 'employee@a.dev')));
+  });
+
+  it('admins and managers still manage employees; clients cannot', async () => {
+    await assertSucceeds(db('manager').collection('workspaces').doc('wsA').collection('employees').doc('e-hand').set({ name: 'Site worker', email: '', department: '', position: '', phone: '', joinDate: today, status: 'active' }));
+    await assertFails(db('clientA').collection('workspaces').doc('wsA').collection('employees').doc('e-x').set({ name: 'x' }));
+  });
+
+  it('staff can save team members on a project; clients cannot', async () => {
+    await assertSucceeds(db('employee').collection('workspaces').doc('wsA').collection('projects').doc('p-by-client').update({ teamMembers: ['employee'] }));
+    await assertFails(db('clientA').collection('workspaces').doc('wsA').collection('projects').doc('p-by-client').update({ teamMembers: ['clientA'] }));
+  });
+});

@@ -5,6 +5,7 @@ import {
 import { db } from './firebase';
 import { INVITE_DAYS } from '@/config/plans';
 import { addDays, isStaffRole } from '@/lib/subscription';
+import { newEmployeeRecord } from '@/lib/team';
 import type { Invite, UserRole } from '@/types';
 
 const invitesCol = collection(db, 'invites');
@@ -82,6 +83,12 @@ export async function acceptInviteRecords(uid: string, invite: Invite, name: str
   batch.update(doc(invitesCol, invite.id), { status: 'accepted', acceptedBy: uid, acceptedAt: serverTimestamp() });
   if (isStaffRole(invite.role)) {
     batch.update(doc(db, 'workspaces', invite.workspaceId), { staffCount: increment(1) });
+    // Staff are also employees (same id as the login), so Team & HR and
+    // assignee filters find them straight away.
+    batch.set(doc(db, 'workspaces', invite.workspaceId, 'employees', uid), {
+      ...newEmployeeRecord({ id: uid, name: name.trim() || invite.name, email: invite.email }, new Date().toISOString().slice(0, 10)),
+      createdAt: serverTimestamp(),
+    });
   }
   await batch.commit();
 }

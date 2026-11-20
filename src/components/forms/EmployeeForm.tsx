@@ -59,6 +59,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   onSubmit,
 }) => {
   const isEditing = !!employee;
+  // A record that belongs to a login: its name and email follow the login.
+  const linked = !!employee?.userId;
 
   const form = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
@@ -139,7 +141,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter full name" {...field} />
+                        <Input placeholder="Enter full name" readOnly={linked} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -153,8 +155,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Enter email address" {...field} />
+                        <Input type="email" placeholder="Enter email address" readOnly={linked} {...field} />
                       </FormControl>
+                      {linked && (
+                        <p className="text-xs text-muted-foreground">Linked to a login: name and email follow their profile.</p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}

@@ -86,7 +86,7 @@ const StaffRow: React.FC<{
 // Settings Page Component
 const Settings: React.FC = () => {
     const { user, allUsers, removeUser, updateProfile, updateAvatar, updatePassword } = useAuth();
-    const { employees, registrations, deleteEmployee, deleteRegistration } = useData();
+    const { employees, registrations, deleteEmployee, updateEmployee, deleteRegistration } = useData();
     const { toast } = useToast();
     const { reloadWorkspace } = useWorkspace();
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -173,6 +173,11 @@ const Settings: React.FC = () => {
                 console.info(`Result: ${success ? 'Success' : 'Failed/Restricted'}`);
 
                 if (success) {
+                    // Their employee record stays (history), marked inactive.
+                    if (employees.some(e => e.id === id)) {
+                        await updateEmployee(id, { status: 'inactive' }).catch(err =>
+                            console.error('Could not mark the employee record inactive:', err));
+                    }
                     // Staff count on the plan may have changed.
                     await reloadWorkspace();
                     toast({
@@ -408,15 +413,20 @@ const Settings: React.FC = () => {
                                                                         <TableCell className="text-sm">{emp.position}</TableCell>
                                                                         <TableCell className="text-xs text-muted-foreground">{emp.joinDate}</TableCell>
                                                                         <TableCell className="text-right">
-                                                                            <Button
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
-                                                                                onClick={() => handleDeleteEmployeeRecord(emp.id, emp.name)}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4 md:mr-2" />
-                                                                                <span className="hidden md:inline">Wipe Employee Data</span>
-                                                                            </Button>
+                                                                            {/* A current login's record is recreated from the login, so remove the person in Team first. */}
+                                                                            {allUsers.some(u => u.id === emp.id) ? (
+                                                                                <span className="text-xs text-muted-foreground">Has a login: remove them in Team first</span>
+                                                                            ) : (
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    size="sm"
+                                                                                    className="text-destructive hover:bg-destructive hover:text-white border-destructive/30"
+                                                                                    onClick={() => handleDeleteEmployeeRecord(emp.id, emp.name)}
+                                                                                >
+                                                                                    <Trash2 className="h-4 w-4 md:mr-2" />
+                                                                                    <span className="hidden md:inline">Wipe Employee Data</span>
+                                                                                </Button>
+                                                                            )}
                                                                         </TableCell>
                                                                     </TableRow>
                                                                 ))

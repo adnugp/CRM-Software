@@ -9,9 +9,10 @@ import {
   addPayment, updatePayment, deletePayment,
   addSubscription, updateSubscription, deleteSubscription,
   addPartner, updatePartner, deletePartner,
-  addFile, updateFile, deleteFile
+  addFile, updateFile, deleteFile, setEmployee
 } from '@/services/firestore';
 import type { ListChange } from '@/lib/project-lists';
+import { employeeSync, newEmployeeRecord } from '@/lib/team';
 import { Project, ProjectCost, Tender, Employee, Registration, Payment, Subscription, Partner, FileRecord } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -217,6 +218,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .catch(error => console.error(`Could not move the costs of project ${project.id}:`, error));
     }
   }, [projects, loading.projects, userRole, canWrite, workspaceId]);
+
+  // Every staff login has an employee record with the same id, and linked
+  // records follow the login's name and email. Admins' and managers' sessions
+  // fill in whatever is missing (e.g. people who joined before this existed).
+  // Runs again whenever the people or employees lists change.
+  useEffect(() => {
+    if (!workspaceId || !canWrite || !['admin', 'manager'].includes(userRole || '') || loading.employees) return;
+    const { create, update } = employeeSync(allUsers, employees);
+    const today = new Date().toISOString().slice(0, 10);
+    for (const person of create) {
+      setEmployee(workspaceId, person.id, newEmployeeRecord(person, today))
+        .catch(error => console.error(`Could not add ${person.name} to Employees:`, error));
+    }
+    for (const change of update) {
+      updateEmployee(workspaceId, change.id, { name: change.name, email: change.email })
+        .catch(error => console.error(`Could not update employee ${change.id}:`, error));
+    }
+  }, [allUsers, employees, loading.employees, workspaceId, canWrite, userRole]);
 
   const organizationIdFor = (clientId?: string) =>
     allUsers.find(u => u.id === normalizeOptionalId(clientId))?.organizationId || '';

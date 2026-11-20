@@ -16,7 +16,7 @@ import { Employee } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Employees: React.FC = () => {
-  const { user } = useAuth();
+  const { user, allUsers } = useAuth();
   const { employees: employeesList, loading, addEmployee, updateEmployee, deleteEmployee } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -229,9 +229,14 @@ const Employees: React.FC = () => {
                       <Button variant="outline" size="sm" onClick={() => handleEdit(employee)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDelete(employee)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {employee.userId && allUsers.some(u => u.id === employee.id) ? (
+                        // Linked to a login: remove the person in Settings → Team instead.
+                        <span className="px-2 text-[10px] font-medium uppercase text-muted-foreground" title="Has a login: remove them in Settings → Team">Login</span>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => handleDelete(employee)} className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

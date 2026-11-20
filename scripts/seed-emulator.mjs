@@ -58,7 +58,7 @@ async function createWorkspace({ id, name, brandColor, divisions, people, billin
     // Staff directory: employee doc IDs match their login IDs so assignees line up.
     if (p.role !== 'client') {
       await putIn(id, 'employees', res.localId, {
-        name: p.name, email: p.email, department: p.department, position: p.position, phone: p.phone,
+        userId: res.localId, name: p.name, email: p.email, department: p.department, position: p.position, phone: p.phone,
         joinDate: day(-400 - Math.floor(Math.random() * 600)), status: 'active', createdAt: ago(300),
       });
     }

@@ -2,6 +2,7 @@ import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore
 import { db } from './firebase';
 import { planById, TRIAL_DAYS, type BillingCycle, type PlanId } from '@/config/plans';
 import { addDays } from '@/lib/subscription';
+import { newEmployeeRecord } from '@/lib/team';
 
 /** No card details: the card is only checked in the browser (src/services/billing.ts). */
 export interface CompanySignup {
@@ -44,6 +45,11 @@ export async function createCompanyRecords(uid: string, input: CompanySignup): P
     billingCycle: input.billingCycle,
   });
   batch.set(doc(db, 'users', uid), { name, email, role: 'admin', workspaceId: workspaceRef.id });
+  // The founder is also the company's first employee (same id as the login).
+  batch.set(doc(db, 'workspaces', workspaceRef.id, 'employees', uid), {
+    ...newEmployeeRecord({ id: uid, name, email }, new Date().toISOString().slice(0, 10)),
+    createdAt: serverTimestamp(),
+  });
   await batch.commit();
   return workspaceRef.id;
 }
