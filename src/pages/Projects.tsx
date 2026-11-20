@@ -8,6 +8,7 @@ import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { addDocuments, removeDocument } from '@/lib/project-lists';
 import { DocumentFile } from '@/types';
 import ProjectForm, { type ProjectFormData } from '@/components/forms/ProjectForm';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ const statusOptions = [
 
 const Projects: React.FC = () => {
   const { user, allUsers } = useAuth();
-  const { projects, employees, addProject, updateProject, deleteProject } = useData();
+  const { projects, employees, addProject, updateProject, deleteProject, changeRecordList } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
   const { divisions, divisionById } = useWorkspace();
@@ -136,6 +137,9 @@ const Projects: React.FC = () => {
     };
 
     if (editingProject) {
+      // Form fields only (name, company, client, division, status, lead,
+      // deadline, budget): tasks, documents and team are changed one item at
+      // a time through changeRecordList, so an edit here never overwrites them.
       await updateProject(editingProject.id, projectData);
     } else {
       await addProject(projectData as Omit<Project, 'id'>);
@@ -153,15 +157,20 @@ const Projects: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentsChange = async (docs: DocumentFile[]) => {
-    if (selectedProjectForDoc) {
-      await updateProject(selectedProjectForDoc.id, {
-        documents: docs,
-        documentFile: docs.length > 0 ? docs[0] : undefined,
-        document: docs.length > 0 ? docs[0].name : undefined,
-      });
-      setSelectedProjectForDoc(prev => prev ? { ...prev, documents: docs } : null);
-    }
+  // The open record, kept live, so the dialog shows other people's changes too.
+  const docProject = selectedProjectForDoc ? (projects.find(r => r.id === selectedProjectForDoc.id) ?? selectedProjectForDoc) : null;
+  const docsOfProject = (r: NonNullable<typeof docProject>) => r.documents?.length ? r.documents : (r.documentFile ? [r.documentFile] : []);
+  // Documents are added and removed one change at a time on the newest copy
+  // (changeRecordList), so two people adding files at once both keep theirs.
+  const handleAddDocuments = async (docs: DocumentFile[]) => {
+    const r = docProject;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('projects', r.id, 'documents', current => addDocuments(current.length ? current : docsOfProject(r), docs));
+  };
+  const handleRemoveDocument = async (doc: DocumentFile) => {
+    const r = docProject;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('projects', r.id, 'documents', current => removeDocument(current.length ? current : docsOfProject(r), doc.data));
   };
 
   return (
@@ -397,8 +406,9 @@ const Projects: React.FC = () => {
           </DialogHeader>
           <div className="py-4 max-h-[400px] overflow-y-auto">
             <MultiDocumentUpload
-              documents={selectedProjectForDoc?.documents || []}
-              onChange={handleDocumentsChange}
+              documents={docProject ? docsOfProject(docProject) : []}
+              onAdd={handleAddDocuments}
+              onRemove={handleRemoveDocument}
               readOnly={isClient}
             />
           </div>

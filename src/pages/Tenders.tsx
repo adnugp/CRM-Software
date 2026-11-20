@@ -7,6 +7,7 @@ import FilterDropdown from '@/components/ui/FilterDropdown';
 import SearchInput from '@/components/ui/SearchInput';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { addDocuments, removeDocument } from '@/lib/project-lists';
 import { DocumentFile } from '@/types';
 import TenderForm, { type TenderFormData } from '@/components/forms/TenderForm';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ const statusOptions = [
 ];
 
 const Tenders: React.FC = () => {
-  const { tenders, employees, addTender, updateTender, deleteTender } = useData();
+  const { tenders, employees, addTender, updateTender, deleteTender, changeRecordList } = useData();
   const { user, allUsers } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
@@ -144,15 +145,20 @@ const Tenders: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentsChange = async (docs: DocumentFile[]) => {
-    if (selectedTenderForDoc) {
-      await updateTender(selectedTenderForDoc.id, {
-        documents: docs,
-        documentFile: docs.length > 0 ? docs[0] : undefined,
-        document: docs.length > 0 ? docs[0].name : undefined,
-      });
-      setSelectedTenderForDoc(prev => prev ? { ...prev, documents: docs } : null);
-    }
+  // The open record, kept live, so the dialog shows other people's changes too.
+  const docTender = selectedTenderForDoc ? (tenders.find(r => r.id === selectedTenderForDoc.id) ?? selectedTenderForDoc) : null;
+  const docsOfTender = (r: NonNullable<typeof docTender>) => r.documents?.length ? r.documents : (r.documentFile ? [r.documentFile] : []);
+  // Documents are added and removed one change at a time on the newest copy
+  // (changeRecordList), so two people adding files at once both keep theirs.
+  const handleAddDocuments = async (docs: DocumentFile[]) => {
+    const r = docTender;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('tenders', r.id, 'documents', current => addDocuments(current.length ? current : docsOfTender(r), docs));
+  };
+  const handleRemoveDocument = async (doc: DocumentFile) => {
+    const r = docTender;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('tenders', r.id, 'documents', current => removeDocument(current.length ? current : docsOfTender(r), doc.data));
   };
 
   return (
@@ -406,8 +412,9 @@ const Tenders: React.FC = () => {
           </DialogHeader>
           <div className="py-4 max-h-[400px] overflow-y-auto">
             <MultiDocumentUpload
-              documents={selectedTenderForDoc?.documents || []}
-              onChange={handleDocumentsChange}
+              documents={docTender ? docsOfTender(docTender) : []}
+              onAdd={handleAddDocuments}
+              onRemove={handleRemoveDocument}
             />
           </div>
         </DialogContent>

@@ -11,6 +11,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import FilterDropdown from '@/components/ui/FilterDropdown';
 import DeleteConfirmDialog from '@/components/ui/DeleteConfirmDialog';
 import MultiDocumentUpload from '@/components/ui/MultiDocumentUpload';
+import { addDocuments, removeDocument } from '@/lib/project-lists';
 import { DocumentFile, FileRecord } from '@/types';
 import { Plus, FileDown, Trash2, File, FolderOpen, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,7 +22,7 @@ import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 
 const Files: React.FC = () => {
   const { user } = useAuth();
-  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext } = useData();
+  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext, changeRecordList } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('');
@@ -130,14 +131,20 @@ const Files: React.FC = () => {
     setDocumentDialogOpen(true);
   };
 
-  const handleDocumentsChange = async (docs: DocumentFile[]) => {
-    if (selectedFileForDoc) {
-      await updateFile(selectedFileForDoc.id, {
-        documents: docs,
-        document: docs.length > 0 ? docs[0] : undefined,
-      });
-      setSelectedFileForDoc(prev => prev ? { ...prev, documents: docs } : null);
-    }
+  // The open record, kept live, so the dialog shows other people's changes too.
+  const docFile = selectedFileForDoc ? (filesList.find(r => r.id === selectedFileForDoc.id) ?? selectedFileForDoc) : null;
+  const docsOfFile = (r: NonNullable<typeof docFile>) => r.documents?.length ? r.documents : (r.document ? [r.document] : []);
+  // Documents are added and removed one change at a time on the newest copy
+  // (changeRecordList), so two people adding files at once both keep theirs.
+  const handleAddDocuments = async (docs: DocumentFile[]) => {
+    const r = docFile;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('files', r.id, 'documents', current => addDocuments(current.length ? current : docsOfFile(r), docs));
+  };
+  const handleRemoveDocument = async (doc: DocumentFile) => {
+    const r = docFile;
+    if (!r) return;
+    await changeRecordList<DocumentFile>('files', r.id, 'documents', current => removeDocument(current.length ? current : docsOfFile(r), doc.data));
   };
 
   const confirmDelete = async () => {
@@ -356,7 +363,8 @@ const Files: React.FC = () => {
               <Label>Documents</Label>
               <MultiDocumentUpload
                 documents={uploadDocuments}
-                onChange={setUploadDocuments}
+                onAdd={docs => setUploadDocuments(prev => addDocuments(prev, docs))}
+                onRemove={doc => setUploadDocuments(prev => removeDocument(prev, doc.data))}
               />
             </div>
             <div className="flex justify-end gap-2 pt-4">
@@ -385,8 +393,9 @@ const Files: React.FC = () => {
           </DialogHeader>
           <div className="py-4 max-h-[400px] overflow-y-auto">
             <MultiDocumentUpload
-              documents={selectedFileForDoc?.documents || []}
-              onChange={handleDocumentsChange}
+              documents={docFile ? docsOfFile(docFile) : []}
+              onAdd={handleAddDocuments}
+              onRemove={handleRemoveDocument}
               readOnly={!canEdit}
             />
           </div>

@@ -9,7 +9,10 @@ import { DocumentFile } from '@/types';
 
 interface MultiDocumentUploadProps {
   documents: DocumentFile[];
-  onChange: (docs: DocumentFile[]) => void;
+  /** Called with the files that finished uploading (the caller adds them to its record). */
+  onAdd: (docs: DocumentFile[]) => void | Promise<void>;
+  /** Called with the file to take off the record. */
+  onRemove: (doc: DocumentFile) => void | Promise<void>;
   readOnly?: boolean;
 }
 
@@ -26,7 +29,8 @@ const formatFileSize = (bytes: number) => {
 
 const MultiDocumentUpload: React.FC<MultiDocumentUploadProps> = ({
   documents,
-  onChange,
+  onAdd,
+  onRemove,
   readOnly = false,
 }) => {
   const { workspaceId } = useWorkspace();
@@ -94,11 +98,16 @@ const MultiDocumentUpload: React.FC<MultiDocumentUploadProps> = ({
     const uploaded = results.filter((d): d is DocumentFile => d !== null);
     const failed = accepted.filter((_, i) => results[i] === null).map(f => f.name);
     if (uploaded.length) {
-      onChange([...documents, ...uploaded]);
-      toast({
-        title: uploaded.length === 1 ? 'Document uploaded' : `${uploaded.length} documents uploaded`,
-        description: uploaded.map(d => d.name).join(', '),
-      });
+      try {
+        await onAdd(uploaded);
+        toast({
+          title: uploaded.length === 1 ? 'Document uploaded' : `${uploaded.length} documents uploaded`,
+          description: uploaded.map(d => d.name).join(', '),
+        });
+      } catch (error) {
+        console.error('Could not save the uploaded documents:', error);
+        toast({ title: 'Not saved', description: 'The files uploaded but could not be added. Please try again.', variant: 'destructive' });
+      }
     }
     if (failed.length) {
       toast({ title: 'Upload failed', description: `Could not upload: ${failed.join(', ')}`, variant: 'destructive' });
@@ -117,13 +126,17 @@ const MultiDocumentUpload: React.FC<MultiDocumentUploadProps> = ({
     window.open(doc.data, '_blank');
   };
 
-  const handleRemove = (index: number) => {
-    const updated = documents.filter((_, i) => i !== index);
-    onChange(updated);
-    toast({
-      title: 'Document removed',
-      description: 'The document has been removed from the list.',
-    });
+  // Reports a change instead of a whole new list, so the caller can apply it
+  // to the newest copy of its record (changeRecordList) without overwriting
+  // anyone else's documents.
+  const handleRemove = async (doc: DocumentFile) => {
+    try {
+      await onRemove(doc);
+      toast({ title: 'Document removed', description: `"${doc.name}" has been removed.` });
+    } catch (error) {
+      console.error('Could not remove document:', error);
+      toast({ title: 'Not removed', description: 'Please try again.', variant: 'destructive' });
+    }
   };
 
   return (
@@ -166,7 +179,7 @@ const MultiDocumentUpload: React.FC<MultiDocumentUploadProps> = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemove(index)}
+                    onClick={() => handleRemove(doc)}
                     className="text-destructive hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
