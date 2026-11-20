@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { DivisionBadge } from '@/components/divisions/DivisionBadge';
 
 const Files: React.FC = () => {
   const { user } = useAuth();
-  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext, changeRecordList } = useData();
+  const { files: filesList, loading, addFile, updateFile, deleteFile: deleteFileFromContext, changeRecordList, loadErrors } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [divisionFilter, setDivisionFilter] = useState('');
@@ -234,7 +235,7 @@ const Files: React.FC = () => {
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-12">
                   <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No files found</p>
+                  <p className="text-muted-foreground">{loadErrors.files ? <LoadError what="files" /> : 'No files found'}</p>
                   {canEdit && (
                     <Button
                       variant="outline"

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { CreditCard, Calendar, Building, DollarSign, RefreshCw, AlertCircle, CheckCircle, Plus, Pencil, XCircle, BadgeCheck } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -60,7 +61,8 @@ const Payments: React.FC = () => {
     updatePayment,
     addSubscription,
     updateSubscription,
-    loading
+    loading,
+    loadErrors
   } = useData();
   const { user } = useAuth();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -212,6 +214,15 @@ const Payments: React.FC = () => {
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{operationError}</AlertDescription>
+        </Alert>
+      )}
+
+      {(loadErrors.payments || loadErrors.subscriptions) && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Couldn't load {loadErrors.payments && loadErrors.subscriptions ? 'payments and subscriptions' : loadErrors.payments ? 'payments' : 'subscriptions'}. Check your connection and refresh the page.
+          </AlertDescription>
         </Alert>
       )}
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { Phone, Calendar, Briefcase, UserCheck, Pencil, Trash2, Eye, Mail, Building } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
@@ -17,7 +18,7 @@ import { toast } from '@/hooks/use-toast';
 
 const Employees: React.FC = () => {
   const { user, allUsers } = useAuth();
-  const { employees: employeesList, loading, addEmployee, updateEmployee, deleteEmployee } = useData();
+  const { employees: employeesList, loading, addEmployee, updateEmployee, deleteEmployee, loadErrors } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -247,7 +248,7 @@ const Employees: React.FC = () => {
 
         {filteredEmployees.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No employees found matching your search.
+            {loadErrors.employees ? <LoadError what="employees" /> : 'No employees found matching your search.'}
           </div>
         )}
       </div>

@@ -61,19 +61,22 @@ export type Unsubscribe = () => void;
 // Live version of getCollection: calls onData with the whole list now and on
 // every change (including this browser's own writes, at once). Ordered newest
 // first; records without createdAt are kept (sorted last) instead of dropped.
+// `offline` is true when the server couldn't be reached and the list came
+// from the local cache (Firestore reports no error when offline).
 export const listenCollection = <T>(
   wsId: string,
   collectionName: string,
-  onData: (items: T[]) => void,
+  onData: (items: T[], offline: boolean) => void,
   onError: (e: unknown) => void,
 ): Unsubscribe =>
   onSnapshot(
     wsCollection(wsId, collectionName),
+    { includeMetadataChanges: true },
     snapshot => {
       const items = snapshot.docs.map(d => fromDoc<T & { createdAt?: Date }>(d));
       const time = (x: { createdAt?: Date }) => (x.createdAt instanceof Date ? x.createdAt.getTime() : 0);
       items.sort((x, y) => time(y) - time(x));
-      onData(items as T[]);
+      onData(items as T[], snapshot.metadata.fromCache);
     },
     onError,
   );
@@ -84,20 +87,22 @@ export const listenProjectsForClient = (
   wsId: string,
   uid: string,
   organizationId: string | undefined,
-  onData: (items: Project[]) => void,
+  onData: (items: Project[], offline: boolean) => void,
   onError: (e: unknown) => void,
 ): Unsubscribe => {
   const queries = [query(wsCollection(wsId, 'projects'), where('clientId', '==', uid))];
   if (organizationId) queries.push(query(wsCollection(wsId, 'projects'), where('organizationId', '==', organizationId)));
   const results: Map<string, Project>[] = queries.map(() => new Map());
+  const fromCache = queries.map(() => true);
   const emit = () => {
     const merged = new Map<string, Project>();
     results.forEach(r => r.forEach((p, id) => merged.set(id, p)));
-    onData([...merged.values()]);
+    onData([...merged.values()], fromCache.some(Boolean));
   };
   const stops = queries.map((q, i) =>
-    onSnapshot(q, snapshot => {
+    onSnapshot(q, { includeMetadataChanges: true }, snapshot => {
       results[i] = new Map(snapshot.docs.map(d => [d.id, fromDoc<Project>(d)]));
+      fromCache[i] = snapshot.metadata.fromCache;
       emit();
     }, onError),
   );

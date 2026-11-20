@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { Calendar, User, Building, Pencil, Trash2, Upload, ChevronLeft, ChevronRight, Eye, Files } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -32,7 +33,7 @@ const statusOptions = [
 ];
 
 const Tenders: React.FC = () => {
-  const { tenders, employees, addTender, updateTender, deleteTender, changeRecordList } = useData();
+  const { tenders, employees, addTender, updateTender, deleteTender, changeRecordList, loadErrors } = useData();
   const { user, allUsers } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
@@ -326,7 +327,7 @@ const Tenders: React.FC = () => {
 
         {filteredTenders.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No tenders found matching your filters.
+            {loadErrors.tenders ? <LoadError what="tenders" /> : 'No tenders found matching your filters.'}
           </div>
         )}
 

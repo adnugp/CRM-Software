@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { Calendar, User, Building, Pencil, Trash2, Upload, Eye, Files } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
@@ -34,7 +35,7 @@ const statusOptions = [
 
 const Projects: React.FC = () => {
   const { user, allUsers } = useAuth();
-  const { projects, employees, addProject, updateProject, deleteProject, changeRecordList } = useData();
+  const { projects, employees, addProject, updateProject, deleteProject, changeRecordList, loadErrors } = useData();
   const [companyFilter, setCompanyFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
   const { divisions, divisionById } = useWorkspace();
@@ -376,7 +377,7 @@ const Projects: React.FC = () => {
 
         {filteredProjects.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No projects found matching your filters.
+            {loadErrors.projects ? <LoadError what="projects" /> : 'No projects found matching your filters.'}
           </div>
         )}
       </div>

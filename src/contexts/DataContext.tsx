@@ -161,10 +161,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const isClient = userRole === 'client';
 
     const handlers = <T,>(key: CollectionKey, set: (items: T[]) => void) => ({
-      onData: (items: T[]) => {
+      onData: (items: T[], offline: boolean) => {
         set(items);
         setLoading(prev => ({ ...prev, [key]: false }));
+        // Offline with nothing cached: say it couldn't load rather than show
+        // an empty list. Cleared as soon as the server answers.
+        const failed = offline && items.length === 0;
         setLoadErrors(prev => {
+          if (failed) return prev[key] ? prev : { ...prev, [key]: true };
           if (!prev[key]) return prev;
           const next = { ...prev };
           delete next[key];

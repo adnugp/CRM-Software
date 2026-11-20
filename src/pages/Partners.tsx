@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { Mail, Phone, Building, Calendar, Pencil, Trash2, Tags } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -13,7 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { useData } from '@/contexts/DataContext';
 
 const Partners: React.FC = () => {
-  const { partners: partnersList, addPartner, updatePartner, deletePartner } = useData();
+  const { partners: partnersList, addPartner, updatePartner, deletePartner, loadErrors } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -176,7 +177,7 @@ const Partners: React.FC = () => {
 
       {filteredPartners.length === 0 && (
         <div className="p-8 text-center text-muted-foreground rounded-xl border bg-card">
-          No partners found matching your search.
+          {loadErrors.partners ? <LoadError what="partners" /> : 'No partners found matching your search.'}
         </div>
       )}
 

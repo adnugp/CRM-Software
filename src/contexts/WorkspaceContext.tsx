@@ -92,7 +92,10 @@ const NoWorkspace: React.FC<{ email?: string; onLogout: () => void }> = ({ email
         ) : (
           <>
             <Building2 className="mx-auto h-10 w-10 text-muted-foreground" />
-            <h1 className="text-xl font-semibold text-foreground">Your account isn't linked to a company</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              {/* An error here is usually the connection, not a missing company. */}
+              {typeof state === 'object' ? "We couldn't load your account" : "Your account isn't linked to a company"}
+            </h1>
             <p className="text-sm text-muted-foreground">
               {typeof state === 'object'
                 ? state.error

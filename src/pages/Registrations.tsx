@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import LoadError from '@/components/ui/LoadError';
 import { Calendar, Building, FileCheck, Pencil, Trash2, User } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -18,7 +19,7 @@ import { toast } from '@/hooks/use-toast';
 
 const Registrations: React.FC = () => {
   const { user, allUsers } = useAuth();
-  const { registrations, employees, addRegistration, updateRegistration, deleteRegistration } = useData();
+  const { registrations, employees, addRegistration, updateRegistration, deleteRegistration, loadErrors } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [divisionFilter, setDivisionFilter] = useState('all');
@@ -285,7 +286,7 @@ const Registrations: React.FC = () => {
 
         {filteredRegistrations.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No registrations found matching your search.
+            {loadErrors.registrations ? <LoadError what="registrations" /> : 'No registrations found matching your search.'}
           </div>
         )}
       </div>
