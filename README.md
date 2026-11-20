@@ -67,6 +67,24 @@ Divisions are optional business units (e.g. "Energy", code `ENG`). Records can b
 with one, and project numbers use its code (`PRJ-ENG-001`, or `PRJ-001` without a
 division). Admins manage the name, logo, colour and divisions in **Settings → Company**.
 
+## Live data and working together
+
+- **Lists are live.** `DataContext` listens to every list (`listenCollection` in
+  `src/services/firestore.ts`), so changes by other people appear without a refresh.
+  Staff also see the company's people live. A list that can't load shows "Couldn't load …"
+  instead of an empty list.
+- **Lists inside a record change one item at a time.** Project tasks, documents and team
+  members, tender and file documents, and project costs are changed through
+  `changeRecordList` / `changeProjectCosts`: a transaction reads the newest copy and applies
+  a small change from `src/lib/project-lists.ts` (add, update or remove one item). Two
+  people editing the same project at once both keep their work. Don't save a whole list
+  from screen state.
+- **Every staff login is an employee.** Its employee record has the same id as the login
+  (`userId` set), so tasks, Team & HR and assignee filters line up. It is written when the
+  person signs up or joins, and admins' and managers' sessions fill in any that are missing
+  (`src/lib/team.ts`). Name and email follow the login; removing the person marks the
+  record inactive. People without logins can still be added by hand.
+
 ## Sign-up, plans and invites
 
 - **Sign-up.** A new company signs up at `/signup` (linked from the home page, which is also where people sign in): it picks a
