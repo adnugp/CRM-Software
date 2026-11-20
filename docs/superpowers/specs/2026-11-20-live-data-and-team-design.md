@@ -103,9 +103,9 @@ would hurt them in the first session:
   employee record gets one (same shape). Linked records whose login has a
   different name or email are updated to match (the login is the source of
   truth for name and email). This runs again whenever either list changes.
-- **Removing a person** marks their linked employee record `inactive` in the
-  same batch that removes the profile (records are never deleted
-  automatically, so history stays readable).
+- **Removing a person** marks their linked employee record `inactive` right
+  after the profile is removed (records are never deleted automatically, so
+  history stays readable).
 - **Employees page**: name and email of linked records are read-only there,
   with a note "Linked to a login: change it in their profile". Department,
   position, phone, join date and status stay editable. Linked records can't be
